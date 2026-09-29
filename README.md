@@ -133,34 +133,6 @@ POST   /readings/import     (bulk import of all pickle files)
 
 ---
 
-## Auto-push (git autosave) — [scripts/auto_push.ps1](scripts/auto_push.ps1)
-
-A watcher that works like autosave for git: **the moment you save a file, it commits and pushes** — no manual add/commit/push.
-
-```powershell
-# Start it in the background (hidden, survives closing the window)
-powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Detached
-
-# Stop it
-powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Stop
-
-# One-time pass only (commit + push if there are changes, then exit)
-powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once
-```
-
-How it behaves:
-
-- **Event-driven** — watches the filesystem, so it reacts within ~2 seconds of a save (no polling)
-- **Burst-friendly** — saves made within 1.5s of each other collapse into **one** commit, not ten
-- **Commit message**: `Auto-sync: <N added, N modified, ...>`
-- **Offline-safe** — if a push fails, the local commit is kept and pushed on the next change
-- **Never pushes secrets** — `.env` files are gitignored, so they can't be auto-committed
-- Git Bash alternative: `./scripts/auto_push.sh` (2s polling — Git Bash has no filesystem events)
-- Double-click option: [scripts/auto_push.bat](scripts/auto_push.bat)
-- Activity log: `%TEMP%\auto_push.log`
-
----
-
 ## Suggested reading order
 
 ```text
