@@ -74,15 +74,15 @@ function Invoke-AutoPush {
     git add -A 2>$null
     if ($LASTEXITCODE -ne 0) { Write-Log "ERROR: git add failed"; return }
 
-    $msg = "Auto-sync: $summary`n`nCommitted automatically by scripts/auto_push.ps1`n`n$([char]0x1F916) Generated with Codebuff`nCo-Authored-By: Codebuff <noreply@codebuff.com>"
+    $msg = "Auto-sync: $summary`n`nCommitted automatically by scripts/auto_push.ps1`n`n$([char]::ConvertFromUtf32(0x1F916)) Generated with Codebuff`nCo-Authored-By: Codebuff <noreply@codebuff.com>"
     git commit -m $msg 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Log "nothing to commit after add (or commit failed)"; return }
 
     $branch = git rev-parse --abbrev-ref HEAD
+    $pending = git rev-list "origin/$branch..HEAD" --count 2>$null
     $pushOutput = git push origin $branch 2>&1
     if ($LASTEXITCODE -eq 0) {
-        $count = git rev-list "origin/$branch..HEAD" --count 2>$null
-        Write-Log "pushed $count commit(s) to origin/$branch"
+        Write-Log "pushed $pending commit(s) to origin/$branch"
     } else {
         # Local commit is safe; push will be retried on a future pass
         Write-Log "push failed (offline?); will retry - $pushOutput"
