@@ -1,20 +1,20 @@
 # Auto-push watcher for Intern_Training
-# Watches the repo, commits changes with a generated message, and pushes.
+# INGIT-save mode: reacts the moment a file is saved and commits + pushes instantly.
 #
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1            # foreground
-#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once      # single pass
-#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Detached  # start hidden background job and exit
+#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Detached  # start hidden background watcher
+#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once      # single pass, exit
+#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Stop      # stop the background watcher
 #
-# Options:
-#   -IntervalSeconds 30   poll interval (default 30)
-#   -Once                 run one pass and exit
-#   -Detached             launch a hidden background instance (survives this window)
+# How it works:
+#   Watches the filesystem (event-driven, no polling). After a save, waits 1.5s of
+#   quiet (so a burst of saves becomes ONE commit), then commits + pushes.
+#   A 60s safety sweep catches anything the events missed.
 
 param(
-    [int]$IntervalSeconds = 30,
     [switch]$Once,
-    [switch]$Detached
+    [switch]$Detached,
+    [switch]$Stop
 )
 
 # Note: do NOT set 'Stop' globally - git writes harmless warnings to stderr
@@ -25,10 +25,9 @@ if ($Detached) {
     $scriptPath = $MyInvocation.MyCommand.Path
     Start-Process -WindowStyle Hidden -FilePath "powershell.exe" -ArgumentList @(
         "-NoProfile", "-ExecutionPolicy", "Bypass",
-        "-File", "`"$scriptPath`"",
-        "-IntervalSeconds", "$IntervalSeconds"
+        "-File", "`"$scriptPath`""
     )
-    Write-Host "[auto-push] started detached (interval ${IntervalSeconds}s). Log: $env:TEMP\auto_push.log"
+    Write-Host "[auto-push] started detached. Log: $env:TEMP\auto_push.log  Stop: auto_push.ps1 -Stop"
     exit 0
 }
 
@@ -89,13 +88,53 @@ function Invoke-AutoPush {
     }
 }
 
+if ($Stop) {
+    $pidFile = "$env:TEMP\auto_push.pid"
+    if (Test-Path $pidFile) {
+        $watcherPid = Get-Content $pidFile
+        try {
+            Stop-Process -Id $watcherPid -Force -ErrorAction Stop
+            Write-Log "stopped watcher (pid $watcherPid)"
+        } catch {
+            Write-Log "watcher pid $watcherPid was not running"
+        }
+        Remove-Item $pidFile -ErrorAction SilentlyContinue
+    } else {
+        Write-Log "no running watcher found"
+    }
+    exit 0
+}
+
 if ($Once) {
     Invoke-AutoPush
     exit 0
 }
 
-Write-Log "watching $repo (interval ${IntervalSeconds}s) - Ctrl+C to stop"
+# ---- Instant mode: event-driven, pushes the moment a file is saved ----
+"$PID" | Set-Content "$env:TEMP\auto_push.pid"
+
+$fsw = New-Object System.IO.FileSystemWatcher
+$fsw.Path = $repo
+$fsw.IncludeSubdirectories = $true
+$fsw.InternalBufferSize = 65536
+$fsw.EnableRaisingEvents = $true
+
+Write-Log "watching $repo - will commit+push right after each save (stop: auto_push.ps1 -Stop)"
+
+$DEBOUNCE_MS = 1500       # quiet period after the last save before committing
+$SAFETY_SWEEP_MS = 60000  # fallback sweep in case an event is ever missed
+
 while ($true) {
+    $result = $fsw.WaitForChanged([System.IO.WatcherChangeTypes]::All, $SAFETY_SWEEP_MS)
+    if ($result.TimedOut) {
+        Invoke-AutoPush    # safety-net sweep
+        continue
+    }
+    # A save happened. Wait until the filesystem has been quiet for DEBOUNCE_MS,
+    # so a burst of quick saves collapses into a single commit.
+    do {
+        Start-Sleep -Milliseconds $DEBOUNCE_MS
+        $quiet = $fsw.WaitForChanged([System.IO.WatcherChangeTypes]::All, $DEBOUNCE_MS)
+    } while (-not $quiet.TimedOut)
     try { Invoke-AutoPush } catch { Write-Log "ERROR: $_" }
-    Start-Sleep -Seconds $IntervalSeconds
 }

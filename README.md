@@ -133,27 +133,31 @@ POST   /readings/import     (bulk import of all pickle files)
 
 ---
 
-## Auto-push — [scripts/auto_push.ps1](scripts/auto_push.ps1)
+## Auto-push (git autosave) — [scripts/auto_push.ps1](scripts/auto_push.ps1)
 
-A watcher that commits and pushes changes automatically so work is never left unpushed.
+A watcher that works like autosave for git: **the moment you save a file, it commits and pushes** — no manual add/commit/push.
 
 ```powershell
-# One-time pass (commit + push only if there are changes)
-powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once
-
-# Watch forever, checking every 30s (default)
-powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1
-
-# Hidden background instance, survive closing this window
+# Start it in the background (hidden, survives closing the window)
 powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Detached
+
+# Stop it
+powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Stop
+
+# One-time pass only (commit + push if there are changes, then exit)
+powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once
 ```
 
-- Git Bash instead of PowerShell: `./scripts/auto_push.sh` (same options: interval or `--once`)
-- Double-click option: [scripts/auto_push.bat](scripts/auto_push.bat)
-- Commit message: `Auto-sync: <N added, N modified, ...>`; push failures (offline) retry on the next pass — local commits are never lost
-- Activity log: `%TEMP%\auto_push.log`
+How it behaves:
 
-> Note: the real `.env` files are gitignored, so the watcher will never push them.
+- **Event-driven** — watches the filesystem, so it reacts within ~2 seconds of a save (no polling)
+- **Burst-friendly** — saves made within 1.5s of each other collapse into **one** commit, not ten
+- **Commit message**: `Auto-sync: <N added, N modified, ...>`
+- **Offline-safe** — if a push fails, the local commit is kept and pushed on the next change
+- **Never pushes secrets** — `.env` files are gitignored, so they can't be auto-committed
+- Git Bash alternative: `./scripts/auto_push.sh` (2s polling — Git Bash has no filesystem events)
+- Double-click option: [scripts/auto_push.bat](scripts/auto_push.bat)
+- Activity log: `%TEMP%\auto_push.log`
 
 ---
 

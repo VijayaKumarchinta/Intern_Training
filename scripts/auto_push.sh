@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # Auto-push watcher for Intern_Training (bash / Git Bash version)
-# Watches the repo, commits changes with a generated message, and pushes.
+# NOTE: Git Bash has no inotify, so this polls quickly (every 2s by default)
+# instead of reacting instantly. For true instant push use the PowerShell
+# version: scripts/auto_push.ps1 -Detached
 #
 # Usage:
-#   ./scripts/auto_push.sh            # watch forever (30s interval)
-#   ./scripts/auto_push.sh 60         # watch with custom interval (seconds)
-#   ./scripts/auto_push.sh --once     # single pass and exit
+#   ./scripts/auto_push.sh           # watch forever, 2s interval
+#   ./scripts/auto_push.sh 5         # custom interval (seconds)
+#   ./scripts/auto_push.sh --once    # single pass and exit
 
 set -u
+
+INTERVAL="${1:-2}"
+ONCE=0
+if [[ "${1:-}" == "--once" ]]; then
+    ONCE=1
+fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || { echo "[auto-push] cannot find repo root"; exit 1; }
@@ -65,12 +73,11 @@ Co-Authored-By: Codebuff <noreply@codebuff.com>"
     fi
 }
 
-if [[ "${1:-}" == "--once" ]]; then
+if [[ "$ONCE" == "1" ]]; then
     sync_once
     exit 0
 fi
 
-INTERVAL="${1:-30}"
 log "watching $REPO (interval ${INTERVAL}s) - Ctrl+C to stop"
 while true; do
     sync_once
