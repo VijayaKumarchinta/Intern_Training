@@ -51,9 +51,10 @@ update and delete — the filenames say what each one shows)
 
 ## Honest notes
 
-- The password is hard-coded in `setup.py`. At the time I didn't know better —
-  the later [Machine Sensor API](../MQTT/Machine_Sensor_API/readme.md) does it
-  properly with a `.env` file. Left as-is to show the progression.
+- Credentials now load from a `.env` file (see [.env.example](.env.example)) — the same
+  pattern the later [Machine Sensor API](../MQTT/Machine_Sensor_API/readme.md) uses.
+  Originally the password was hard-coded in `setup.py`; it was moved to environment
+  variables before the repo was pushed to GitHub.
 - `create_db()` here folds "database already exists" into a generic except and
   just prints it. The newer API handles `DuplicateDatabase` explicitly.
 

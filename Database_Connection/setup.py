@@ -1,17 +1,52 @@
 import os
-import psycopg2
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+
+load_dotenv(BASE_DIR / ".env")
+
+REQUIRED_ENV_VARS = (
+    "DB_HOST",
+    "DB_PORT",
+    "DB_NAME",
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_SCHEMA",
+    "DB_TABLE",
+)
+
+_missing = [name for name in REQUIRED_ENV_VARS if not os.getenv(name)]
+
+if _missing:
+    raise RuntimeError(
+        "Missing required environment variables: "
+        + ", ".join(_missing)
+        + ". Copy .env.example to .env and fill in the values."
+    )
+
+
+def _get_int(name):
+    try:
+        return int(os.getenv(name, ""))
+    except ValueError:
+        raise RuntimeError(
+            f"Environment variable {name} must be an integer, got: {os.getenv(name)!r}"
+        ) from None
+
 
 class Postgremanager:
 
     def __init__(self):
-        self.host = 'localhost'
-        self.user = 'postgres'
-        self.password = os.environ.get('PGPASSWORD', '')
-        self.port = 5432
+        self.host = os.getenv("DB_HOST")
+        self.user = os.getenv("DB_USER")
+        self.password = os.getenv("DB_PASSWORD")
+        self.port = _get_int("DB_PORT")
 
-        self.db_name = 'main'
-        self.schema_name = 'main_schema'
-        self.table_name = 'main_table'
+        self.db_name = os.getenv("DB_NAME")
+        self.schema_name = os.getenv("DB_SCHEMA")
+        self.table_name = os.getenv("DB_TABLE")
 
         self.conn = None
         self.cur = None
