@@ -133,6 +133,30 @@ POST   /readings/import     (bulk import of all pickle files)
 
 ---
 
+## Auto-push — [scripts/auto_push.ps1](scripts/auto_push.ps1)
+
+A watcher that commits and pushes changes automatically so work is never left unpushed.
+
+```powershell
+# One-time pass (commit + push only if there are changes)
+powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once
+
+# Watch forever, checking every 30s (default)
+powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1
+
+# Hidden background instance, survive closing this window
+powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Detached
+```
+
+- Git Bash instead of PowerShell: `./scripts/auto_push.sh` (same options: interval or `--once`)
+- Double-click option: [scripts/auto_push.bat](scripts/auto_push.bat)
+- Commit message: `Auto-sync: <N added, N modified, ...>`; push failures (offline) retry on the next pass — local commits are never lost
+- Activity log: `%TEMP%\auto_push.log`
+
+> Note: the real `.env` files are gitignored, so the watcher will never push them.
+
+---
+
 ## Suggested reading order
 
 ```text
