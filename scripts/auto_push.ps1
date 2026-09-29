@@ -21,6 +21,7 @@ param(
 # Note: do NOT set 'Stop' globally - git writes harmless warnings to stderr
 # (e.g. CRLF notices) and Stop would turn those into terminating errors.
 $ErrorActionPreference = 'Continue'
+$env:GIT_TERMINAL_PROMPT = '0'   # never hang waiting for a credential prompt
 
 # Always operate on the repo this script lives in, regardless of cwd
 $repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -57,16 +58,37 @@ function Get-SyncSummary {
 
 function Invoke-Push {
     $branch = git rev-parse --abbrev-ref HEAD
-    $pending = git rev-list "origin/$branch..HEAD" --count 2>$null
-    if (-not $pending -or [int]$pending -eq 0) { return $true }
+    $pending = [int](git rev-list "origin/$branch..HEAD" --count 2>$null)
+    if ($pending -eq 0) { return $true }
 
-    $pushOutput = git push origin $branch 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Log "pushed $pending commit(s) to origin/$branch"
-        return $true
+    # Run push in a job with a hard timeout: a stalled connection or a hidden
+    # credential prompt would otherwise wedge the whole watcher forever.
+    $job = Start-Job -ScriptBlock {
+        param($b)
+        $env:GIT_TERMINAL_PROMPT = '0'
+        git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 push origin $b 2>&1
+        "PUSH_EXIT:$LASTEXITCODE"
+    } -ArgumentList $branch
+
+    if (Wait-Job $job -Timeout 45) {
+        $out = Receive-Job $job
+        Remove-Job $job -Force
+        $exitLine = $out | Where-Object { $_ -like 'PUSH_EXIT:*' } | Select-Object -Last 1
+        $code = 1
+        if ($exitLine) { $code = [int]($exitLine -replace 'PUSH_EXIT:', '') }
+        if ($code -eq 0) {
+            Write-Log "pushed $pending commit(s) to origin/$branch"
+            return $true
+        }
+        $rest = @($out | Where-Object { $_ -ne $exitLine }) -join ' '
+        # Local commit is safe; retried on the next loop
+        Write-Log "push failed; will retry - $rest"
+        return $false
     }
-    # Local commit is safe; retried on the next loop
-    Write-Log "push failed (offline?); will retry - $pushOutput"
+
+    Stop-Job $job
+    Remove-Job $job -Force
+    Write-Log "push timed out after 45s; will retry"
     return $false
 }
 
