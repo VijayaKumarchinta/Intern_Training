@@ -1,15 +1,16 @@
 # Auto-push watcher for Intern_Training
-# INGIT-save mode: reacts the moment a file is saved and commits + pushes instantly.
+# Git-autosave mode: reacts the moment a file is saved and commits + pushes instantly.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Detached  # start hidden background watcher
-#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once      # single pass, exit
 #   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Stop      # stop the background watcher
+#   powershell -ExecutionPolicy Bypass -File scripts\auto_push.ps1 -Once      # single pass, exit
 #
 # How it works:
 #   Watches the filesystem (event-driven, no polling). After a save, waits 1.5s of
 #   quiet (so a burst of saves becomes ONE commit), then commits + pushes.
-#   A 60s safety sweep catches anything the events missed.
+#   Self-healing: every loop it also retries unpushed commits (offline recovery),
+#   and a 60s safety sweep catches anything the events missed.
 
 param(
     [switch]$Once,
@@ -20,16 +21,6 @@ param(
 # Note: do NOT set 'Stop' globally - git writes harmless warnings to stderr
 # (e.g. CRLF notices) and Stop would turn those into terminating errors.
 $ErrorActionPreference = 'Continue'
-
-if ($Detached) {
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process -WindowStyle Hidden -FilePath "powershell.exe" -ArgumentList @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass",
-        "-File", "`"$scriptPath`""
-    )
-    Write-Host "[auto-push] started detached. Log: $env:TEMP\auto_push.log  Stop: auto_push.ps1 -Stop"
-    exit 0
-}
 
 # Always operate on the repo this script lives in, regardless of cwd
 $repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -64,28 +55,34 @@ function Get-SyncSummary {
     return ($parts -join ', ')
 }
 
-function Invoke-AutoPush {
-    $summary = Get-SyncSummary
-    if (-not $summary) { return }   # nothing to do
-
-    Write-Log "changes detected ($summary) - committing"
-
-    git add -A 2>$null
-    if ($LASTEXITCODE -ne 0) { Write-Log "ERROR: git add failed"; return }
-
-    $msg = "Auto-sync: $summary`n`nCommitted automatically by scripts/auto_push.ps1`n`n$([char]::ConvertFromUtf32(0x1F916)) Generated with Codebuff`nCo-Authored-By: Codebuff <noreply@codebuff.com>"
-    git commit -m $msg 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Log "nothing to commit after add (or commit failed)"; return }
-
+function Invoke-Push {
     $branch = git rev-parse --abbrev-ref HEAD
     $pending = git rev-list "origin/$branch..HEAD" --count 2>$null
+    if (-not $pending -or [int]$pending -eq 0) { return $true }
+
     $pushOutput = git push origin $branch 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Log "pushed $pending commit(s) to origin/$branch"
-    } else {
-        # Local commit is safe; push will be retried on a future pass
-        Write-Log "push failed (offline?); will retry - $pushOutput"
+        return $true
     }
+    # Local commit is safe; retried on the next loop
+    Write-Log "push failed (offline?); will retry - $pushOutput"
+    return $false
+}
+
+function Invoke-AutoPush {
+    $summary = Get-SyncSummary
+    if ($summary) {
+        Write-Log "changes detected ($summary) - committing"
+        git add -A 2>$null
+        if ($LASTEXITCODE -ne 0) { Write-Log "ERROR: git add failed"; return }
+
+        $msg = "Auto-sync: $summary`n`nCommitted automatically by scripts/auto_push.ps1`n`n$([char]::ConvertFromUtf32(0x1F916)) Generated with Codebuff`nCo-Authored-By: Codebuff <noreply@codebuff.com>"
+        git commit -m $msg 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Log "nothing to commit after add (or commit failed)" }
+    }
+    # Always attempt push - this also retries unpushed commits from earlier failures
+    Invoke-Push | Out-Null
 }
 
 if ($Stop) {
@@ -110,6 +107,16 @@ if ($Once) {
     exit 0
 }
 
+if ($Detached) {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process -WindowStyle Hidden -FilePath "powershell.exe" -ArgumentList @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", "`"$scriptPath`""
+    )
+    Write-Host "[auto-push] started detached. Log: $env:TEMP\auto_push.log  Stop: auto_push.ps1 -Stop"
+    exit 0
+}
+
 # ---- Instant mode: event-driven, pushes the moment a file is saved ----
 "$PID" | Set-Content "$env:TEMP\auto_push.pid"
 
@@ -121,20 +128,20 @@ $fsw.EnableRaisingEvents = $true
 
 Write-Log "watching $repo - will commit+push right after each save (stop: auto_push.ps1 -Stop)"
 
+Invoke-AutoPush          # heal anything changed before startup
+
 $DEBOUNCE_MS = 1500       # quiet period after the last save before committing
 $SAFETY_SWEEP_MS = 60000  # fallback sweep in case an event is ever missed
 
 while ($true) {
     $result = $fsw.WaitForChanged([System.IO.WatcherChangeTypes]::All, $SAFETY_SWEEP_MS)
-    if ($result.TimedOut) {
-        Invoke-AutoPush    # safety-net sweep
-        continue
+    if (-not $result.TimedOut) {
+        # A save happened. Wait until the filesystem has been quiet for DEBOUNCE_MS,
+        # so a burst of quick saves collapses into a single commit.
+        do {
+            Start-Sleep -Milliseconds $DEBOUNCE_MS
+            $quiet = $fsw.WaitForChanged([System.IO.WatcherChangeTypes]::All, $DEBOUNCE_MS)
+        } while (-not $quiet.TimedOut)
     }
-    # A save happened. Wait until the filesystem has been quiet for DEBOUNCE_MS,
-    # so a burst of quick saves collapses into a single commit.
-    do {
-        Start-Sleep -Milliseconds $DEBOUNCE_MS
-        $quiet = $fsw.WaitForChanged([System.IO.WatcherChangeTypes]::All, $DEBOUNCE_MS)
-    } while (-not $quiet.TimedOut)
     try { Invoke-AutoPush } catch { Write-Log "ERROR: $_" }
 }
