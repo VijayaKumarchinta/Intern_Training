@@ -144,3 +144,22 @@ Data conversion       →  Conversion/Excel.py
 MQTT + Mosquitto      →  MQTT/Learning.md, MQTT/Python/mqttdemo.py
 Machine Sensor API    →  MQTT/Machine_Sensor_API/readme.md (then app.py)
 ```
+
+---
+
+## Git workflow
+
+This repository is synced with a global git alias that stages, commits, and pushes in one step:
+
+```bash
+git sync              # stage everything, commit as "Sync changes", push
+git sync "my message" # same, with a custom commit message
+```
+
+On a clean tree it safely does nothing ("Nothing to commit") — no empty commits.
+
+Recreate it on another machine with:
+
+```bash
+git config --global alias.sync '!f() { git add -A && { git commit -m "${1:-Sync changes}" || echo "Nothing to commit"; } && git push -u origin HEAD; }; f'
+```
