@@ -100,6 +100,8 @@ this page is the short human version.
 - Dead code gets deleted (`count_machines()`, YAGNI); copy-pasted logic gets
   unified (one filter builder, one validator set — fix it in one place,
   everywhere fixed).
+- One command syncs everything: `git sync` (a git alias) stages, commits, and
+  pushes in a single step — with an optional custom message (`git sync "msg"`).
 
 ---
 
