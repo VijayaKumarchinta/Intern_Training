@@ -1,274 +1,369 @@
-# Code Explanation — `log_rotation/rotation.py` (function-wise)
+# Code Explanation — `log_rotation/rotation.py` (line by line)
 
-A working demo of a **hybrid log rotation policy**: the log file rolls over when
-it gets too big **or** when the time interval elapses — whichever happens first.
+What the file does in one sentence: format every log record as **one-line JSON**,
+write it to a **rotating file chain** (`app.log` → `app.log.1` → … → `app.log.10`)
+**and** to the **console**, using unix-epoch timestamps.
 
-**Functions covered:**
+The file has five parts, explained line by line below:
 
-| # | Function / Method | Class / Scope | One-line role |
-|---|---|---|---|
-| 1 | `__init__` | `TimeAndSizeRotatingHandler` | Start the time window, then initialize the size-based parent |
-| 2 | `shouldRollover` | `TimeAndSizeRotatingHandler` | Decide per-record: rotate by time **or** by size |
-| 3 | `doRollover` | `TimeAndSizeRotatingHandler` | Run the parent's rotation, then restart the time window |
-| 4 | *(module-level script)* | top level | Wire up paths, handler, formatter, logger; emit sample logs |
-
----
-
-## 0. Why this file exists (context for all functions)
-
-Python's standard library gives you two rotation handlers, but they are **either/or**:
-
-| Handler | Rotates on | Blind spot |
-|---|---|---|
-| `RotatingFileHandler` | File size | No time cap — a quiet app can keep a stale `app.log` forever |
-| `TimedRotatingFileHandler` | Time interval | One runaway burst can produce a multi-GB `app.log` |
-
-`TimeAndSizeRotatingHandler` inherits the **size** logic from
-`RotatingFileHandler` and adds the **time** logic by hand, closing the gap in each.
-
-Only three things are overridden; everything else (opening the file, shifting
-the sequence-numbered backup chain `app.log.1 → app.log.2 → …`, deleting the
-backup that falls off the end) stays the stdlib's job.
+1. [Imports](#1-imports)
+2. [Path constants](#2-path-constants)
+3. [`JsonFormatter`](#3-jsonformatter)
+4. [`configure_logging`](#4-configure_logging)
+5. [Module-level script](#5-module-level-script)
 
 ---
 
-## 1. `TimeAndSizeRotatingHandler.__init__`
+## 1. Imports
 
 ```python
-def __init__(
-    self,
-    filename,
-    max_bytes,
-    backup_count,
-    interval=1,
-    encoding="utf-8",
-):
-    self.interval = interval
-    self.next_rollover_time = time.time() + interval
-
-    super().__init__(
-        filename=filename,
-        maxBytes=max_bytes,
-        backupCount=backup_count,
-        encoding=encoding,
-    )
+import json
 ```
+Serializes the log dict to a JSON string. Chosen over manual string building
+because it also **escapes** correctly: a message containing quotes, backslashes
+or newlines comes out as valid JSON (`\n` inside the string, not a real
+line break) — which is what keeps *one record = one line* true.
 
-**Purpose:** accept both size and time config; start the time window, hand the
-rest to the parent.
+```python
+import logging
+```
+The standard-library logging framework. Everything here (Formatter, Filter,
+Logger, handlers) comes from it.
 
-**Line-by-line:**
+```python
+import pathlib
+```
+Object-oriented filesystem paths (`Path` instead of string juggling with `os.path`).
+Used below to build the log directory path relative to *this file*.
 
-| Line | Why |
-|---|---|
-| `self.interval = interval` | Seconds between forced time-based rotations. Kept as an attribute so `doRollover` can restart the window without re-deriving it. |
-| `self.next_rollover_time = time.time() + interval` | **Must run before `super().__init__`** — the parent opens the log file immediately (no `delay`), so the very first record can reach `shouldRollover` right after construction. `shouldRollover` reads `next_rollover_time`; if the attribute didn't exist yet, the first log line would crash with `AttributeError`. |
-| `super().__init__(...)` | Delegates all size-based setup (file open, sequence-numbered backups `app.log.1`, `app.log.2`, …, oldest-backup deletion) to `RotatingFileHandler` instead of reimplementing it (DRY). `backup_count` maps straight to the parent's `backupCount`. Note there is **no `when` parameter** — that belongs to the *Timed* handler, which isn't used here. |
+```python
+import sys
+```
+Gives access to `sys.stdout`, so the console handler can be pointed at standard
+output explicitly.
 
-**Parameter choices:**
-
-| Parameter | Value in demo | Why |
-|---|---|---|
-| `max_bytes` | `1024` (1 KB) | Tiny on purpose — a short demo loop actually triggers size rotation within seconds |
-| `backup_count` | `10` | Keeps the last 10 backups in the chain, then auto-deletes the oldest — passed straight to the parent's `backupCount` |
-| `interval` | `10` (seconds) | Short window so the time-based trigger is visible in a demo run that lasts at least 10 s |
-| `encoding` | `"utf-8"` | Required for correct byte-size math in `shouldRollover` (see §2) |
+```python
+from logging.handlers import RotatingFileHandler
+```
+The stdlib **size-based** rotation handler. When the log file crosses `maxBytes`
+it closes it, shifts the backup chain (`app.log.1 → app.log.2 → …`), starts a
+fresh `app.log`, and deletes the backup that falls off the end. This is the
+entire rotation machinery — imported, not written.
 
 ---
 
-## 2. `TimeAndSizeRotatingHandler.shouldRollover`
-
-```python
-def shouldRollover(self, record):
-    if time.time() >= self.next_rollover_time:
-        return 1
-
-    if self.maxBytes <= 0:
-        return 0
-
-    if self.stream is None:
-        self.stream = self._open()
-
-    self.stream.seek(0, os.SEEK_END)
-    current_size = self.stream.tell()
-
-    message = self.format(record)
-    message_size = len(
-        (message + self.terminator).encode(
-            self.encoding or "utf-8"
-        )
-    )
-
-    return current_size + message_size >= self.maxBytes
-```
-
-**Purpose:** the per-record decision point. The logging framework's contract:
-`emit()` calls this before every write; truthy return → `doRollover()` runs.
-Overriding only this is the minimal intervention.
-
-**Step-by-step (each block = one decision):**
-
-**Step 1 — Time check (manual):**
-```python
-if time.time() >= self.next_rollover_time:
-    return 1
-```
-*Why manual instead of `super().shouldRollover(record)`?* The parent here is
-the **size-based** handler — it has no time logic to delegate to. One
-wall-clock comparison against the deadline set in `__init__` (and restarted in
-`doRollover`) *is* the whole time policy. If time says "rotate", we're done —
-no size math needed.
-
-**Step 2 — Disabled guard:**
-```python
-if self.maxBytes <= 0:
-    return 0
-```
-*Why?* `<= 0` means "size limit disabled" — skip the size math entirely
-instead of misreading it as "always rotate". It reads the parent's attribute
-`maxBytes` (camelCase) directly — no duplicate `max_bytes` copy is kept.
-
-**Step 3 — Lazy stream open:**
-```python
-if self.stream is None:
-    self.stream = self._open()
-```
-*Why?* The stream can be `None` after a rollover that closed the file.
-`seek()` on `None` would crash, so open first.
-
-**Step 4 — Measure true file size:**
-```python
-self.stream.seek(0, os.SEEK_END)
-current_size = self.stream.tell()
-```
-*Why seek before measuring?* `tell()` returns the **cursor** position, not the
-file size. If anything left the cursor elsewhere, we'd compare against a wrong
-number. `SEEK_END` pins the cursor to the true byte count. Safe because the
-file is opened in append mode — writes land at the end anyway.
-
-**Step 5 — Size the incoming record in bytes:**
-```python
-message = self.format(record)
-message_size = len((message + self.terminator).encode(self.encoding or "utf-8"))
-```
-*Why encode instead of `len(message)`?* The file is UTF-8 on disk, so usage is
-in **bytes**, but `len(str)` counts **characters**. Non-ASCII text can be 2–4×
-larger on disk. Encoding with the handler's own encoding gives the true cost;
-`or "utf-8"` covers `encoding=None`.
-*Why `+ self.terminator`?* The newline is also written to disk — counting it
-stops the file creeping past the cap one newline at a time.
-*Why include the incoming record at all?* Without `current + incoming`, a file
-at 1,023 bytes would admit one more 200-byte record and overshoot. Checking
-before the write keeps files **under** budget; `>=` is the conservative choice
-(rotate on *reaching* the cap).
-
-**Step 6 — Verdict:**
-```python
-return current_size + message_size >= self.maxBytes
-```
-Returns `1`/`0` — the stdlib convention for `shouldRollover`.
-
----
-
-## 3. `TimeAndSizeRotatingHandler.doRollover`
-
-```python
-def doRollover(self):
-    super().doRollover()
-    self.next_rollover_time = time.time() + self.interval
-```
-
-**Purpose:** run the parent's rotation (close the file, shift backups
-`app.log.N-1 → app.log.N`, rename the live file to `app.log.1`, delete the one
-that falls off the end, reopen) — then restart the time window.
-
-*Why reset after `super()`?* A rotation can be triggered by **size** alone,
-long before the deadline. Without the reset, `next_rollover_time` would still
-hold the old deadline — every record after a size rotation would instantly
-re-trigger rotation until the original window expired, shredding backups one
-per message. Resetting **after** the parent call (which closes/reopens the
-file) re-anchors the window to the freshly opened file.
-
-*Why is the naming safe here?* Because the parent is `RotatingFileHandler`,
-backups are sequence-numbered (`app.log.1` … `app.log.10`), so any number of
-rotations within a run can never collide or overwrite each other — the exact
-failure mode a timestamped-rename design suffers from.
-
----
-
-## 4. Module-level script (not a function — the wiring)
+## 2. Path constants
 
 ```python
 BASE_DIR = pathlib.Path(__file__).resolve().parent
-log_dir = BASE_DIR / "logs"
-log_dir.mkdir(exist_ok=True)
 ```
-*Why `pathlib` and `__file__`?* The logs directory is pinned next to this
-script, so the demo writes to `<script folder>/logs/` no matter **where you
-run it from** (repo root, another drive, a cron job) — relative
-`os.makedirs("logs")` would silently create `logs/` in the current working
-directory instead. `resolve()` makes the path absolute; `mkdir(exist_ok=True)`
-is idempotent and, unlike `FileHandler`, it *does* create directories so the
-first `_open()` can't raise `FileNotFoundError`.
+The directory **this script lives in**. `__file__` is the script's path;
+`.resolve()` makes it absolute (and cleans up `..` segments); `.parent` drops
+the filename. Pinning paths to the script's folder — instead of the *current
+working directory* — means the demo writes to the right place whether run from
+the repo root, another drive, or a scheduler.
 
 ```python
-log_file = str(log_dir / "app.log")
+LOG_DIR = BASE_DIR / "logs"
 ```
-*Why a fixed name?* All runs share one `app.log` and append into one
-sequence-numbered chain (`app.log.1`…`.10`) — opposite trade-off of a
-timestamped base file: history continues across restarts instead of starting
-a new chain per run. `str()` because the handler expects a string path.
+The log directory: `<script folder>/logs`. The `/` operator is pathlib's
+path join — same as `os.path.join(BASE_DIR, "logs")`.
 
 ```python
-handler = TimeAndSizeRotatingHandler(
-    filename=log_file,
-    max_bytes=1024,
-    backup_count=10,
-    interval=10,
-    encoding="utf-8",
-)
+LOG_DIR.mkdir(exist_ok=True)
 ```
-*Why explicit `encoding`?* It matters twice: the file is written as UTF-8
-**and** `shouldRollover` uses the same encoding to count bytes.
-*Why `interval=10`?* There is no `when` parameter in this design — `interval`
-is plain **seconds**, because the time check is a manual comparison.
+Creates the directory *now*, at import time. Two reasons this line must exist:
+`FileHandler` opens files but **never creates directories** (without it, the
+first log write raises `FileNotFoundError`), and `exist_ok=True` makes it
+idempotent — re-running the script on an existing folder doesn't crash.
 
 ```python
-formatter = logging.Formatter(
-    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
-handler.setFormatter(formatter)
+LOG_FILE = LOG_DIR / "app.log"
 ```
-*Why this format?* Pipe-delimited plain text (`asctime | level | logger |
-message`) is trivially `grep`-/`awk`-able in a terminal — no JSON tooling
-needed.
-*Why set it on the handler?* `shouldRollover` calls `self.format(record)` to
-measure the incoming record — the size math depends on this formatter being
-attached.
+The base name of the log chain. All runs **append into one chain** —
+`app.log` is the live file, `app.log.1`…`app.log.10` its rotated history —
+so the log survives across restarts instead of fragmenting per run.
+(Passed as a `Path` — handlers accept path-like objects and convert internally.)
+
+---
+
+## 3. `JsonFormatter`
 
 ```python
-logger = logging.getLogger("application")
-logger.setLevel(logging.INFO)
-logger.addHandler(handler)
-logger.propagate = False
+class JsonFormatter(logging.Formatter):
 ```
-*Why a named logger instead of the root?* The root logger also captures every
-third-party library's records. A named logger scopes the config. `INFO` hides
-debug noise; `propagate = False` stops records bubbling to root and being
-logged twice.
+Subclasses the base `Formatter` to replace only *how a record renders*.
+The logging framework calls `formatter.format(record)` for every record a
+handler is about to write; overriding `format` is the single customization
+point for output shape.
+
+```python
+    def format(self, record):
+```
+`record` is a `LogRecord` — the framework's internal envelope carrying
+everything about one logging event: message + args, level, logger name,
+timestamps, exception info. (This override takes no `*args`/`**kwargs`
+because it never delegates to `super().format` — it builds the output itself.)
+
+```python
+        log_data = {
+            "timestamp": record.created,
+```
+**Unix epoch seconds (float)** — e.g. `1790744286.0384576` = seconds since
+1970-01-01 UTC, the fractional part being sub-second precision. `record.created`
+is stamped by the framework **at emit time** (`time.time()` was called the
+moment `logger.info(...)` executed) — more accurate than formatting time, which
+runs slightly later. Numeric timestamps sort instantly, need no timezone
+handling (epoch is UTC by definition), and are the native unit of log
+pipelines (Elasticsearch/Loki/Datadog). Need milliseconds instead?
+`int(record.created * 1000)`.
+
+```python
+            "level": record.levelname,
+```
+The level as text — `"INFO"`, `"WARNING"`, `"ERROR"`. `record.levelno` is the
+numeric twin (20/30/40); the string form is what humans and dashboards read.
+
+```python
+            "logger": record.name,
+```
+The name of the logger that emitted the record (`"application"` here).
+In bigger apps, child loggers (`application.db`, `application.http`) make this
+field a free component/module tag.
+
+```python
+            "message": record.getMessage(),
+```
+The **final** message string. Crucially this is not `record.msg`:
+`getMessage()` applies `%`-style interpolation, so
+`logger.info("x=%s", x)` logs the rendered `"x=5"`, while `record.msg` would
+leak the raw template `"x=%s"`.
+
+```python
+        }
+```
+
+```python
+        if record.exc_info:
+```
+`exc_info` is `None` for ordinary records and a `(type, value, traceback)`
+tuple when the record came from `logger.exception()` or
+`logger.error(..., exc_info=True)`. Truthiness = "is there a traceback?"
+
+```python
+            log_data["exception"] = self.formatException(
+                record.exc_info
+            )
+```
+The stdlib helper renders the traceback into the standard text block. It goes
+into the JSON **as a string field** — `json.dumps` will escape its newlines as
+`\n`, which is exactly why even a traceback stays on one physical line.
+
+```python
+        return json.dumps(log_data)
+```
+Serialize. `json.dumps` guarantees no bare newline ever appears in its output
+(they're escaped inside strings), so the invariant holds: **one record →
+exactly one JSON line** — the JSON-Lines format every log shipper tails.
+
+---
+
+## 4. `configure_logging`
+
+```python
+def configure_logging():
+```
+One function that builds and returns the fully wired logger — so any module
+(entrypoint, tests, another script) gets identical logging with one call.
+
+```python
+    logger = logging.getLogger("application")
+```
+A **named** logger, not the root. `getLogger` returns a **singleton per name**
+(same object every call — this matters two lines down). Naming scopes the
+config to this app's records; third-party libraries logging through root are
+not touched by anything configured here.
+
+```python
+    logger.setLevel(logging.INFO)
+```
+The logger-level gate — the *first and cheapest* filter in the chain.
+`DEBUG` records are dropped here, before any handler is even consulted.
+Records at INFO (20) and above pass.
+
+```python
+    if logger.handlers:
+        return logger
+```
+**Idempotency guard.** Because `getLogger` is a singleton, calling
+`configure_logging()` twice (two imports, a test suite, a notebook rerun)
+would run `addHandler` twice — and every message would print/write **twice**.
+If handlers already exist, the logger is already configured: return it as-is.
+This is the official docs' recommended pattern.
+
+```python
+    formatter = JsonFormatter()
+```
+One formatter instance, shared by both handlers below — file and console show
+identical JSON.
+
+```python
+    file_handler = RotatingFileHandler(
+        filename=LOG_FILE,
+```
+The live log file — `logs/app.log`. The handler derives the backup names
+itself (`app.log.1`, …).
+
+```python
+        maxBytes=2 * 1024,
+```
+Rotate when the file reaches **2 KB**. Deliberately tiny: the demo's JSON
+records are ~153 bytes each, so ~13 records fit per file and the 100-record
+loop visibly produces ~8 rotations. (Production would use e.g. `10 * 1024 *
+1024`.) The `2 * 1024` form documents the unit in the code.
+
+```python
+        backupCount=10,
+```
+Keep **10 rotated backups** (`app.log.1`…`app.log.10`); the 11th-oldest is
+deleted on the next rotation. This is the retention knob: with ~13
+records/file, the chain holds ~140 records — comfortably more than the demo's
+103, so **nothing is lost** in a demo run.
+
+```python
+        encoding="utf-8",
+```
+The file is written as UTF-8 — explicit so byte-size accounting is predictable
+and non-ASCII text round-trips on every platform (Windows defaults would
+otherwise vary).
+
+```python
+    )
+```
+
+```python
+    file_handler.setFormatter(formatter)
+```
+Attach the JSON formatter to the file handler — without this the handler would
+use the bare default format, and the log file wouldn't be JSON.
+
+```python
+    console_handler = logging.StreamHandler(sys.stdout)
+```
+Second destination: the terminal. `sys.stdout` is passed **explicitly** — a
+bare `StreamHandler()` defaults to `sys.stderr`, so this argument is
+load-bearing, not decorative.
+
+```python
+    console_handler.setFormatter(formatter)
+```
+Same JSON on the console — one shape everywhere, tooling stays simple.
+
+```python
+    logger.addHandler(file_handler)
+```
+Wire destination 1. From here on, every record that passes the logger level is
+offered to this handler.
+
+```python
+    logger.addHandler(console_handler)
+```
+Wire destination 2. **Both** handlers see **every** record that passes the
+logger level — this is fan-out, not either/or: the same line lands in the file
+and on the terminal.
+
+```python
+    logger.propagate = False
+```
+Stop records from bubbling up to the root logger after this logger's handlers
+have processed them. Without it, root's handlers (from a library or
+`logging.basicConfig`) would emit the same record **again** — doubled output.
+
+```python
+    return logger
+```
+Hand the configured singleton back so callers can do `logger =
+configure_logging()` and start logging immediately.
+
+---
+
+## 5. Module-level script
+
+```python
+logger = configure_logging()
+```
+Configure at **import time** — running the file just works. A real application
+would call this once in its entrypoint instead; the function shape exists so
+it *can* be called from anywhere.
 
 ```python
 logger.info("Application started")
 logger.info("Processing request")
 logger.warning("Something requires attention")
-
-for i in range(100):
-    logger.info(f"Testing log rotation - message number {i}")
 ```
-*Why the 100-iteration loop?* Each formatted line is ~90 bytes (timestamp +
-level + logger name + message + newline), so against `max_bytes=1024` the cap
-is crossed roughly every 11 records — the run produces about 9 size rotations.
-The loop finishes in milliseconds, so the 10-second time trigger only fires if
-you add a `time.sleep()` inside the loop.
+Three records at three levels — all pass the INFO gate and are written by
+**both** handlers. The last one proves WARNING ≥ INFO also flows through.
+
+```python
+for i in range(100):
+    logger.info(
+        "Testing centralized logging - message number %s",i,
+    )
+```
+The volume generator: 100 more records. Two deliberate details:
+
+- **Lazy `%`-formatting** (`"...%s", i`): the interpolation happens inside
+  `getMessage()` *only if the record is actually emitted*. Passing a pre-frozen
+  f-string would format even records that get dropped.
+- **The loop is what exercises rotation**: ~103 records × ~153 bytes ≈ 15.5 KB
+  total against a 2 KB cap → about 8 size rotations, all retained by
+  `backupCount=10`. The loop finishes in milliseconds — rotation here is
+  purely size-driven, never time-driven.
 
 ---
+
+## 6. Runtime flow of one record
+
+```
+logger.info("... %s", i)
+        │
+        ▼
+logger-level gate (INFO ≥ INFO → continue)          configure_logging()
+        │
+        ├─ file_handler     RotatingFileHandler.emit
+        │        ├─ shouldRollover: size(record) ≥ 2 KB? ──► doRollover:
+        │        │       close app.log, shift .9→.10 … .1→.2,
+        │        │       rename app.log→app.log.1, delete old .10, reopen
+        │        ▼
+        │   JsonFormatter.format
+        │        ├─ dict: timestamp(unix)/level/logger/message (+exception?)
+        │        └─ json.dumps → '{"timestamp": 1790744286.03, ...}'  one line
+        │        ▼
+        │   append to logs/app.log
+        │
+        └─ console_handler  same format → sys.stdout
+```
+
+## 7. The numbers (why nothing gets lost)
+
+| Quantity | Value | From |
+|---|---|---|
+| One JSON record | ~152–154 bytes | measured (timestamp 32 B + message + scaffolding) |
+| Records per file | ~13 | `2048 / ~153` |
+| Total demo records | 103 | 3 + 100 |
+| Expected rotations | ~8 | `ceil(103 / 13) − 1` |
+| Chain capacity | ~143 records | `(backupCount + 1) × 13` |
+| Lost records | **0** | capacity > emitted |
+
+## 8. Known limitations
+
+- **Size-only rotation.** A quiet app can keep a stale `app.log` forever —
+  there is no time trigger (the old hybrid `TimeAndSizeRotatingHandler` lived
+  in git history, commit `d5ff415`).
+- **Single-process assumption.** Two processes appending to one chain corrupt
+  rotation; multi-worker deployments should log to stdout and let the platform
+  collect.
+- **No cross-run cleanup.** `backupCount` prunes within the chain; old *files*
+  elsewhere in `logs/` are never revisited.
+- **`json.dumps` can raise** on non-serializable extras; production formatters
+  add `default=str` and merge `record.__dict__` extras (request IDs, timings).
