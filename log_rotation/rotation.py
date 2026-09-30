@@ -1,8 +1,9 @@
-from datetime import datetime
 import logging
 import os
+import pathlib
 import time
 from logging.handlers import RotatingFileHandler
+
 
 class TimeAndSizeRotatingHandler(RotatingFileHandler):
     def __init__(
@@ -26,7 +27,7 @@ class TimeAndSizeRotatingHandler(RotatingFileHandler):
     def shouldRollover(self, record):
         if time.time() >= self.next_rollover_time:
             return 1
-        
+
         if self.maxBytes <= 0:
             return 0
 
@@ -49,11 +50,12 @@ class TimeAndSizeRotatingHandler(RotatingFileHandler):
         super().doRollover()
         self.next_rollover_time = time.time() + self.interval
 
-log_file = (
-    f"logs/app_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-)
 
-os.makedirs("logs", exist_ok=True)
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+log_dir = BASE_DIR / "logs"
+log_dir.mkdir(exist_ok=True)
+
+log_file = str(log_dir / "app.log")
 
 handler = TimeAndSizeRotatingHandler(
     filename=log_file,
@@ -79,4 +81,4 @@ logger.info("Processing request")
 logger.warning("Something requires attention")
 
 for i in range(100):
-    logger.info(f"Testing log rotation - message number {i}")
+    logger.info(f"Testing log rotation - message number {i}")   
