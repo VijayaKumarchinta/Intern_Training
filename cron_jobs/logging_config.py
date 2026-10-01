@@ -22,6 +22,8 @@ def configure_logging():
         "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     )
 
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
+    
     file_handler = RotatingFileHandler(
         filename=LOG_FILE,
         maxBytes=10 * 1024 * 1024,

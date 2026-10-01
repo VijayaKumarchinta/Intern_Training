@@ -16,29 +16,28 @@ def create_database():
 
             except psycopg2.errors.DuplicateDatabase:
                 print(f"Database '{DB_NAME}' already exists.")
-
     finally:
         connection.close()
 
 def create_schema():
     connection = get_connection()
-
     try:
         with connection.cursor() as cursor:
             cursor.execute(
                 f"CREATE SCHEMA IF NOT EXISTS {DB_SCHEMA}"
             )
-
         connection.commit()
-
         print(f"Schema '{DB_SCHEMA}' created/verified.")
+
+    except Exception as e:
+        connection.rollback()
+        print(f"Failed to create schema '{DB_SCHEMA}': {e}")
 
     finally:
         connection.close()
 
 def create_table():
     connection = get_connection()
-
     try:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -51,21 +50,12 @@ def create_table():
                 PARTITION BY RANGE (unix_ts);
                 """
             )
-
-            cursor.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {DB_SCHEMA}.{TABLE_NAME}_default
-                PARTITION OF {DB_SCHEMA}.{TABLE_NAME}
-                DEFAULT;
-                """
-            )
-
         connection.commit()
+        print(f"Table '{DB_SCHEMA}.{TABLE_NAME}' created/verified.")
 
-        print(
-            f"Table '{DB_SCHEMA}.{TABLE_NAME}' "
-            "created/verified."
-        )
+    except Exception as e:
+        connection.rollback()
+        print(f"Failed to create table '{DB_SCHEMA}.{TABLE_NAME}': {e}")
 
     finally:
         connection.close()

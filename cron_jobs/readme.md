@@ -44,6 +44,17 @@ in python we usually do/assign cronjobs through schedule module where it helps u
 
 - it's an event where we can run the task automatically in time intervals where it is more like the python being implement the cron jobs
 
+# Apscheduler
+
+-   A light weight advanced python in-process task scheduling where we can use cron like capabilities
+- It supports mainly three triggers
+    - Datetrigger -/review one-time interval execution triggers
+    - IntervalTrigger - fixed time interval triggers
+    - CronTrigger - complex scheduling based on cron expressions
+- Two types of schedulers
+    - BackgroundScheduler - runs in the background and allows the main application to continue execution ideal for long running applications
+    - BlockingScheduler - Blocks the main thread until the scheduler is shut down; best for standalone scripts where the scheduler is the primary process.
+    
 ### Create table with below columns: ID, Unix_ts
 """Create a program with two cron jobs
 1. To insert data current unix timestamp into table every 1 minute.
