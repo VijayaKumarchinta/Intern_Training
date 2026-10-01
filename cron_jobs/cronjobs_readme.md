@@ -4,6 +4,10 @@
 
 we use cron jobs to automate the tasks recursively
 
+Cron = the service that's always running in the background, checking "is it time to do something?"
+
+Cron job = one task you told it to do at a specific time.
+
 ### This is a linux concept where we commonly use crontab
 
 ## the famous 5 field cron expression
