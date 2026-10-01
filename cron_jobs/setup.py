@@ -44,8 +44,9 @@ def create_table():
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {DB_SCHEMA}.{TABLE_NAME} (
-                    id BIGSERIAL,
-                    unix_ts BIGINT NOT NULL
+                    id SERIAL,
+                    unix_ts BIGINT NOT NULL,
+                    PRIMARY KEY (id, unix_ts)
                 )
                 PARTITION BY RANGE (unix_ts);
                 """

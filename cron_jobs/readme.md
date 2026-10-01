@@ -89,6 +89,8 @@ cron_jobs  ---- root directory
 
 
 ### keep built-in functions that are being used
+- Primary Key is being used for look up purpose either w.r.t the id/unix_ts
+
 - load_dotenv() - loading of db credentials with the help of dotenv import
 
 - psycopg2.connect() - connecting to the db with the env variables from psycopg2 import
