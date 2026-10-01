@@ -107,6 +107,8 @@ cron_jobs  ---- root directory
 
 - logging.getLogger() - we can pass the name of the logger that is shown in the terminal
 
-- schedule.every(1).minute.do() - assign the automated tasks so that it will do on its own
+- schedule.every(1).minute.do() - assign the automated tasks so that it will do on its own every 1 minute
+
+- schedule.every(10).minutes.do() - assign the automated tasks so that it will do on its own every  10 minute
 
 - schedule.run_pending() - helps to check the pending jobs
