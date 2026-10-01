@@ -65,15 +65,13 @@ cron_jobs  ---- root directory
     -   setting of loggers
 
     - insert_current_timestamp() - where it actually 
-    happens the insertion of timestamp with 1 minute difference
+    happens the insertion of timestamp with 1 minute difference, and it calls create_partition() with that same timestamp just before inserting so the partition always exists when the timestamp is created
 
-    - create_partition() - where it creates the current partition and the next (look-ahead) partition on the basis of 10 minutes gap, named timestamp_data_<window_start> so that IF NOT EXISTS makes re-runs idempotent
+    - create_partition() - where it creates the partition for the timestamp passed to it (unix_ts) on the basis of 10 minutes gap, named timestamp_data_<window_start> so that IF NOT EXISTS makes re-runs idempotent
 
     - run_timestamp_job() - entry point of the insert_current_timestamp()
 
-    - run_partition_job() - entry point of the create_partition()
-
-    - run_scheduler() - where the actual cron jobs done with the help of schedule module so that it can directly implement the cron jobs for every 1 minute and 10 minute separation
+    - run_scheduler() - where the actual cron jobs done with the help of schedule module so that it can directly implement the cron job for every 1 minute
 
     - main entry point - running scheduler.py directly calls run_scheduler() so to execute all the code snippets properly!
 
@@ -83,7 +81,7 @@ cron_jobs  ---- root directory
 
     - create_schema() - creating a schema and being verified
 
-    - create_table() - creating a table with id and unix_ts and do partitions based on timestamp and being verified
+    - create_table() - creating a table with id and unix_ts and do partitions based on timestamp and being verified, plus a _default partition as the safety net that catches rows with no matching partition
 
     - initialize_database() - an entry point for those three functions
 

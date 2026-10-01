@@ -18,6 +18,8 @@ def insert_current_timestamp():
     start_time = time.perf_counter()
     unix_ts = int(time.time())
 
+    create_partition(unix_ts)
+
     connection = get_connection()
 
     try:
@@ -57,21 +59,15 @@ def insert_current_timestamp():
             duration,
         )
 
-def create_partition():
+def create_partition(unix_ts):
     start_time = time.perf_counter()
-    current_ts = int(time.time())
 
     current_partition_start = (
-        current_ts // TEN_MINUTES
+        unix_ts // TEN_MINUTES
     ) * TEN_MINUTES
 
     current_partition_end = (
         current_partition_start + TEN_MINUTES
-    )
-
-    next_partition_start = current_partition_end
-    next_partition_end = (
-        next_partition_start + TEN_MINUTES
     )
 
     connection = get_connection()
@@ -95,29 +91,11 @@ def create_partition():
                 ),
             )
 
-            next_partition_name = (
-                f"{TABLE_NAME}_{next_partition_start}"
-            )
-
-            cursor.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS
-                {DB_SCHEMA}.{next_partition_name}
-                PARTITION OF {DB_SCHEMA}.{TABLE_NAME}
-                FOR VALUES FROM (%s) TO (%s)
-                """,
-                (
-                    next_partition_start,
-                    next_partition_end,
-                ),
-            )
-
         connection.commit()
 
         partition_logger.info(
-            "Partitions verified | current=%s | next=%s",
+            "Partition verified | current=%s",
             current_partition_name,
-            next_partition_name,
         )
 
     except Exception:
@@ -146,32 +124,15 @@ def run_timestamp_job():
 
     insert_current_timestamp()
 
-def run_partition_job():
-    scheduler_logger.info(
-        "Executing job: create_partition"
-    )
-
-    create_partition()
-
 def run_scheduler():
     scheduler_logger.info("Scheduler started")
-
-    run_partition_job()
 
     schedule.every(1).minute.do(
         run_timestamp_job
     )
 
-    schedule.every(10).minutes.do(
-        run_partition_job
-    )
-
     scheduler_logger.info(
         "Job registered: insert_timestamp | interval=1m"
-    )
-
-    scheduler_logger.info(
-        "Job registered: create_partition | interval=10m"
     )
 
     while True:

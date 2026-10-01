@@ -51,6 +51,14 @@ def create_table():
                 """
             )
 
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {DB_SCHEMA}.{TABLE_NAME}_default
+                PARTITION OF {DB_SCHEMA}.{TABLE_NAME}
+                DEFAULT;
+                """
+            )
+
         connection.commit()
 
         print(
