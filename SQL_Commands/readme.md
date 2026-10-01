@@ -6,14 +6,14 @@ constraints - Rules applied to ensure the data is valid or not
 ### There are a few command categories that sql follows when we use them
 
 # DDL - Data definition language
-- where it deals with how we structe the data
+- where it deals with how we structure the data
 the common cmds are
     - create - helps to create databases and its objects
     - Drop - helps to delete objects from the database
     - Alter - helps to alter the db structure
     - Truncate - helps to remove everything
 # DQL - Data query language
-- where it helps to retrive/fetch the data
+- where it helps to retrieve/fetch the data
     - Select - helps to retrieve the data from the database
     - From - helps to retrieve from which table
     - where - helps to filter the rows before grouping
@@ -68,3 +68,9 @@ the common cmds are
     - Default partition - safety net child table that catches rows with no matching partition
     - Partition pruning - postgres scans only the matching child partitions, verify with explain analyze
     - Drop partition - removing old data becomes drop table (instant) instead of delete in batches
+
+
+# UnixTimeStamp: 
+- it is a reference 10 digit code from the creation of it more like "Since 1970-01-01 00:00:00 UTC that many seconds are completed w.r.t current seconds"
+- we can calculate it while remove the current timestamp from the standard timestamp
+- the current 10-digit unixtimestamp just shows that many seconds completed since 1970-01-01 00:00:00 UTC
