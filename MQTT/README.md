@@ -36,8 +36,8 @@ readings, with bulk import of MQTT snapshot pickles. Start with its
 [app.py](Machine_Sensor_API/app.py).
 
 [Machine_Sensor_API.zip](Machine_Sensor_API.zip) is the packaged copy that was
-shared over email (includes the ~930 MB of pickle data — it will not attach to
-Gmail as-is).
+shared over email (includes the sample pickle snapshot and its generated CSV,
+~1 MB zipped).
 
 ---
-Back to the [repository guide](../README.md).
+Back to the [training documentation](../TRAINING_DOCUMENTATION.md).
