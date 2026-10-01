@@ -13,11 +13,11 @@ topic - the channel name the msgs travel on, pub and sub must point at the same 
 
 # broker basics - how i ran mosquitto on windows
 - where it deals with starting/stopping/restarting the service
-the common cmds are
-    - net start mosquitto - starts the broker as a windows service
-    - mosquitto -c mosquitto.conf - runs it in the foreground with my conf file (used when testing conf changes)
-    - net stop mosquitto - stops the service (or Ctrl + c for the foreground run)
-    - net stop mosquitto && net start mosquitto - the restart, needed after every conf edit
+the common cmds are:
+    --- net start mosquitto - starts the broker as a windows service
+    --- mosquitto -c mosquitto.conf - runs it in the foreground with my conf file (used when testing conf changes)
+    --- net stop mosquitto - stops the service (or Ctrl + c for the foreground run)
+    --- net stop mosquitto && net start mosquitto - the restart, needed after every conf edit
 - default install files - mosquitto.conf and the certs live in C:/Program Files/Mosquitto/, edit the conf as admin and save, never generate it with echo (it erases the new lines, do the changes manually)
 - max_connections - total connections allowed per listener (one port)
 - global_max_connections - total connections allowed per broker (all listeners together)
