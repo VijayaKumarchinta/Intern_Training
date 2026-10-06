@@ -78,24 +78,25 @@ Some common regex functions which are useful:
 
 
 ### import re - helps to import all the methods related to RegEx so that we can search,validate the given sequence
+- re.search() - searching for exactly what we need to find
+  
 - re.fullmatch() - check the match throughout the entered string
   
 - re.findall() - this will check and return the letters and digits which are present in the string
   - .join helps us to combine all the list values and return as single list.
-- return bool() - with out it the answer will be returned as match.object which is unclear for users so I used bool it simply says either true or false
   
-- validate_five_digit() - pattern is - "\d{5}" or \b\d{5}\b - to match the exact 5 digits
+- match_five_digit() - pattern is - "(?<!\d)\d{5}(?!\d)"" - to match the exact 5 digits 
   
-- validate_lowercase() - pattern is - "[a-z]+" - to match with the lowercases
+- match_only_lowercase() - pattern is - "[a-z]" - to match with the lowercases
   
-- validate_uppercase() - pattern is - "[A-Z]+" - to match with the uppercase
+- match_only_uppercase() - pattern is - "[A-Z]" - to match with the uppercase
   
-- validate_letters_numbers() - pattern is - "([a-zA-Z]+)(\d+)" with the respective letters and numbers by forming grouping
+- match_letters_and_numbers() - pattern is - "([a-zA-Z]+)(\d+)" with the respective letters and numbers by forming grouping
   
-- validate_start_with_A() - pattern is "A.*" - so that it will match with the string which starts with "A"
+- match_a_string_starts_with_A() - pattern is "\bA\w*" - so that it will match with the string which starts with "A"
   
-- validate_end_with_Z() - pattern is ".*Z" - so it will match with the string that ends with "Z"
+- match_a_string_ends_with_Z() - pattern is "\w*Z\b" - so it will match with the string that ends with "Z"
 
-- validate_only_digits() - pattern is "\d+" - so it will check for the numbers itself
+- match_a_string_contains_only_digits() - pattern is "\d+" - so it will check for the numbers itself
 
-- validate_no_digits() - pattern is [^\d+] - so it will check for non-numbers
+- match_a_string_contains_no_digits() - pattern is "\D+" - so it will check for non-numbers

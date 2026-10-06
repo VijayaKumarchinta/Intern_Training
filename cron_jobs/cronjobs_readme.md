@@ -112,8 +112,6 @@ cron_jobs  ---- root directory
 
 - RotatingFileHandler - a logging import where it rotates the file with the help doRollover() so that log files can be created and segregated between old and new log file w.r.t the size
 
-- time.perf_counter() - knows how much time the actual code will take to execute/run
-
 - int(time.time()) - converting the float unix_timestamp from time.time() into an integer unix_timestamp
 
 - connection.cursor() - where it helps to tell the python to start the sql command
