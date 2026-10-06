@@ -84,9 +84,9 @@ project with PostgreSQL range partitioning (§3.12), and regex practice
 | Sep 25–26 | 8-principles design review + independent cross-check | §3.10 Pass 2 |
 | Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten in simple + engineer two-layer format | §3.10 Pass 3 |
 | Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme.md](SQL_Commands/SQL_readme.md), [rotation.py](log_rotation/rotation.py) |
-| Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
+| Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging; first range-partitioning demo (`partition_ts`) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
 | Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.12 |
-| Oct 4–5 | Regular expressions: eight matcher functions + full notes; repo packaging cleanup | [RegEx/](RegEx/regex_readme.md), §3.13 |
+| Oct 4–6 | Regular expressions: eight matcher functions + full notes; `Final_zip/` distribution copy assembled | [RegEx/](RegEx/regex_readme.md), §3.13 |
 
 ---
 
@@ -308,9 +308,11 @@ skipping broken rows. Records carry `ST` (sensor tag), `TS` (Unix time),
 and continues instead of failing. Endpoints: full CRUD on machines and
 readings, filters (`machine_id`, `sensor_tag`, `from`/`to` ISO 8601),
 `/readings/statistics` (MIN/MAX/AVG), `/readings/export` (streaming CSV),
-`/health`, and `POST /readings/import` — verified endpoint-by-endpoint during
-development (Postman and `curl`; a `messy.csv` file exists specifically to
-exercise the skip-and-count path).
+`/health`, and `POST /readings/import` — verified endpoint-by-endpoint with
+Postman during development; the data folder also carries a tiny
+[messy.csv](MQTT/Machine_Sensor_API/data/csv_files_28_03_2025/messy.csv) in
+the same four-column schema — a two-row sample that documents the format of
+the intermediate CSV stage without loading the full snapshot.
 
 ### 3.9 Post-capstone hardening (Sep 18–21)
 
@@ -329,7 +331,7 @@ the error *semantics* honest and the responses client-friendly.
   returns real numbers, and `null` when nothing matches.
 - **Row-level importer validation** — bad tags/timestamps were already
   skipped, but a single non-numeric `VR` value could abort an entire
-  ~500k-row file transaction. `sensor_value` is now validated per row and
+  ~56k-row file transaction. `sensor_value` is now validated per row and
   counted in `records_skipped`.
 - **Readability refactor** — dynamic filters in
   [reading_service.py](MQTT/Machine_Sensor_API/services/reading_service.py)
@@ -538,8 +540,9 @@ daily.
   "not used yet" list (joins, window functions, `EXPLAIN ANALYZE`).
 - **Documentation habit** — every folder carries a README with real
   click-through links; notes record *why*, not just *what*; every doc opens
-  with a simple version a non-technical reader can follow (the restaurant,
-  librarian and chess-clock analogies) and keeps the engineer detail below —
+  with a simple version a non-technical reader can follow (the capstone's
+  waiter-never-cooks layering analogy, the shopping-cart pool, the diary that
+  archives itself) and keeps the engineer detail below —
   see [code_explanation.md](log_rotation/code_explanation.md) for the pattern
   applied to code itself. On Oct 1 the scattered per-topic note files were
   consolidated into one readme per folder, so there is exactly one place each
@@ -570,7 +573,7 @@ daily.
 | Log lines went missing between rotation demos | Two parallel logging demos, each with its own handlers | Consolidated into one hybrid JSON + rotating handler (Sep 30); one logging setup per app |
 | Inserts failed with "no partition … found" | Row arrived before its 10-minute partition existed | Just-in-time partition creation before each insert + a `DEFAULT` catch-all partition (Oct 1) |
 | `CREATE TABLE … PARTITION BY` rejected the plain-`id` primary key | Postgres requires the partition column inside the PK | Composite `PRIMARY KEY (id, unix_ts)` (Oct 1) |
-| Duplicate inserts raced on machine lookup | Two concurrent imports resolving the same machine name | Race-safe `INSERT … ON CONFLICT (machine_name) DO UPDATE … RETURNING id` in the importer |
+| Two concurrent imports could collide resolving the same machine name | Machine lookup + insert were not atomic — risk caught in review, not a crash observed | Race-safe `INSERT … ON CONFLICT (machine_name) DO UPDATE … RETURNING id` in the importer |
 
 ---
 
