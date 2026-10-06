@@ -1,11 +1,12 @@
-# Engineering Training Documentation — August to September 2026
+# Engineering Training Documentation — August to October 2026
 
 | | |
 |---|---|
 | **Author** | Chinta Vijayakumar |
 | **Company** | Triniti Advanced Software Labs Pvt Ltd |
-| **Period** | 17 August 2026 – 28 September 2026 (six weeks) |
+| **Period** | 17 August 2026 – ongoing (six core weeks 17 Aug – 28 Sep, continuing since) |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
+| **Last reviewed** | 6 October 2026 — every link and claim below was re-checked against the live tree |
 
 This document records the full training period: what was built, what was
 learned, what went wrong, and which engineering habits changed along the way.
@@ -19,8 +20,8 @@ underneath.
 
 ## 1. Executive summary
 
-Six weeks took the work from language fundamentals to a production-shaped
-IIoT-style data pipeline, in three phases:
+The training moved from language fundamentals to a production-shaped
+IIoT-style data pipeline, and is still growing after the core six weeks:
 
 ```text
 Weeks 1–4   Foundations: OOP, files/CSV, PostgreSQL, first Flask API,
@@ -28,12 +29,15 @@ Weeks 1–4   Foundations: OOP, files/CSV, PostgreSQL, first Flask API,
 Weeks 5–6   Capstone: Machine Sensor API built, hardened, then rebuilt to
             production standard, reviewed against 8 design principles,
             cleaned up with a versioned-change method (§3.8–§3.10)
+Since then  Supporting tracks: rotating JSON logging, SQL command notes,
+            table partitioning driven by a scheduler-based cron-jobs project,
+            regex practice — plus documentation consolidation (§3.11–§3.13)
 ```
 
 The capstone is [Machine_Sensor_API](MQTT/Machine_Sensor_API/readme.md): a
-layered REST API managing machines and sensor readings, which bulk-imports
-**25 pickle snapshots (~11.7 million readings, 16 machines)** into PostgreSQL
-with duplicate-safe batch inserts, verified by a 46-request Postman suite.
+layered REST API managing machines and sensor readings, which bulk-imports a
+**pickle snapshot of ~55,918 readings across 12 machines** into PostgreSQL
+with batch inserts and a duplicate-safe import ledger.
 
 The single biggest shift of the period: from *writing code that runs* to
 *designing code that survives requests, failures, and concurrent users* —
@@ -54,6 +58,11 @@ The capstone's own story had three acts:
    parallel versions first and promoting them only after both chains proved
    identical (§3.10).
 
+After the capstone, the same lessons were deliberately re-applied on smaller
+ground: a standalone rotating-log demo (§3.11), a scheduler-driven cron-jobs
+project with PostgreSQL range partitioning (§3.12), and regex practice
+(§3.13) — each one small enough to finish, documented like production code.
+
 ---
 
 ## 2. Timeline of assigned work
@@ -66,14 +75,18 @@ The capstone's own story had three acts:
 | Aug 20 | `Postgremanager` class with CRUD + transactions | [setup.py](Database_Connection/setup.py) |
 | Aug 20–21 | Excel generation → pandas DataFrame → split strings | [Excel.py](Conversion/Excel.py) |
 | Aug 24–26 | Flask API over the employee table | [main.py](Database_Connection/main.py) |
-| Aug 26–31 | Mosquitto broker: service control, limits, bridge concepts | [Learning.md](MQTT/Learning.md) |
-| Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [Learning.md](MQTT/Learning.md) |
+| Aug 26–31 | Mosquitto broker: service control, limits, bridge concepts | [mqtt_readme.md](MQTT/mqtt_readme.md) |
+| Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [mqtt_readme.md](MQTT/mqtt_readme.md) |
 | Sep 8–10 | Paho client: 5 callbacks, paho logging, return-code checks | [mqttdemo.py](MQTT/Python/mqttdemo.py) |
-| Sep 15–17 | Machine Sensor API + bulk pickle import (25 files, one blank) | [Machine_Sensor_API/](MQTT/Machine_Sensor_API/readme.md) |
+| Sep 15–17 | Machine Sensor API + bulk pickle import | [Machine_Sensor_API/](MQTT/Machine_Sensor_API/readme.md) |
 | Sep 18–21 | Capstone hardening: 409/400 exception mapping, JSON-number statistics, row-level import validation, conditions-list refactor | §3.9 |
 | Sep 22–24 | Production rebuild: waitress, connection pooling, import ledger, `init_db.py`, TIMESTAMPTZ | §3.10 Pass 1 |
 | Sep 25–26 | 8-principles design review + independent cross-check | §3.10 Pass 2 |
 | Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten in simple + engineer two-layer format | §3.10 Pass 3 |
+| Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme.md](SQL_Commands/SQL_readme.md), [rotation.py](log_rotation/rotation.py) |
+| Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
+| Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.12 |
+| Oct 4–5 | Regular expressions: eight matcher functions + full notes; repo packaging cleanup | [RegEx/](RegEx/regex_readme.md), §3.13 |
 
 ---
 
@@ -140,9 +153,13 @@ covering the full bootstrap (`CREATE DATABASE` → `CREATE SCHEMA` →
   reconnecting) — and its limits (§3.7, §3.10).
 
 **Mistakes corrected:** early versions swallowed "database already exists"
-into a generic except with a print; the later project handles
+into a generic except with a print; the later projects
+([cron_jobs/setup.py](cron_jobs/setup.py), capstone) handle
 `psycopg2.errors.DuplicateDatabase` explicitly. The password was hard-coded
-here — accepted as a stage of learning, replaced by `.env` in the capstone.
+here at first — accepted as a stage of learning, replaced by `.env` in the
+capstone, and finally back-ported to this project on Sep 29: `setup.py` now
+loads `.env` with `python-dotenv` and validates the required variables with a
+fail-fast check before touching the database.
 
 ### 3.4 First REST API — [main.py](Database_Connection/main.py)
 
@@ -189,7 +206,10 @@ with auto-sized columns via openpyxl → dictionary records.
 caught in review, fixed (now `Minutes` from `dt.minute`). Lesson: proofread
 generated column names against the requirement, not just the code's syntax.
 
-### 3.6 MQTT and the Mosquitto broker — [MQTT/Learning.md](MQTT/Learning.md)
+### 3.6 MQTT and the Mosquitto broker — [MQTT/mqtt_readme.md](MQTT/mqtt_readme.md)
+
+(Originally kept as separate `Learning.md` files; consolidated into the one
+folder readme on Oct 1.)
 
 **Learned and practiced:**
 
@@ -224,14 +244,13 @@ logging, and `logging.exception()` in every error path.
   report what the *broker* later did. Both checks matter; they answer
   different questions.
 - `loop_forever()` runs the network loop in the foreground with automatic
-  reconnect; `loop_start()` is the background-thread variant. The notes in
-  [python_Learning.md](MQTT/Python/python_Learning.md) correct an earlier
-  wrong explanation of this.
+  reconnect; `loop_start()` is the background-thread variant.
 - Safe shutdown: check `is_connected()` before `disconnect()`, and clean up in
   a `finally` block.
 - Failure taxonomy actually observed: `ConnectionRefusedError`,
   `ssl.SSLCertVerificationError` (expired/mismatched certs), and MQTT reason
-  codes (bad credentials, not authorized, quota exceeded).
+  codes (bad credentials, not authorized, quota exceeded) — all catalogued in
+  the [mqtt_readme](MQTT/mqtt_readme.md).
 
 **Takeaway:** `logging.exception()` inside each callback keeps one bad message
 from killing the client — resilient handlers are the difference between a demo
@@ -273,20 +292,25 @@ PostgreSQL (schema: machines 1—N sensor_readings, FK ON DELETE CASCADE,
 | Secrets in `.env` via `python-dotenv` | Fixing the hard-coded-password habit from §3.3 | kept, extended with fail-fast validation |
 | `DatabaseError` custom exception | Routes catch one type; psycopg2 details stay in the database layer | kept |
 | `ConflictError` / FK-error subclasses *(the FK one was later renamed `RelatedResourceNotFoundError`)* | Duplicate machine name → **409**, reading for a missing machine → **400** — client errors must not look like server failures | kept |
-| Batch inserts of 5000 via `execute_values` + `ON CONFLICT DO NOTHING` | ~11.7M rows import fast **and** idempotent | kept |
+| Batch inserts of 5000 via `execute_values` | Import runs in bulk instead of row-by-row | kept; duplicate safety moved from `ON CONFLICT DO NOTHING` to the ledger (below) |
 | Unique constraint `(machine_id, sensor_tag, timestamp)` | The database as last line of defense against duplicates | **→ later:** dropped — an unprovable business claim; replaced by the `import_batches` hash ledger (§3.10) |
 | `BIGSERIAL` + indexes on `(machine_id, timestamp)`, `sensor_tag`, `timestamp` | The readings table grows into tens of millions of rows | kept |
 | Return-code + rollback per file | A corrupt pickle file skips/rolls back without killing the whole import | kept, strengthened with row-level validation (§3.9) |
 
-**Bulk import reality:** all **25** snapshot files from 28-03-2025 are handled
-by [pickle_importer.py](MQTT/Machine_Sensor_API/services/pickle_importer.py) —
-snapshot 113000 is an **empty dict** (the "blank file"); the importer processes
-it as 0 records and continues. Records carry `ST` (sensor tag), `TS` (Unix
-time), `VR[0]` (value). Endpoints: full CRUD on machines and readings, filters
-(`machine_id`, `sensor_tag`, `from`/`to` ISO 8601), `/readings/statistics`
-(MIN/MAX/AVG), `/readings/export` (streaming CSV), `/health`, and
-`POST /readings/import` — verified with the 46-request Postman collection
-([readme](MQTT/Machine_Sensor_API/readme.md)).
+**Bulk import reality:** the snapshot data from 28-03-2025 lives in
+[MQTT/Machine_Sensor_API/data/](MQTT/Machine_Sensor_API/data/) — the pickle
+snapshot (`all_topics_20250328-114500.pkl`) converts to **55,918 readings
+across 12 machines** (verified by counting the generated CSV). The two-stage
+pipeline in [pickle_importer.py](MQTT/Machine_Sensor_API/services/pickle_importer.py)
+goes `.pkl → CSV → PostgreSQL`, leaving a human-readable CSV artifact and
+skipping broken rows. Records carry `ST` (sensor tag), `TS` (Unix time),
+`VR[0]` (value); the importer also treats an empty/blank snapshot as 0 records
+and continues instead of failing. Endpoints: full CRUD on machines and
+readings, filters (`machine_id`, `sensor_tag`, `from`/`to` ISO 8601),
+`/readings/statistics` (MIN/MAX/AVG), `/readings/export` (streaming CSV),
+`/health`, and `POST /readings/import` — verified endpoint-by-endpoint during
+development (Postman and `curl`; a `messy.csv` file exists specifically to
+exercise the skip-and-count path).
 
 ### 3.9 Post-capstone hardening (Sep 18–21)
 
@@ -347,7 +371,8 @@ maintainability & testability, and simplicity (KISS · DRY · YAGNI). Full
 detail in the project readme's *Design principles review*. The honest headline
 scores: **Defensibility 4.5/5** (strongest — fail-fast config, parameterized
 SQL everywhere, the import ledger, no information leaks), **Maintainability &
-Testability 2.5/5** (weakest — zero automated tests), **overall ≈ 3.4/5**.
+Testability 2.5/5** (weakest at the time — zero automated tests), **overall
+≈ 3.4/5**.
 
 Two things made the review more valuable than a scorecard:
 
@@ -389,10 +414,111 @@ chains proved identical in behavior were the v3 files promoted over the
 originals and the `_v3` names stripped. Rollback was trivial by construction,
 and the promotion itself was re-verified (app builds, pool identity, live DB).
 
-The full comparison that framed all of this lives in
-[`PRODUCTION_COMPARISON.md`](PRODUCTION_COMPARISON.md) — my code benchmarked
-against 10 production-grade open source repos, in a simple + engineer
-two-layer format.
+*(The archived comparison that framed this pass, `PRODUCTION_COMPARISON.md`,
+and the old root README/LEARNINGS files were consolidated away on Oct 1; the
+findings live on in the capstone readme and this document.)*
+
+### 3.11 Standalone rotating-JSON logging — [log_rotation/](log_rotation/code_explanation.md)
+
+**Built:** [rotation.py](log_rotation/rotation.py) — one hybrid handler demo:
+every log record is formatted as **one-line JSON** (unix-epoch timestamp,
+level, logger name, message, exception block when present) and written both to
+a **rotating file chain** (`app.log` → `app.log.1` → … → `app.log.10`) and to
+the console. The file is explained line-by-line in
+[code_explanation.md](log_rotation/code_explanation.md).
+
+**Learned:**
+
+- `RotatingFileHandler.maxBytes` + `backupCount` = a diary that archives
+  itself; the disk can never fill. The demo uses 2 KB so rotation is visible
+  in seconds; production code (the capstone's logger, cron_jobs' logging) uses
+  10 MB × 5–10 archives.
+- `logger.propagate = False` stops records from reaching the root logger —
+  without it, console handlers print every line twice.
+- `if logger.handlers: return` guards against duplicate handler attachment on
+  re-imports.
+- JSON-per-line is the format log collectors want to see; free-text logs are
+  for humans only.
+
+**Incident record (Sep 30):** earlier log-rotation attempts were split across
+multiple demos and log lines went missing between them; the fix was
+consolidating into this one hybrid handler and re-documenting the *actual*
+function-based code. Lesson: one logging setup per application, wired in one
+place — and document the code that really runs, not an earlier draft.
+
+**Takeaway:** this little file is where the capstone's Pass-3 "rotating logs"
+fix came from — learning a mechanism in isolation before applying it where it
+matters.
+
+### 3.12 Cron jobs, schedulers, and table partitioning — [cron_jobs/](cron_jobs/cronjobs_readme.md)
+
+**Built (restructured Oct 1):** a scheduler-based project that inserts the
+current Unix timestamp every minute into a **range-partitioned** PostgreSQL
+table and creates partitions just-in-time.
+
+- [setup.py](cron_jobs/setup.py) — bootstrap: `CREATE DATABASE`
+  (`autocommit`, `DuplicateDatabase` handled) → `CREATE SCHEMA` → the
+  partitioned table `timestamp_data` with **composite primary key
+  `(id, unix_ts)`** and a `_default` partition as the safety net.
+- [scheduler.py](cron_jobs/scheduler.py) — the two jobs:
+  `insert_current_timestamp()` (every 1 minute) and `create_partition()`
+  (every 10 minutes, creating the current **and** next 10-minute window so a
+  partition always exists before its first insert; `IF NOT EXISTS` makes
+  re-runs idempotent).
+- [db.py](cron_jobs/db.py) + [config.py](cron_jobs/config.py) —
+  `get_connection(database=None)` on `.env` credentials, with an escape hatch
+  to the `postgres` maintenance database for `CREATE DATABASE`.
+- [logging_config.py](cron_jobs/logging_config.py) — root logger, 10 MB × 10
+  rotating file + console, apscheduler quieted to WARNING (the lesson from
+  §3.11 applied directly).
+
+**Learned:**
+
+- OS cron vs in-process schedulers: `crontab -e` runs scripts on Linux;
+  on Windows, Task Scheduler; in Python, the `schedule` module or APScheduler.
+  This project uses **APScheduler's `BlockingScheduler`** with two
+  `cron`-trigger jobs (`minute="*/1"`, `minute="*/10"`) — see the
+  APScheduler-vs-schedule comparison table in the
+  [readme](cron_jobs/cronjobs_readme.md).
+- **Partition key rule:** PostgreSQL requires the partition column to be part
+  of the primary key — hence the composite `PRIMARY KEY (id, unix_ts)` after
+  the first plain-`id` design was rejected by the database (Oct 1 commit).
+- **Just-in-time partitioning** (Oct 1 fix): inserts originally failed when
+  the matching partition didn't exist yet; the insert job now creates the
+  partition *before* inserting, and the `DEFAULT` partition catches anything
+  that still slips through.
+- Partitioning pays off at deletion time: dropping old data becomes
+  `DROP TABLE` on one child partition instead of batched `DELETE`s
+  ([SQL_readme.md](SQL_Commands/SQL_readme.md), *Table partitioning*).
+
+**Takeaway:** the pipeline shape — bootstrap script → long-running scheduler →
+structured logs → idempotent SQL — is the same skeleton as the capstone's
+importer, just time-driven instead of request-driven. Patterns transfer; only
+the trigger changes.
+
+### 3.13 Regular expressions — [RegEx/](RegEx/regex_readme.md)
+
+**Built:** [`.py`](RegEx/.py) — eight matcher functions driven by an
+interactive `main()`: exact five-digit match with lookarounds
+(`(?<!\d)\d{5}(?!\d)`), lowercase-only and uppercase-only scans, grouped
+letters + numbers extraction, "starts with A" / "ends with Z" via word
+boundaries, digits-only and no-digits scans. Notes in
+[regex_readme.md](RegEx/regex_readme.md) cover the meta-characters, anchors,
+special sequences, and the `re.search/match/fullmatch/findall/sub/split`
+family.
+
+**Learned:**
+
+- `^abc` (anchor) is not `[^abc]` (negation) — one character, opposite
+  meaning.
+- Lookarounds (`(?<!\d)…(?!\d)`) match a position, not a character — the clean
+  way to say "exactly five digits, not part of a longer number".
+- Named real uses: input validation, log parsing with groups, `re.sub()` data
+  cleaning — the same skills the capstone uses for validating query params.
+
+**Takeaway:** regex is a validation tool, not a puzzle toy — the
+extract-and-validate patterns here are exactly what an API's input layer does
+daily.
 
 ---
 
@@ -405,14 +531,19 @@ two-layer format.
   (create → read → update → cascade-delete verification), API screenshots per
   operation, and writing the readme *while* testing so docs never drift.
   Plus offline verification with a faked connection layer when a live
-  database isn't available (§3.9).
+  database isn't available (§3.9), and since Sep 28 a real pytest suite (§7).
+- **SQL as a working vocabulary** —
+  [SQL_readme.md](SQL_Commands/SQL_readme.md): DDL/DQL/DML/DCL/TCL categories,
+  the constraint and index toolbox used in the capstone, and an honest
+  "not used yet" list (joins, window functions, `EXPLAIN ANALYZE`).
 - **Documentation habit** — every folder carries a README with real
-  click-through links ([root index](README.md)); notes record *why*, not just
-  *what*; every doc opens with a simple version a non-technical reader can
-  follow (the restaurant, librarian and chess-clock analogies) and keeps the
-  engineer detail below — see
-  [code_explanation.md](MQTT/Machine_Sensor_API/code_explanation.md) for the
-  pattern applied to code itself.
+  click-through links; notes record *why*, not just *what*; every doc opens
+  with a simple version a non-technical reader can follow (the restaurant,
+  librarian and chess-clock analogies) and keeps the engineer detail below —
+  see [code_explanation.md](log_rotation/code_explanation.md) for the pattern
+  applied to code itself. On Oct 1 the scattered per-topic note files were
+  consolidated into one readme per folder, so there is exactly one place each
+  topic lives.
 
 ---
 
@@ -427,7 +558,7 @@ two-layer format.
 | `ssl.SSLCertVerificationError` | Cert without SAN / wrong CN / expired | Add IP/DNS to `san.cnf`, regenerate server cert |
 | Callbacks "not firing" | Expecting callbacks to replace return-code checks | Check `subscribe()`/`publish()` results **and** register callbacks |
 | `Minues` column typo in Excel output | Manual typo in generated columns | Fixed to `Minutes`; proofread output schema |
-| Blank pickle file | First snapshot (113000) is an empty dict | Importer treats empty data as 0 records, continues |
+| Blank snapshot record sets | First snapshot(s) carried empty dicts | Importer treats empty data as 0 records, continues |
 | Duplicate readings on re-import | Overlapping snapshots | First fixed with `ON CONFLICT DO NOTHING` + unique constraint; **final fix (Sep 28):** the `import_batches` hash ledger — content, not constraints |
 | Statistics returned as JSON strings | `NUMERIC` → psycopg2 `Decimal` → Flask stringifies | Cast aggregates `::float8` — real numbers at the JSON boundary |
 | Duplicate machine / missing FK machine returned 500 | `IntegrityError` never translated | `ConflictError` → 409, FK error (now `RelatedResourceNotFoundError`) → 400 |
@@ -436,12 +567,18 @@ two-layer format.
 | Hung query could hold a pooled worker forever | No connect/statement timeouts | `connect_timeout=5` + `statement_timeout=15000` (env-tunable); verified live via `SHOW statement_timeout` |
 | Log file grew without bound | Plain `FileHandler` on a long-running service | `RotatingFileHandler` 10 MB × 5 + `LOG_LEVEL` from env |
 | A reviewer's "live code" finding didn't match the tree | Finding came from an archived zip snapshot | Full-text search proved the live code clean; lesson: **review the live tree, not the archive** |
+| Log lines went missing between rotation demos | Two parallel logging demos, each with its own handlers | Consolidated into one hybrid JSON + rotating handler (Sep 30); one logging setup per app |
+| Inserts failed with "no partition … found" | Row arrived before its 10-minute partition existed | Just-in-time partition creation before each insert + a `DEFAULT` catch-all partition (Oct 1) |
+| `CREATE TABLE … PARTITION BY` rejected the plain-`id` primary key | Postgres requires the partition column inside the PK | Composite `PRIMARY KEY (id, unix_ts)` (Oct 1) |
+| Duplicate inserts raced on machine lookup | Two concurrent imports resolving the same machine name | Race-safe `INSERT … ON CONFLICT (machine_name) DO UPDATE … RETURNING id` in the importer |
 
 ---
 
 ## 6. How the period changed my engineering habits
 
-1. **Secrets** — from hard-coded passwords to `.env` + fail-fast `config.py`.
+1. **Secrets** — from hard-coded passwords to `.env` + fail-fast `config.py`
+   (capstone, cron_jobs, and since Sep 29 back-ported to the early
+   `Database_Connection` project too).
 2. **Connections** — from one long-lived reused connection, through
    per-request connections with `finally` cleanup, to a pooled manager with
    context managers that always return the connection (and discard broken
@@ -477,6 +614,9 @@ two-layer format.
     isn't ready.
 14. **Explain it simply** — if a non-technical reader can't understand the
     first section of a doc, the doc isn't finished yet.
+15. **Consolidate, don't accumulate** — scattered note files drift apart;
+    each topic now lives in exactly one readme (Oct 1 consolidation), and this
+    document gets re-verified against the live tree before every revision.
 
 ---
 
@@ -489,8 +629,9 @@ two-layer format.
   ~1.5s, no live database. Bonus: the suite immediately caught a real bug
   (whitespace-only machine names passed validation) and a test-harness
   lesson (services bind the pool at import time, so the fixture must patch
-  each service module's `db` name). Still untested: export streaming and
-  `init_db.py`.
+  each service module's `db` name). Still untested: export streaming,
+  `init_db.py`, and everything in [cron_jobs/](cron_jobs/cronjobs_readme.md)
+  and [log_rotation/](log_rotation/rotation.py).
 - No Docker; the app is not yet packaged as an installable (`pyproject.toml`)
   project with lint (ruff) and type hints in CI.
 - Migrations (Alembic) — schema changes still rely on idempotent
@@ -499,26 +640,39 @@ two-layer format.
   recorded but not done; the pickle → CSV stage is a decision still open
   (audit artifact vs. direct `.pkl → PostgreSQL` import).
 - MQTT bridge was studied conceptually but not yet implemented end-to-end;
-  the MQTT demo still needs env-based config and auto-reconnect hardening.
+  the MQTT demo still needs env-based config, auto-reconnect hardening, and
+  real use of QoS/retained messages ([mqtt_readme](MQTT/mqtt_readme.md),
+  *not used yet*).
+- The cron-jobs scheduler has no test coverage and no graceful-shutdown path
+  beyond `KeyboardInterrupt`; `db.py` still reports connection failure with a
+  bare `print` instead of the structured logger it configures.
+- SQL practice is still short of real-world use of joins, window functions,
+  and `EXPLAIN ANALYZE` ([SQL_readme.md](SQL_Commands/SQL_readme.md)).
+- The `Final_zip/` distribution copy must be re-exported by hand after every
+  change and has already drifted from the live tree — a repeat of the
+  "review the live tree" lesson, now with a process fix pending.
 - Data visualization/dashboarding on top of the telemetry store is the obvious
   next layer.
 
 ## 8. Next month's direction
 
 ```text
-grow the suite (export streaming, init_db) + CI  →  pyproject packaging + ruff + type hints
-   →  Alembic migrations  →  MQTT client hardening (env config, auto-reconnect)  →  dashboard
+grow the suite (export streaming, init_db, cron_jobs) + CI  →  pyproject packaging + ruff + type hints
+   →  Alembic migrations  →  MQTT client hardening (env config, auto-reconnect, QoS)
+   →  joins/window-functions practice  →  dashboard
 ```
 
 The goal is unchanged: keep moving from "the API works on my machine" toward
-"the service behaves correctly when something goes wrong" — except that the
-final week already banked the server, pooling, timeouts, and the import
-ledger; the safety nets (automated tests) now come first.
+"the service behaves correctly when something goes wrong" — the final
+capstone week banked the server, pooling, timeouts, and the import ledger,
+the automated tests came next, and the post-capstone tracks (logging,
+scheduling, partitioning, regex) are each small, finished proofs that the
+same patterns generalize.
 
 ---
 
-*All file links in this document are relative and verified; start from
-[README.md](README.md) for the repository map. The capstone's own docs —
-[readme.md](MQTT/Machine_Sensor_API/readme.md) (simple + engineer) and
-[code_explanation.md](MQTT/Machine_Sensor_API/code_explanation.md)
-(function-by-function) — carry the full detail.*
+*All file links in this document are relative and verified against the live
+tree on 6 October 2026. The capstone's
+[readme.md](MQTT/Machine_Sensor_API/readme.md) carries the full simple +
+engineer detail; line-by-line code walkthroughs live per-topic, e.g.
+[log_rotation/code_explanation.md](log_rotation/code_explanation.md).*

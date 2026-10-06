@@ -86,6 +86,8 @@ cron_jobs  ---- root directory
 
     - run_timestamp_job() - entry point of the insert_current_timestamp()
 
+    - run_partition_job() - an entry point of the create_partition()
+
     - run_scheduler() - where the actual cron jobs done with the help of schedule module so that it can directly implement the cron job for every 1 minute
 
     - main entry point - running scheduler.py directly calls run_scheduler() so to execute all the code snippets properly!
