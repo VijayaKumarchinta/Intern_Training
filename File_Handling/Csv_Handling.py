@@ -3,7 +3,7 @@ import csv
 class CSVManager:
 
     def __init__(self):
-        dfn = 'dataaaa.csv'
+        dfn = 'F:\Intern_Training\dataaaa.csv'
         self.dfn = dfn
     
     def write_csv(self, dt=None):

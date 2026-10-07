@@ -100,3 +100,29 @@ Some common regex functions which are useful:
 - match_a_string_contains_only_digits() - pattern is "\d+" - so it will check for the numbers itself
 
 - match_a_string_contains_no_digits() - pattern is "\D+" - so it will check for non-numbers
+
+
+Python escape characters! - once go through those
+check the use cases once again if possible go through all usecases!
+check how the file paths are being read other than back slash
+
+w.r.t the imports we change accoringly how we read the file and deal with it
+
+def match_letter_and_numbers(result4):
+    letters = re.findall(r"[A-Za-z]", result4)
+    numbers = re.findall(r"\d+", result4)
+
+    if not letters and not numbers:
+        return None
+
+    return {
+        "letters": letters,
+        "numbers": ",".join(numbers)
+    }
+check the other possiblities try to use split function
+
+^[A-Z][a-z]+$
+
+^\d{5}$
+
+^[^0-9]+$

@@ -1,0 +1,60 @@
+Programming is more like a stroy to tell a fellow programmer where variables are characters in your story some play their role till the end and some end up in middle and different parts saying your story while connecting all the classes in specific order
+
+Common Principles that helps us(developers) to write clean, maintainable and efficient code :-
+
+- KISS(Keep It Simple, Stupid):
+    - We neither want less nor more, we only want to have as much as is required.
+    - The main purpose is to reduce the complexity of the code which was written not to create a new complexity.
+  
+- DRY(Don't Repeat Yourself):
+  - Main goal is to reduce the repetition of the code so that we can reduce the lines, can reduce the confusion.
+  - So make sure you create common functions to avoid the repetition in your code.
+  
+- YAGNI(You Aren't Gonna Need It):
+  - Don't implement anything until it is necessary because we are not gonna keep the code forever
+
+- SOLID: helps in enhancing loose coupling
+  - (S)ingle Responsibility Principle:
+      -  A Class should have only one reason to change
+      -  More like "Every class have a single job according to the requirements"
+  - (O)pen-Closed Principle:
+    -  Entities should be open for extension and closed for modifications
+    -  More like "We can able to extend a class behavior without any modifying the code"
+  - (L)iskov's Substitution Principle:
+    - Child classes must be able to replace their parent classes
+    - More like "Any subclass can be used in place of its parent class without causing unexpected behavior in the program"
+  - (I)nterface Segregation Principle:
+    - Keeping the interface details well-defined and avoid unnecessary dependencies
+  - (D)ependency Inversion Principle:
+    - High-level modules shouldn't depend on low-level modules while both depends on abstractions
+    - The classes should always relay on abstractions rather than concrete implementations
+
+- Seperation of Concerns(Soc):
+  - More like making partitioning complicated application into different sections while each pointing out to specific jobs each
+  - We can easily maintain, update and reuses the code
+
+- Avoid Premature Optimization:
+  - Don't do uneccessary optimisation at early stage of the development
+  - Always do optimization when it is required at the right time with right benifits
+
+- Law of Demeter:
+  - This divides the responsibility between classes in three points
+    - Each unit should have only limited knowledge about other units
+    - Each unit should only talk to its friends, Don't talk to strangers
+    - Only talk to your immediate friends
+
+
+
+Every Web application is built on synergy b/w how the frontend interacts with the backend
+
+### Communication Methods:
+  - RESTful APIs: most popu;at approach where it generally uses HTTP request and response methods in prder to exchange the data in a normalized format
+    - Client(Frontend):-
+      - Make an http req to a specific api endpoint on the server
+      - Helps us to specifies the req methods and their desired action
+    - Server(Backend):-
+      - Receives the req and identifies the target endpoints based on the URL,Methods and processes the req,access the db,perform calculations/interact with other services
+    - Client:- Will update the user interface and performs actions based on the returned information
+  
+  - WebSockets:-
+    - A bi-directional communication protocal that connects a client and server
