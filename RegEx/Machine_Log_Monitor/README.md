@@ -1,23 +1,23 @@
 # Machine Log Monitor
 
-A Python application that reads machine log entries, extracts event details,
-stores `ERROR` and `CRITICAL` events in PostgreSQL, creates a CSV report, and
-runs the monitoring job on a schedule.
+This project reads a machine log, stores only `ERROR` entries in PostgreSQL,
+creates a CSV report, and checks the log every minute.
 
-## How the Application Works
+# How the application works
 
-1. `scheduler.py` starts a job that runs every minute.
+1. `scheduler.py` starts the monitoring job every minute.
 2. `MachineLogReader` reads one line from `logs/machine.log`.
-3. `parse_machine_log()` checks the line and extracts its event information.
-4. `jobs.py` sends `ERROR` and `CRITICAL` events to PostgreSQL.
-5. `report.py` writes the stored events to a CSV file.
-6. Processing stops when the reader reaches the last line.
+3. `parse_machine_log()` extracts the timestamp, level, machine ID, and message.
+4. `jobs.py` stores the entry if its level is `ERROR`; other levels are skipped
+   and logged.
+5. `report.py` creates the CSV report after an error entry is processed.
+6. The scheduler stops after the last line has been read.
 
-If saving an event or creating its report fails, the reader rewinds that line.
-The next scheduled run can retry it. PostgreSQL's unique constraint prevents a
-retry from storing the same machine event twice.
+If saving an error or creating its report fails, the reader returns to that line
+so it can be tried again on the next run. A database constraint prevents the
+same error from being inserted more than once.
 
-## Machine Log Format
+# Machine log format
 
 Each non-empty line should follow this format:
 
@@ -30,141 +30,150 @@ Example:
 ```text
 2026-10-08 10:16:55 | ERROR | Machine M102 | Motor overheating
 2026-10-08 10:18:40 | INFO | Machine M101 | Sensor failure
-2026-10-08 10:20:00 | CRITICAL | Machine M103 | Hydraulic system failure
 ```
 
-Supported levels are `DEBUG`, `INFO`, `WARNING`, `ERROR`, and `CRITICAL`.
-Timestamps are interpreted as UTC. Blank lines are ignored; malformed lines
-and invalid dates are skipped.
+The parser recognizes `DEBUG`, `INFO`, `WARNING`, `ERROR`, and `CRITICAL`.
+Only `ERROR` entries are stored. Timestamps are treated as UTC. Blank lines
+are skipped, and invalid lines or dates are logged and skipped.
 
-## Classes, Functions, and Key Methods:
+# Project files and functions
 
-### `config.py`
+## `config.py`
 
-This module provides shared configuration values used throughout the application.
+- `BASE_DIR` - finds the application folder so file paths work regardless of
+  the terminal's current folder.
+- `load_dotenv(...)` - loads database settings from `.env`.
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - provide the
+  PostgreSQL connection settings.
+- `DB_SCHEMA` - selects the schema where machine errors are stored.
+- `MACHINE_LOG_FILE` - identifies `logs/machine.log`.
+- `REPORT_FILE` - identifies `reports/machine_error_report.csv`.
 
-| Name | Purpose |
-| --- | --- |
-| `BASE_DIR` | The folder containing the application files. |
-| `load_dotenv(...)` | Loads settings from the `.env` file. |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection settings. |
-| `DB_SCHEMA` | PostgreSQL schema containing the machine errors table. |
-| `MACHINE_LOG_FILE` | Path to `logs/machine.log`. |
-| `REPORT_FILE` | Path to `reports/machine_error_report.csv`. |
+## `log_reader.py`
 
-### `log_reader.py`
+### `MachineLogReader`
 
-#### `MachineLogReader`
+Reads the machine log one line at a time and remembers its file position.
 
-Reads the configured machine log one line at a time and tracks its current
-position.
+- `__init__(file_path=MACHINE_LOG_FILE)` - sets the input file and initializes
+  the line counter.
+- `open()` - opens the input file when it is first needed.
+- `read_next_line()` - returns the line number, line text, and whether it is the
+  last line; returns `None` when the file ends.
+- `retry_last_line()` - moves back to the last line after a processing failure.
+- `close()` - closes the input file when reading is finished.
 
-| Method | Purpose |
-| --- | --- |
-| `__init__(file_path=MACHINE_LOG_FILE)` | Sets the file to read and initializes the line counter. A different path can be supplied for testing. |
-| `open()` | Opens the file the first time it is needed. |
-| `read_next_line()` | Returns `(line_number, line_text, is_last_line)`. Returns `None` at end of file. |
-| `retry_last_line()` | Moves back to the start of the last returned line so it can be processed again. |
-| `close()` | Closes the file and clears its open-file state. |
+## `log_parser.py`
 
-`read_next_line()` removes the line ending and uses a brief look-ahead to tell
-whether the returned line is the last one.
+- `LOG_PATTERN` - describes the expected layout of a machine log line.
+- `parse_machine_log(line)` - checks a line and returns its timestamp, Unix
+  timestamp, level, machine ID, and error message; returns `None` for blank,
+  malformed, or invalid-date lines.
 
-### `log_parser.py`
+## `db.py`
 
-| Name | Purpose |
-| --- | --- |
-| `LOG_PATTERN` | Describes the expected timestamp, level, machine ID, and message layout. |
-| `parse_machine_log(line)` | Returns a dictionary containing `timestamp`, `unix_timestamp`, `machine_id`, `level`, and `error_message`. Returns `None` for blank, malformed, or invalid-date lines. |
+- `get_connection(database=None)` - opens a PostgreSQL connection using the
+  settings from `config.py`; an optional database name is used during setup.
 
-The timestamp is converted to a UTC datetime. The Unix timestamp is the same
-event time represented as seconds since the Unix epoch.
+## `machine_insert.py`
 
-### `db.py`
+- `store_errors(errors)` - inserts parsed `ERROR` entries, counts inserted rows
+  and duplicates, commits successful changes, and rolls back on failure.
 
-| Name | Purpose |
-| --- | --- |
-| `logger` | Records database connection failures. |
-| `get_connection(database=None)` | Opens a PostgreSQL connection using settings from `config.py`. An optional database name lets setup connect to PostgreSQL's maintenance database while creating the application database. |
+## `report.py`
 
-If a connection fails, the function logs the error and raises it so the caller
-can handle or report the failure.
+- `SELECT_QUERY` - selects machine ID, timestamp, and error message from the
+  configured schema, ordered by timestamp.
+- `generate_report()` - fetches the saved errors and writes them to the CSV
+  report.
 
-### `machine_insert.py`
+## `jobs.py`
 
-| Name | Purpose |
-| --- | --- |
-| `store_errors(errors)` | Inserts event dictionaries into `{DB_SCHEMA}.machine_errors`. Counts inserted rows and ignored duplicates, commits on success, rolls back and re-raises on failure, and always closes the connection. |
+- `reader` - keeps the reader's position between scheduled runs.
+- `monitor_machine_logs()` - reads and processes one line; stores `ERROR`
+  entries, logs why other lines are skipped, and reports whether more lines
+  remain.
 
-The database constraint considers an event a duplicate when its machine ID,
-timestamp, and message match an existing row.
+## `scheduler.py`
 
-### `report.py`
+- `create_scheduler()` - schedules the monitoring job to run once per minute
+  and stops when the log has been processed.
+- `main()` - configures logging and starts the scheduler.
 
-| Name | Purpose |
-| --- | --- |
-| `SELECT_QUERY` | Selects machine ID, timestamp, and message from the configured schema, ordered by timestamp. |
-| `generate_report()` | Reads the stored events, creates the report directory if needed, writes a CSV header and rows, logs the result, and closes the database connection. |
+## `setup_db.py`
 
-If report generation fails, the function logs the exception and raises it to
-the monitoring job.
+- `create_database()` - creates the configured database or logs that it already
+  exists.
+- `create_schema()` - creates the configured schema if it does not exist.
+- `create_table()` - creates the machine-errors table and duplicate constraint.
 
-### `jobs.py`
+When run directly, this file calls the setup functions in database, schema,
+and table order.
 
-| Name | Purpose |
-| --- | --- |
-| `reader` | The `MachineLogReader` instance shared across scheduled runs so it can continue from its current file position. |
-| `monitor_machine_logs()` | Reads and processes one line. Warns about non-empty invalid lines. Stores `ERROR` and `CRITICAL` events and generates the report for those events. Returns `True` when more lines remain and `False` at the end of the file. |
+## `logging_config.py`
 
-If storing an event or generating its report raises an error, this function asks
-the reader to retry the same line, then re-raises the error.
+- `configure_logging()` - sends application messages to the terminal and
+  `logs/app.log`.
+- `RotatingFileHandler` - limits the size of the application log by rotating
+  older log files.
 
-### `scheduler.py`
+# Python methods and statements used
 
-| Name | Purpose |
-| --- | --- |
-| `create_scheduler()` | Creates the APScheduler scheduler and registers the monitoring job to run every minute. It stops the scheduler when the log is finished. |
-| `main()` | Configures logging, reports that monitoring started, and starts the scheduler. It also logs when the user stops the application. |
+Each item gives what it does and why this project uses it.
 
-The `if __name__ == "__main__"` block calls `main()` when this file is run
-directly.
+- `Path(...).resolve()` - finds an absolute path so input and output files can
+  be located reliably.
+- `.parent` - gets a path's containing folder, for example to create the report
+  folder.
+- `os.getenv(...)` - reads configuration values without placing database
+  settings directly in the source code.
+- `re.compile(...)` - prepares the log-line pattern once so it can be reused.
+- `.fullmatch(...)` - checks that the complete line follows the expected format.
+- `.groupdict()` - collects the named fields captured by the regular expression.
+- `datetime.strptime(...)` - converts the timestamp text to a datetime.
+- `.replace(tzinfo=timezone.utc)` - marks the machine event timestamp as UTC.
+- `.timestamp()` - converts the datetime to Unix time for database storage.
+- `open(...)` and `.readline()` - open the machine log and read one line at a
+  time.
+- `.tell()` and `.seek(...)` - save and restore the file position for look-ahead
+  and retry.
+- `.rstrip(...)` and `.strip()` - remove line endings or surrounding whitespace
+  where needed.
+- `int(...)` - stores the Unix timestamp as an integer.
+- `Path(...).mkdir(...)` - creates the report folder if it is missing.
+- `csv.writer(...)` - writes report values using CSV formatting.
+- `writer.writerow(...)` - writes the report's column headings.
+- `writer.writerows(...)` - writes the database results to the report.
+- `len(...)` - counts report records for the log message.
+- `with` - ensures files and database cursors are cleaned up when their work is
+  complete.
+- `raise` - passes failures back to the caller so a failed log line can be
+  retried.
 
-### `setup_db.py`
+# SQL commands and database features used
 
-| Name | Purpose |
-| --- | --- |
-| `TABLE_NAME` | The name of the PostgreSQL table used for machine events. |
-| `create_database()` | Creates the configured database, or logs that it already exists. |
-| `create_schema()` | Creates the configured schema if needed. |
-| `create_table()` | Creates the machine errors table and its duplicate-prevention constraint if needed. |
+- `CREATE DATABASE` - creates the application database.
+- `CREATE SCHEMA` - creates a namespace for the machine errors table.
+- `CREATE TABLE` - defines the columns used to store each error.
+- `INSERT INTO` - saves parsed error entries.
+- `SELECT ... FROM ... ORDER BY` - retrieves saved errors in timestamp order
+  for the report.
+- `ON CONFLICT ... DO NOTHING` - ignores an error that already exists instead
+  of inserting a duplicate.
+- `UNIQUE (machine_id, timestamp, error_message)` - identifies duplicate
+  machine error entries.
+- `NOT NULL` - requires the important event fields to have values.
+- `SERIAL` - generates a unique ID for each stored row.
+- `TIMESTAMPTZ` - stores the event time with timezone information.
+- `BIGINT` - stores the Unix timestamp as an integer.
+- `commit()` - saves successful database changes.
+- `rollback()` - cancels changes when a database operation fails.
+- `autocommit` - allows the database-creation command to run outside a
+  transaction.
 
-When run directly, the file configures logging and calls these three setup
-functions in order.
+# Database configuration
 
-### `logging_config.py`
-
-| Name | Purpose |
-| --- | --- |
-| `BASE_DIR`, `LOG_DIR`, `LOG_FILE` | Identify the application folder and the `logs/app.log` file. |
-| `configure_logging()` | Sets up informational logging to both the terminal and a rotating application log file. |
-
-The module calls `configure_logging()` when imported. Application logs are
-separate from machine events in `logs/machine.log`.
-
-### Tests
-
-`tests/test_pipeline.py` checks that the reader returns lines and detects the
-end of a file, the parser extracts fields and rejects invalid dates, failed
-event storage can be retried, `CRITICAL` events are stored, and reports can be
-written when the configured path is a string.
-
-`tests/test_machine_insert.py` checks that new events are inserted, duplicates
-are ignored, and database errors trigger rollback and propagate to the caller.
-These tests mock the database and do not need a running PostgreSQL server.
-
-## PostgreSQL Setup
-
-Create a `.env` file with the connection settings and schema name:
+Create a `.env` file in this folder:
 
 ```text
 DB_HOST=localhost
@@ -175,24 +184,24 @@ DB_PASSWORD=your_password
 DB_SCHEMA=machine_monitoring_schema
 ```
 
-The table stores the machine ID, event timestamp, Unix timestamp, and message.
-Its unique constraint uses `(machine_id, timestamp, error_message)`.
+The table stores the machine ID, event timestamp, Unix timestamp, and error
+message. The unique key is `(machine_id, timestamp, error_message)`.
 
-## Report
+# Report
 
-The CSV file is written to:
+The report is written to:
 
 ```text
 reports/machine_error_report.csv
 ```
 
-It has these columns: `Machine ID`, `Timestamp`, and `Error Message`. The report
-is generated after each successfully processed `ERROR` or `CRITICAL` event.
+It contains `Machine ID`, `Timestamp`, and `Error Message` columns. It is
+regenerated after an `ERROR` entry is processed.
 
-## Run
+# Run the application
 
-Install dependencies, configure `.env`, create the database objects, and start
-the scheduler from this folder:
+From this folder, install the dependencies, set up the database, and start the
+scheduler:
 
 ```powershell
 pip install -r requirements.txt
@@ -200,12 +209,4 @@ python setup_db.py
 python scheduler.py
 ```
 
-Application messages appear in the terminal and are written to `logs/app.log`.
-
-## Run Tests
-
-Run the tests from this folder:
-
-```powershell
-python -m unittest discover -s tests -p "test_*.py" -v
-```
+Application messages are shown in the terminal and written to `logs/app.log`.
