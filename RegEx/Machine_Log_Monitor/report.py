@@ -1,54 +1,55 @@
 import csv
 import logging
-import os
-import psycopg2
+
 from config import REPORT_FILE
-from config import DB_SCHEMA
-from setup_db import TABLE_NAME
 from db import get_connection
 
 logger = logging.getLogger(__name__)
 
-SELECT_QUERY = f"""
-SELECT
-    machine_id,
-    timestamp,
-    unix_timestamp,
-    error_message
-FROM {DB_SCHEMA}.{TABLE_NAME}
-ORDER BY timestamp;
+
+SELECT_QUERY = """
+    SELECT
+        machine_id,
+        log_timestamp,
+        error_message
+    FROM machine_errors
+    ORDER BY log_timestamp;
 """
 
+
 def generate_report():
+
     connection = None
 
     try:
+
         connection = get_connection()
 
         with connection.cursor() as cursor:
+
             cursor.execute(SELECT_QUERY)
+
             rows = cursor.fetchall()
 
-        os.makedirs("reports", exist_ok=True)
+        REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(REPORT_FILE,"w",newline="",encoding="utf-8") as file:
+        with open(REPORT_FILE, "w", newline="", encoding="utf-8") as file:
+
             writer = csv.writer(file)
-            writer.writerow([
-                "Machine ID",
-                "Timestamp",
-                "Unix Timestamp",
-                "Error Message"
-            ])
+
+            writer.writerow(["Machine ID", "Timestamp", "Error Message"])
+
             writer.writerows(rows)
-            
-        logger.info("Report generated: %s (%d records)",REPORT_FILE,len(rows))
 
-    except psycopg2.Error as error:
-        logger.error("Failed to generate report: %s",error)
+        logger.debug("Report generated: %s | Records=%d", REPORT_FILE, len(rows))
 
-    except OSError as error:
-        logger.error("Failed to write report: %s",error)
+    except Exception:
+
+        logger.exception("Failed to generate report")
+
+        raise
 
     finally:
+
         if connection:
             connection.close()

@@ -1,5 +1,5 @@
+import logging
 import psycopg2
-
 from config import (
     DB_HOST,
     DB_PORT,
@@ -7,6 +7,8 @@ from config import (
     DB_USER,
     DB_PASSWORD,
 )
+
+logger = logging.getLogger(__name__)
 
 def get_connection(database=None):
     try:
@@ -18,6 +20,6 @@ def get_connection(database=None):
             password=DB_PASSWORD,
         )
 
-    except psycopg2.Error:
-        print("Database connection failed")
+    except psycopg2.Error as error:
+        logger.error("Database connection failed: %s", error)
         raise

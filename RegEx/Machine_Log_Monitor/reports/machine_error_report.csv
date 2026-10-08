@@ -1,9 +1,0 @@
-Machine ID,Timestamp,Unix Timestamp,Error Message
-M102,2026-10-08 15:46:55+05:30,1791454615,Motor overheating
-M101,2026-10-08 15:48:40+05:30,1791454720,Sensor failure
-M103,2026-10-08 15:51:40+05:30,1791454900,Pressure too high
-M101,2026-10-08 15:57:25+05:30,1791455245,Cooling system failure
-M102,2026-10-08 16:09:55+05:30,1791455995,High current detected
-M103,2026-10-08 16:19:35+05:30,1791456575,Hydraulic pressure exceeded threshold
-M101,2026-10-08 16:34:05+05:30,1791457445,Temperature sensor disconnected
-M102,2026-10-08 16:43:45+05:30,1791458025,Cooling fan failure

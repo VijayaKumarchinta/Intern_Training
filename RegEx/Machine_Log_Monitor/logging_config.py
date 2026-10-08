@@ -15,10 +15,11 @@ def configure_logging():
     if logger.handlers:
         return logger
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+        "%(asctime)s | %(levelname)-8s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
-    
+
     file_handler = RotatingFileHandler(
         filename=LOG_FILE,
         maxBytes=10 * 1024 * 1024,

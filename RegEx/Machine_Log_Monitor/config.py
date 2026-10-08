@@ -14,4 +14,3 @@ DB_SCHEMA = os.getenv("DB_SCHEMA")
 
 MACHINE_LOG_FILE = os.path.join(BASE_DIR, "logs", "machine.log")
 REPORT_FILE = os.path.join(BASE_DIR, "reports", "machine_error_report.csv")
-
