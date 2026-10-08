@@ -21,10 +21,21 @@ def monitor_machine_logs():
         parsed = parse_machine_log(line)
         if parsed is None:
             if line.strip():
-                logger.warning("Skipping invalid line %d", line_number)
-        elif parsed["level"] in {"ERROR", "CRITICAL"}:
+                logger.warning(
+                    "Skipping line %d: invalid log format or timestamp",
+                    line_number,
+                )
+            else:
+                logger.info("Skipping line %d: blank line", line_number)
+        elif parsed["level"] == "ERROR":
             store_errors([parsed])
             generate_report()
+        else:
+            logger.info(
+                "Skipping line %d: level is %s; only ERROR is stored",
+                line_number,
+                parsed["level"],
+            )
     except Exception:
         reader.retry_last_line()
         raise

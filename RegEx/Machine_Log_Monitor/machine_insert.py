@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 def store_errors(errors):
-    """Store errors, ignoring records with an existing machine, timestamp, and message."""
     connection = get_connection()
     inserted = 0
     ignored_duplicates = 0
@@ -47,7 +46,7 @@ def store_errors(errors):
 
         connection.commit()
         logger.info(
-            "Stored %d error(s); ignored %d duplicate(s)",
+            "Saved ERROR log entries: %d; duplicates skipped: %d",
             inserted,
             ignored_duplicates,
         )

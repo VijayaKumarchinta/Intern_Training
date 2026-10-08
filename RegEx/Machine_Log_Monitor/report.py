@@ -44,7 +44,7 @@ def generate_report():
 
             writer.writerows(rows)
 
-        logger.info("Report generated: %s | Records=%d", report_file, len(rows))
+        logger.info("Report generated | Records=%d", len(rows))
 
     except Exception:
 

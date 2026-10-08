@@ -7,7 +7,6 @@ from logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
 
-
 def create_scheduler():
 
     scheduler = BlockingScheduler()
@@ -50,7 +49,6 @@ def main():
     except (KeyboardInterrupt, SystemExit):
 
         logger.info("Machine log monitoring stopped by user")
-
 
 if __name__ == "__main__":
     main()
