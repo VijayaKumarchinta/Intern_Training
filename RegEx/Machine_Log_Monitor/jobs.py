@@ -1,6 +1,6 @@
 import logging
 
-from db import store_errors
+from machine_insert import store_errors
 from log_reader import read_machine_logs
 from log_parser import parse_machine_log
 from report import generate_report
