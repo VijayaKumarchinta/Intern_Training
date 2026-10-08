@@ -54,7 +54,7 @@ def create_table():
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
-                CREATE TABLE IF NOT EXISTS{DB_SCHEMA}.{TABLE_NAME} (
+                CREATE TABLE IF NOT EXISTS {DB_SCHEMA}.{TABLE_NAME} (
                     id SERIAL PRIMARY KEY,
                     machine_id VARCHAR(50) NOT NULL,
                     timestamp TIMESTAMPTZ NOT NULL,
@@ -85,10 +85,7 @@ def create_table():
     finally:
         connection.close()
 
-def initialize_database():
+if __name__ == "__main__":
     create_database()
     create_schema()
     create_table()
-
-if __name__ == "__main__":
-    initialize_database()
