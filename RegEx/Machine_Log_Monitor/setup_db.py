@@ -7,6 +7,7 @@ from logging_config import configure_logging
 logger = logging.getLogger(__name__)
 TABLE_NAME = "machine_errors"
 
+
 def create_database():
     connection = get_connection(database="postgres")
     connection.autocommit = True

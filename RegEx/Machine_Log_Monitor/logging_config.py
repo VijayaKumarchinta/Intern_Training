@@ -9,13 +9,14 @@ LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "app.log"
 
+
 def configure_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     if logger.handlers:
         return logger
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | %(message)s",
+        "%(asctime)s | %(levelname)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
@@ -34,5 +35,6 @@ def configure_logging():
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     return logger
+
 
 configure_logging()

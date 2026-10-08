@@ -1,8 +1,10 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
@@ -12,5 +14,5 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 DB_SCHEMA = os.getenv("DB_SCHEMA")
 
-MACHINE_LOG_FILE = os.path.join(BASE_DIR, "logs", "machine.log")
-REPORT_FILE = os.path.join(BASE_DIR, "reports", "machine_error_report.csv")
+MACHINE_LOG_FILE = BASE_DIR / "logs" / "machine.log"
+REPORT_FILE = BASE_DIR / "reports" / "machine_error_report.csv"
