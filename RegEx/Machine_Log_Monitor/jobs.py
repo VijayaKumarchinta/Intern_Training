@@ -12,11 +12,10 @@ def monitor_machine_logs():
     logger.info("Monitoring started")
 
     lines = read_machine_logs()
-
     errors = parse_machine_log(lines)
-
-    store_errors(errors)
-
-    generate_report()
+    
+    if errors:
+        store_errors(errors)
+        generate_report()
 
     logger.info("Monitoring completed")

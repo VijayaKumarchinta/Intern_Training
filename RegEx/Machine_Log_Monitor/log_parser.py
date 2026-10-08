@@ -12,7 +12,6 @@ LOG_PATTERN = re.compile(
 )
 
 def parse_machine_log(lines):
-    errors = []
     for line in lines:
         line = line.strip()
         if not line:
@@ -37,11 +36,5 @@ def parse_machine_log(lines):
             "machine_id": log_data["machine_id"],
             "error_message": log_data["message"].strip()
         }
-
-        errors.append(error_data)
-
-        logger.info("ERROR detected: machine=%s timestamp=%s",error_data["machine_id"],error_data["timestamp"])
-
-    logger.info("Extracted %d machine errors",len(errors))
-
-    return errors
+    logger.info("ERROR detected: machine=%s timestamp=%s",error_data["machine_id"],error_data["timestamp"])
+    return None
