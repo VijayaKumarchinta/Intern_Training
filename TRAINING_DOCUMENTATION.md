@@ -6,7 +6,7 @@
 | **Company** | Triniti Advanced Software Labs Pvt Ltd |
 | **Period** | 17 August 2026 – ongoing (six core weeks 17 Aug – 28 Sep, continuing since) |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
-| **Last reviewed** | 6 October 2026 — every link and claim below was re-checked against the live tree |
+| **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 7 Oct), the live tree, and a re-run of the test suite; verification record in §9 |
 
 This document records the full training period: what was built, what was
 learned, what went wrong, and which engineering habits changed along the way.
@@ -63,6 +63,9 @@ ground: a standalone rotating-log demo (§3.11), a scheduler-driven cron-jobs
 project with PostgreSQL range partitioning (§3.12), and regex practice
 (§3.13) — each one small enough to finish, documented like production code.
 
+On 8 October the whole period was self-reviewed against the original email
+assignments and the live tree; the verification record is §9.
+
 ---
 
 ## 2. Timeline of assigned work
@@ -87,6 +90,7 @@ project with PostgreSQL range partitioning (§3.12), and regex practice
 | Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging; first range-partitioning demo (`partition_ts`) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
 | Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.12 |
 | Oct 4–6 | Regular expressions: eight matcher functions + full notes; `Final_zip/` distribution copy assembled | [RegEx/](RegEx/regex_readme.md), §3.13 |
+| Oct 8 | Full self-review: every email-assigned task cross-checked against the live tree; test suite re-run (53 passed); distribution copy verified in sync; doc-drift findings logged | §9 |
 
 ---
 
@@ -507,7 +511,19 @@ letters + numbers extraction, "starts with A" / "ends with Z" via word
 boundaries, digits-only and no-digits scans. Notes in
 [regex_readme.md](RegEx/regex_readme.md) cover the meta-characters, anchors,
 special sequences, and the `re.search/match/fullmatch/findall/sub/split`
-family.
+family. A separate practice file, [Assigned_Tasks.py](RegEx/Assigned_Tasks.py),
+covers the ten extraction/validation tasks (employee and machine IDs, phone
+numbers, log parsing with named groups and `groupdict()`, `re.sub` cleaning,
+`re.split`, dates, error lines).
+
+**Known issues (Oct 8 review):** the concepts file is literally named `.py`,
+which hides it from most tooling (renaming to `regex_concepts.py` is
+pending), and
+[regex_readme.md](RegEx/regex_readme.md) has drifted from the code: it
+documents `match_letters_and_numbers()` with the grouping pattern
+`([a-zA-Z]+)(\d+)`, while the implementation actually uses two separate
+`findall` calls — and the notes still carry leftover brainstorming text that
+should not go out in a shared file.
 
 **Learned:**
 
@@ -574,6 +590,8 @@ daily.
 | Inserts failed with "no partition … found" | Row arrived before its 10-minute partition existed | Just-in-time partition creation before each insert + a `DEFAULT` catch-all partition (Oct 1) |
 | `CREATE TABLE … PARTITION BY` rejected the plain-`id` primary key | Postgres requires the partition column inside the PK | Composite `PRIMARY KEY (id, unix_ts)` (Oct 1) |
 | Two concurrent imports could collide resolving the same machine name | Machine lookup + insert were not atomic — risk caught in review, not a crash observed | Race-safe `INSERT … ON CONFLICT (machine_name) DO UPDATE … RETURNING id` in the importer |
+| Cron readme still documented `schedule.every(...).do()` calls | The readme kept `schedule`-module remnants after the Oct 1 rewrite to APScheduler | Found in the Oct 8 review; readme to be cleaned so it documents only what actually runs |
+| Regex readme showed a grouping pattern the code doesn't use | Notes were written before the implementation changed to two `findall` calls | Found in the Oct 8 review; the lesson applies to notes too — docs drift, code is the source of truth |
 
 ---
 
@@ -646,14 +664,22 @@ daily.
   the MQTT demo still needs env-based config, auto-reconnect hardening, and
   real use of QoS/retained messages ([mqtt_readme](MQTT/mqtt_readme.md),
   *not used yet*).
+- Small portability/cleanliness debts in the early projects, found in the
+  Oct 8 review: [Csv_Handling.py](File_Handling/Csv_Handling.py) hard-codes
+  an absolute `F:\` path, the OOP demos guard calls that cannot fail, and
+  `Encapsulation.py` defines a private method that is never used. Recorded
+  here rather than silently rewritten — they mark the stage each lesson was
+  learned at; cleanup is queued.
 - The cron-jobs scheduler has no test coverage and no graceful-shutdown path
   beyond `KeyboardInterrupt`; `db.py` still reports connection failure with a
   bare `print` instead of the structured logger it configures.
 - SQL practice is still short of real-world use of joins, window functions,
   and `EXPLAIN ANALYZE` ([SQL_readme.md](SQL_Commands/SQL_readme.md)).
-- The `Final_zip/` distribution copy must be re-exported by hand after every
-  change and has already drifted from the live tree — a repeat of the
-  "review the live tree" lesson, now with a process fix pending.
+- The `Final_zip/` distribution copy is re-exported by hand. The Oct 8
+  review verified it back **in sync** with the live tree (only a runtime log
+  file differs) — an earlier version of this document wrongly claimed it had
+  drifted. The manual process itself is still the risk: the re-export should
+  be scripted so drift cannot creep back in.
 - Data visualization/dashboarding on top of the telemetry store is the obvious
   next layer.
 
@@ -674,8 +700,43 @@ same patterns generalize.
 
 ---
 
+## 9. Verification record — 8 October 2026
+
+A full pass comparing this document, the mentor email thread
+(17 Aug – 7 Oct), and the live tree.
+
+**Task coverage: 10/10.** Every task assigned by email has a live artifact —
+OOP (6 files), the PostgreSQL bootstrap (`Database_Connection`, later
+`cron_jobs`), file/CSV handling, the Excel → DataFrame pipeline, the first
+Flask API, Mosquitto + Paho MQTT, the Machine Sensor API capstone, the
+cron-jobs/partitioning project, and both regex exercises (concepts +
+practice).
+
+**Checks actually run:**
+
+| Check | Method | Result |
+|---|---|---|
+| Capstone test suite | `pytest tests` in `MQTT/Machine_Sensor_API` | **53 passed** (~4 s, fake pool, no live DB) |
+| Distribution copy sync | `diff -rq` of `Final_zip/` against the live tree | Code identical; only a runtime log file differs |
+| Task coverage | Task-by-task cross-check of every email assignment | 10/10 tasks have live artifacts |
+| Doc ↔ code spot checks | Pooling, timeouts, import ledger, `_build_reading_filters()`, shared validators | All confirmed in the live files |
+
+**Could not be executed here (verified by inspection only):** live
+PostgreSQL behavior (pooling, partition creation) and the MQTT TLS flow —
+no database or broker was running; the test suite deliberately runs against
+a fake pool by design.
+
+**Open cleanup items found by the review** (recorded in §3.13, §5 and §7): the
+`RegEx/.py` filename, the regex readme drift, `schedule`-module remnants in
+[cronjobs_readme.md](cron_jobs/cronjobs_readme.md), the `F:\` path in
+[Csv_Handling.py](File_Handling/Csv_Handling.py), and two stale claims in this
+document itself (the Final_zip drift bullet, corrected above) — which is the
+"review the live tree" lesson applying to the documentation too.
+
+---
+
 *All file links in this document are relative and verified against the live
-tree on 6 October 2026. The capstone's
+tree on 8 October 2026. The capstone's
 [readme.md](MQTT/Machine_Sensor_API/readme.md) carries the full simple +
 engineer detail; line-by-line code walkthroughs live per-topic, e.g.
 [log_rotation/code_explanation.md](log_rotation/code_explanation.md).*

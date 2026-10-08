@@ -57,4 +57,15 @@ Every Web application is built on synergy b/w how the frontend interacts with th
     - Client:- Will update the user interface and performs actions based on the returned information
   
   - WebSockets:-
-    - A bi-directional communication protocal that connects a client and server
+    - A bi-directional communication protocal that connects a client and server, in contrast to conventional HTTP, it allows for continous communication
+      - Client:- 
+        - it establish a web connection using spcific URL
+        - sends msgs that contains the data to the server
+      - Server:-
+        - Receives msgs from client to process them further
+        - can maintain presistent connections with multiple clients simultaneously.
+  - Server-side Rendering(SSR):-
+    - Client:-
+      - Sends a req to the server w.r.t the page
+    - Server:-
+      - with the help of that req it will wrap js with html and  req the contents using server-side script language

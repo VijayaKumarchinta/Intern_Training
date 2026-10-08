@@ -126,3 +126,17 @@ check the other possiblities try to use split function
 ^\d{5}$
 
 ^[^0-9]+$
+
+
+Make sure why we use that fucntion when we deal with re operations
+also define correctly when it needed don't explain over
+
+check all the possiblities remember there
+
+fullmatch()-
+match()- 
+search()-
+
+In general know in which usecases and scenarios we use those methods so we can able understand the align with requirments correctly
+
+we use regex in many usecases in our day-day scenarios and mainly used for validation purpose
