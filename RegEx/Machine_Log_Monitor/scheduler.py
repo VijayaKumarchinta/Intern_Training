@@ -12,13 +12,9 @@ def create_scheduler():
     scheduler = BlockingScheduler()
 
     def run_monitoring():
-
         has_more_lines = monitor_machine_logs()
-
         if not has_more_lines:
-
             logger.info("Machine log processing complete.")
-
             scheduler.shutdown(wait=False)
 
     scheduler.add_job(
@@ -30,24 +26,17 @@ def create_scheduler():
         max_instances=1,
         coalesce=True,
     )
-
     return scheduler
-
 
 def main():
 
     configure_logging()
-
     scheduler = create_scheduler()
-
     logger.info("Machine log monitoring started (interval: 1 minute)")
-
     try:
-
         scheduler.start()
 
     except (KeyboardInterrupt, SystemExit):
-
         logger.info("Machine log monitoring stopped by user")
 
 if __name__ == "__main__":

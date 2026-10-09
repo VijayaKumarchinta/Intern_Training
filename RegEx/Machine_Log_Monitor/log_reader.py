@@ -1,6 +1,5 @@
 from config import MACHINE_LOG_FILE
 
-
 class MachineLogReader:
     def __init__(self, file_path=MACHINE_LOG_FILE):
         self.file_path = file_path

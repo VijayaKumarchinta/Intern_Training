@@ -8,7 +8,6 @@ LOG_PATTERN = re.compile(
     r"(?P<message>.+)"
 )
 
-
 def parse_machine_log(line):
     line = line.strip()
     if not line:

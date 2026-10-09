@@ -7,7 +7,6 @@ from db import get_connection
 
 logger = logging.getLogger(__name__)
 
-
 SELECT_QUERY = """
     SELECT
         machine_id,
@@ -18,41 +17,28 @@ SELECT_QUERY = """
 """
 SELECT_QUERY = SELECT_QUERY.format(schema=DB_SCHEMA)
 
-
 def generate_report():
-
     connection = None
 
     try:
-
         connection = get_connection()
-
         with connection.cursor() as cursor:
-
             cursor.execute(SELECT_QUERY)
-
             rows = cursor.fetchall()
 
         report_file = Path(REPORT_FILE)
         report_file.parent.mkdir(parents=True, exist_ok=True)
 
         with report_file.open("w", newline="", encoding="utf-8") as file:
-
             writer = csv.writer(file)
-
             writer.writerow(["Machine ID", "Timestamp", "Error Message"])
-
             writer.writerows(rows)
-
         logger.info("Report generated | Records=%d", len(rows))
 
     except Exception:
-
         logger.exception("Failed to generate report")
-
         raise
 
     finally:
-
         if connection:
             connection.close()
