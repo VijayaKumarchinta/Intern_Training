@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 reader = MachineLogReader()
 
-
 def monitor_machine_logs():
     result = reader.read_next_line()
     if result is None:

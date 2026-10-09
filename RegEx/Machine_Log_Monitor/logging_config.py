@@ -9,7 +9,6 @@ LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "app.log"
 
-
 def configure_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

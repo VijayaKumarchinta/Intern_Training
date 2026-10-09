@@ -10,7 +10,6 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-
 def get_connection(database=None):
     try:
         return psycopg2.connect(
