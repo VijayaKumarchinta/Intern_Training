@@ -316,10 +316,9 @@ exactly.
                 for error in errors
             ]
             cursor.executemany(sql, params)
-            inserted = ...   # count inserted / duplicate rows from
-                             # cursor.rowcounts as needed
+            inserted = ... 
 
-        connection.commit()   # single commit for the whole batch
+        connection.commit()  
 ```
 
 **Rationale:** one round-trip to the DB for the whole batch instead of

@@ -75,3 +75,73 @@ the common cmds are
 - we can calculate it while remove the current timestamp from the standard timestamp
 - the current 10-digit unixtimestamp just shows that many seconds completed since 1970-01-01 00:00:00 UTC
   
+
+
+### Show tables - used to show all the tables in the db
+
+### Show Databases - used to show all the databses which are under the user
+
+- Create Table
+    - used to create new table in the database
+    - we can define column names and their datatypes
+  
+    - create Table if not exists tablename
+  
+- Insert into
+    - We can able to add elements using 
+  
+    - Insert into tablename(parameters) values(data)
+  
+- Drop table - removes a table from the db
+  - Delete all rows and dependent objects 
+  - recovery is possible only through a backup/databse recovery mechanism
+  
+  - Drop table if exists tablename
+
+- Alter(Rename) - we can able to rename it without exisitng altering the data
+  - Allows us to chnage the table name while preserving all the data
+
+  - Alter Table tablename Rename to new_tablename - Allows us to rename a table
+  - Usecases:-
+    - Alter Table tablename Rename Column columnname to new_columnname - Allows us to rename a column
+    - Alter Table tablename ADD columnname datatype - Allows us to add a new column
+    - Alter Table tablename Modifying Column columnname new_datatype - Helps to modify the datatype
+    - Alter Table tablename drop Column columnname
+
+- Truncate Table - Helps us to remove all the records from the table without preserving it's structure
+  - by doing this it can't be rollback once we executed the truncate table
+  
+  - Truncate Table table_name
+
+- Cloning Table - Used to create a duplicate of an existing table
+  - Helps to create backup copies of important data
+  - Three types of Cloning simple, deep, Shallow
+
+  - (simple Cloning):----
+    - Create Table Clonetable Select * from tablename      
+    - Here the tables will be created as copy and stores the data as well but constraints will not be preserved
+  
+  - (Shallow Cloning):----
+    - Create Table Clonetable like tablename Select * from Clonetable
+    - Here the tables will be copied same as the original but won't copy the data within the original table
+  
+  - (Deep Cloning):----
+    - Create Table Clonetable like tablename Insert into Clonetable Select * from tablename
+    - Here tables will be copied along with structure along with the data by preserving both the structure and records of the original table
+
+- Temporary Table in SQL:--------
+  - a spl table used to store the data temporarly during query execution
+  - Stored in the system's temporary database and it will automatically deleted when the session ends
+  - Local Temporary Table :- Accessible only to the session that created it
+  - Global Temporary Table :- Accessible to Multiple sessions
+
+- Auto Increment:-----
+  - To automatically generate unique values for a column usually a primarykey
+  - which helps to maintain data consistency across the databses which are available
+  - In postgreSQL we use serial keyword which helps in auto-incrementing a column
+
+- Sequences:-----
+  - It helps us to generate unique numbers automatically and helps us to customize using start,increment,min and max and make sure it maintain the consistency and uniqueness
+
+- Cache management:-----
+  - It stores sequence values in memeory to improve performance and reduce disk acess
