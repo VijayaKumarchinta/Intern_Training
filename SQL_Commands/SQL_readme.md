@@ -75,7 +75,7 @@ the common cmds are
 - we can calculate it while remove the current timestamp from the standard timestamp
 - the current 10-digit unixtimestamp just shows that many seconds completed since 1970-01-01 00:00:00 UTC
   
-
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ### Show tables - used to show all the tables in the db
 
@@ -144,4 +144,29 @@ the common cmds are
   - It helps us to generate unique numbers automatically and helps us to customize using start,increment,min and max and make sure it maintain the consistency and uniqueness
 
 - Cache management:-----
-  - It stores sequence values in memeory to improve performance and reduce disk acess
+  - It stores sequence values in memeory to improve performance and reduce disk access
+
+
+- UPDATE - help to modify the existing data in a table by changing the values one/,ore columns
+  - we usually use where clause so we can specify which rows we wanted update without it it will modify all the tables
+  
+  - Update table_name SET column1 = value1, column2 = value2 where condition; 
+
+- DELETE - it helps to remove specific rows from the table while keeping the table structure intact
+  - same as we use where clause along with delete keyword
+  - Begin Transaction where columnname = column_name rollback;
+
+- Duplicate rows - These will cause inconsistent results and affect performance.
+  - these can be removed with the help of ROW_NUMBER() or COUNT() functions
+      - Select * count(*) from tablename groupby c1,c2 Having count(*) > 1
+
+methods used for deletion of rows in SQL
+
+- using groupby and min()
+
+  - Delete From tn
+  - where c1 not in(
+  - select min(c1)
+  - from tn
+  - group by v1,v2);
+  - select * from tn;
