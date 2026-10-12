@@ -170,3 +170,5 @@ methods used for deletion of rows in SQL
   - from tn
   - group by v1,v2);
   - select * from tn;
+
+Where Clause - used to filter rows based on one/more conditions
