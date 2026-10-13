@@ -170,19 +170,24 @@ The actual connection settings must match the PostgreSQL server configuration.
 
 The actual schema must be inspected before implementing database queries.
 
-## 7. Proposed API Endpoints
+## 7. API Endpoints
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/orders` | View and search orders |
-| GET | `/api/orders/<id>` | View order details |
-| POST | `/api/orders` | Validate and create an order |
-| PATCH | `/api/orders/<id>/status` | Update order status |
-| GET | `/api/orders/check-duplicate` | Check for a potential duplicate |
-| GET | `/api/reports/product-sales` | Generate product-wise sales |
-| GET | `/api/reports/date-sales` | Generate date-wise sales |
+| GET | `/api/customers` | List all customers |
+| GET | `/api/customers/<customer_id>` | Get a customer by ID |
+| POST | `/api/customers` | Create a new customer |
+| GET | `/api/products` | List all products |
+| GET | `/api/products/<product_id>` | Get a product by ID |
+| POST | `/api/products` | Create a new product |
+| GET | `/api/orders` | List all orders |
+| GET | `/api/orders/<order_id>` | Get an order by ID |
+| POST | `/api/orders` | Create a new order |
+| PUT | `/api/orders/<order_id>/status` | Update order status |
+| GET | `/api/reports/product-sales` | Product-wise sales report |
+| GET | `/api/reports/date-sales` | Date-wise sales report |
 
-These endpoints will be implemented according to the actual tables and permissions available in the existing database.
+Duplicate orders are prevented by checking if an OrderID already exists.
 
 ## 8. Simple Project Structure
 

@@ -4,7 +4,7 @@ import { useApi } from '../composables/useApi'
 
 const { get, loading, error } = useApi()
 
-const reportType = ref('product') // 'product' or 'date'
+const reportType = ref('product') // 'product' or 'date' or 'summary'
 const productReport = ref(null)
 const dateReport = ref(null)
 const summaryReport = ref(null)
@@ -12,8 +12,6 @@ const summaryReport = ref(null)
 const fromDate = ref('')
 const toDate = ref('')
 const productId = ref('')
-
-const summaryLoading = ref(false)
 
 async function loadProductReport() {
   try {
@@ -48,7 +46,6 @@ async function loadDateReport() {
 }
 
 async function loadSummary() {
-  summaryLoading.value = true
   try {
     const params = new URLSearchParams()
     if (fromDate.value) params.set('from_date', fromDate.value)
@@ -58,8 +55,6 @@ async function loadSummary() {
     summaryReport.value = response.data
   } catch (err) {
     console.error('Failed to load summary:', err)
-  } finally {
-    summaryLoading.value = false
   }
 }
 
@@ -113,7 +108,7 @@ onMounted(() => {
         <input v-model="productId" placeholder="PROD-001 (leave empty for all)" />
       </div>
       <div class="filter-actions">
-        <button @click="reportType === 'product' ? loadProductReport() : loadDateReport()" :disabled="loading">
+        <button @click="reportType === 'product' ? loadProductReport() : reportType === 'date' ? loadDateReport() : loadSummary()" :disabled="loading">
           Generate Report
         </button>
         <button @click="clearFilters" class="secondary">Clear</button>
@@ -135,19 +130,19 @@ onMounted(() => {
         <div class="summary-grid">
           <div class="summary-item">
             <span class="label">Total Revenue</span>
-            <span class="value">${{ productReport.summary.total_revenue?.toFixed(2) }}</span>
+            <span class="value">${{ productReport?.summary?.total_revenue?.toFixed(2) }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Total Items Sold</span>
-            <span class="value">{{ productReport.summary.total_quantity_sold }}</span>
+            <span class="value">{{ productReport?.summary?.total_quantity_sold }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Total Orders</span>
-            <span class="value">{{ productReport.summary.total_orders }}</span>
+            <span class="value">{{ productReport?.summary?.total_orders }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Products</span>
-            <span class="value">{{ productReport.summary.product_count }}</span>
+            <span class="value">{{ productReport?.summary?.product_count }}</span>
           </div>
         </div>
       </div>
@@ -160,20 +155,16 @@ onMounted(() => {
               <th>Category</th>
               <th>Qty Sold</th>
               <th>Revenue</th>
-              <th>Discounts</th>
               <th>Orders</th>
-              <th>Last Sold</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="prod in productReport.products" :key="prod.product_id">
+            <tr v-for="prod in productReport?.products" :key="prod.product_id">
               <td><strong>{{ prod.product_name }}</strong></td>
               <td>{{ prod.category || '-' }}</td>
               <td>{{ prod.total_quantity_sold }}</td>
               <td>${{ prod.total_revenue?.toFixed(2) }}</td>
-              <td>-${{ prod.total_discounts?.toFixed(2) }}</td>
               <td>{{ prod.order_count }}</td>
-              <td>{{ prod.last_sold?.split('T')[0] }}</td>
             </tr>
           </tbody>
         </table>
@@ -187,27 +178,19 @@ onMounted(() => {
         <div class="summary-grid">
           <div class="summary-item">
             <span class="label">Period</span>
-            <span class="value">{{ dateReport.summary.period_days }} days</span>
+            <span class="value">{{ dateReport?.summary?.period_days }} days</span>
           </div>
           <div class="summary-item">
             <span class="label">Total Revenue</span>
-            <span class="value">${{ dateReport.summary.total_revenue?.toFixed(2) }}</span>
+            <span class="value">${{ dateReport?.summary?.total_revenue?.toFixed(2) }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Total Orders</span>
-            <span class="value">{{ dateReport.summary.total_orders }}</span>
+            <span class="value">{{ dateReport?.summary?.total_orders }}</span>
           </div>
           <div class="summary-item">
             <span class="label">Avg Daily Revenue</span>
-            <span class="value">${{ dateReport.summary.average_daily_revenue?.toFixed(2) }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="label">Total Items Sold</span>
-            <span class="value">{{ dateReport.summary.total_items_sold }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="label">Total Discounts</span>
-            <span class="value">${{ dateReport.summary.total_discounts?.toFixed(2) }}</span>
+            <span class="value">${{ dateReport?.summary?.average_daily_revenue?.toFixed(2) }}</span>
           </div>
         </div>
       </div>
@@ -218,21 +201,13 @@ onMounted(() => {
             <tr>
               <th>Date</th>
               <th>Orders</th>
-              <th>Items</th>
-              <th>Subtotal</th>
-              <th>Discounts</th>
-              <th>Tax</th>
               <th>Revenue</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="day in dateReport.daily_sales" :key="day.date">
+            <tr v-for="day in dateReport?.daily_sales" :key="day.date">
               <td><strong>{{ day.date?.split('T')[0] }}</strong></td>
               <td>{{ day.order_count }}</td>
-              <td>{{ day.item_count }}</td>
-              <td>${{ day.total_subtotal?.toFixed(2) }}</td>
-              <td>-${{ day.total_discounts?.toFixed(2) }}</td>
-              <td>${{ day.total_tax?.toFixed(2) }}</td>
               <td><strong>${{ day.total_revenue?.toFixed(2) }}</strong></td>
             </tr>
           </tbody>
@@ -244,38 +219,34 @@ onMounted(() => {
     <div v-if="summaryReport" class="report-content">
       <h3>Key Performance Indicators</h3>
       <div class="summary-grid">
-        <div class="summary-item large">
+        <div class="summary-item">
           <span class="label">Total Customers</span>
-          <span class="value">{{ summaryReport.data.summary.total_customers }}</span>
+          <span class="value">{{ summaryReport?.data?.summary?.total_customers }}</span>
         </div>
-        <div class="summary-item large">
+        <div class="summary-item">
           <span class="label">Total Products</span>
-          <span class="value">{{ summaryReport.data.summary.total_products }}</span>
+          <span class="value">{{ summaryReport?.data?.summary?.total_products }}</span>
         </div>
-        <div class="summary-item large">
+        <div class="summary-item">
           <span class="label">Total Revenue</span>
-          <span class="value highlight">${{ summaryReport.data.summary.total_revenue?.toFixed(2) }}</span>
+          <span class="value highlight">${{ summaryReport?.data?.summary?.total_revenue?.toFixed(2) }}</span>
         </div>
-        <div class="summary-item large">
+        <div class="summary-item">
           <span class="label">Total Orders</span>
-          <span class="value">{{ summaryReport.data.summary.total_orders }}</span>
+          <span class="value">{{ summaryReport?.data?.summary?.total_orders }}</span>
         </div>
-        <div class="summary-item large">
+        <div class="summary-item">
           <span class="label">Total Items Sold</span>
-          <span class="value">{{ summaryReport.data.summary.total_items_sold }}</span>
+          <span class="value">{{ summaryReport?.data?.summary?.total_items_sold }}</span>
         </div>
-        <div class="summary-item large">
-          <span class="label">Total Discounts</span>
-          <span class="value">${{ summaryReport.data.summary.total_discounts?.toFixed(2) }}</span>
-        </div>
-        <div class="summary-item large">
+        <div class="summary-item">
           <span class="label">Avg Order Value</span>
-          <span class="value">${{ summaryReport.data.summary.average_order_value?.toFixed(2) }}</span>
+          <span class="value">${{ summaryReport?.data?.summary?.average_order_value?.toFixed(2) }}</span>
         </div>
       </div>
 
-      <div v-if="summaryReport.data.summary.top_product" class="top-product-card">
-        <h4>🏆 Top Product</h4>
+      <div v-if="summaryReport?.data?.summary?.top_product" class="top-product-card">
+        <h4>Top Product</h4>
         <div class="top-product-info">
           <strong>{{ summaryReport.data.summary.top_product.product_name }}</strong>
           <span>Category: {{ summaryReport.data.summary.top_product.category || 'N/A' }}</span>
@@ -437,9 +408,7 @@ onMounted(() => {
   font-size: 24px;
 }
 
-.summary-item.large {
-  grid-column: span 1;
-}
+
 
 .table-wrapper {
   overflow-x: auto;

@@ -5,13 +5,11 @@ import { useApi } from '../composables/useApi'
 const { get, post, put, loading, error } = useApi()
 
 const orders = ref([])
-const orderItems = ref([])
 
 const newOrder = ref({
   customer_id: '',
   items: '',
   order_id: '',
-  discount_percent: '',
   shipping_address: '',
   notes: ''
 })
@@ -50,7 +48,7 @@ async function createOrder() {
       throw new Error('Items must be a non-empty array')
     }
   } catch (e) {
-    formError.value = 'Invalid JSON for items. Use format: [{"product_id": "PROD-001", "quantity": 2}]'
+    formError.value = 'Invalid JSON for items. Use: [{"product_id": "MONITOR", "quantity": 2}]'
     return
   }
 
@@ -59,12 +57,11 @@ async function createOrder() {
       customer_id: newOrder.value.customer_id,
       items: items,
       order_id: newOrder.value.order_id || undefined,
-      discount_percent: newOrder.value.discount_percent ? parseFloat(newOrder.value.discount_percent) : undefined,
       shipping_address: newOrder.value.shipping_address || undefined,
       notes: newOrder.value.notes || undefined
     })
-    formSuccess.value = `Order ${response.data.order_id} created! Total: $${response.data.total?.toFixed(2)}`
-    newOrder.value = { customer_id: '', items: '', order_id: '', discount_percent: '', shipping_address: '', notes: '' }
+    formSuccess.value = `Order ${response.data.data.order_id} created! Total: $${response.data.data.total?.toFixed(2)}`
+    newOrder.value = { customer_id: '', items: '', order_id: '', shipping_address: '', notes: '' }
     showForm.value = false
     await loadOrders()
   } catch (err) {
@@ -91,7 +88,7 @@ async function updateStatus() {
 }
 
 function resetForm() {
-  newOrder.value = { customer_id: '', items: '', order_id: '', discount_percent: '', shipping_address: '', notes: '' }
+  newOrder.value = { customer_id: '', items: '', order_id: '', shipping_address: '', notes: '' }
   formError.value = ''
   formSuccess.value = ''
 }
@@ -101,8 +98,7 @@ const statusOptions = [
   { value: 'processing', label: 'Processing' },
   { value: 'shipped', label: 'Shipped' },
   { value: 'delivered', label: 'Delivered' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'returned', label: 'Returned' }
+  { value: 'cancelled', label: 'Cancelled' }
 ]
 
 onMounted(() => {
@@ -130,12 +126,13 @@ onMounted(() => {
       <h3>New Order</h3>
       <div class="form-group">
         <label>Customer ID *</label>
-        <input v-model="newOrder.customer_id" placeholder="CUST-001" />
+        <input v-model="newOrder.customer_id" placeholder="C72649" />
+        <small class="hint">Must exist in the customers table</small>
       </div>
       <div class="form-group">
         <label>Items (JSON) *</label>
-        <textarea v-model="newOrder.items" rows="4" placeholder='[{"product_id": "PROD-001", "quantity": 2}]'></textarea>
-        <small class="hint">Format: [{"product_id": "PROD-001", "quantity": 2}, {"product_id": "PROD-002", "quantity": 1}]</small>
+        <textarea v-model="newOrder.items" rows="4" placeholder='[{"product_id": "MONITOR", "quantity": 2}]'></textarea>
+        <small class="hint">Format: [{"product_id": "MONITOR", "quantity": 2}, {"product_id": "Phone", "quantity": 1}]</small>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -143,8 +140,8 @@ onMounted(() => {
           <input v-model="newOrder.order_id" placeholder="Auto-generated if empty" />
         </div>
         <div class="form-group">
-          <label>Discount %</label>
-          <input v-model="newOrder.discount_percent" type="number" step="0.01" placeholder="0" />
+          <label>Order Date</label>
+          <input v-model="newOrder.order_date" type="date" />
         </div>
       </div>
       <div class="form-group">
@@ -169,7 +166,7 @@ onMounted(() => {
       <div class="form-row">
         <div class="form-group">
           <label>Order ID</label>
-          <input v-model="updateStatusForm.order_id" placeholder="ORD-..." />
+          <input v-model="updateStatusForm.order_id" placeholder="ORD200000" />
         </div>
         <div class="form-group">
           <label>New Status</label>
@@ -193,14 +190,15 @@ onMounted(() => {
             <th>Customer</th>
             <th>Date</th>
             <th>Status</th>
-            <th>Subtotal</th>
-            <th>Discount</th>
-            <th>Tax</th>
+            <th>Items</th>
             <th>Total</th>
+            <th>Payment</th>
+            <th>Tracking</th>
+            <th>Coupon</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="order in orders" :key="order.id">
+          <tr v-for="order in orders" :key="order.order_id">
             <td><strong>{{ order.order_id }}</strong></td>
             <td>{{ order.customer?.name || order.customer?.customer_id }}</td>
             <td>{{ order.order_date?.split('T')[0] }}</td>
@@ -209,10 +207,11 @@ onMounted(() => {
                 {{ order.status }}
               </span>
             </td>
-            <td>${{ order.subtotal?.toFixed(2) }}</td>
-            <td>-${{ order.discount?.toFixed(2) }}</td>
-            <td>${{ order.tax?.toFixed(2) }}</td>
+            <td>{{ order.items?.length || 0 }} item(s)</td>
             <td><strong>${{ order.total?.toFixed(2) }}</strong></td>
+            <td>{{ order.payment_method || '-' }}</td>
+            <td>{{ order.tracking_number || '-' }}</td>
+            <td>{{ order.coupon_code || '-' }}</td>
           </tr>
         </tbody>
       </table>
@@ -226,7 +225,7 @@ onMounted(() => {
 
 <style scoped>
 .panel {
-  max-width: 1100px;
+  max-width: 1200px;
 }
 
 .panel-header {
@@ -238,6 +237,11 @@ onMounted(() => {
 
 .panel-header h2 {
   margin: 0;
+}
+
+.count {
+  color: #666;
+  font-size: 14px;
 }
 
 .actions {
@@ -399,7 +403,6 @@ th {
 .status-shipped { background: #d4edda; color: #155724; }
 .status-delivered { background: #c3e6cb; color: #245245; }
 .status-cancelled { background: #f8d7da; color: #721c24; }
-.status-returned { background: #e2e3e5; color: #383d41; }
 
 .empty-state {
   text-align: center;
