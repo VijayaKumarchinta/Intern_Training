@@ -2220,7 +2220,7 @@ def configure_logging():
 ### 11.5 Module-level script
 
 ```python
-logger = configure_logging()   # entry point
+logger = configure_logging()  
 logger.info("Application started")
 logger.info("Processing request")
 logger.warning("Something requires attention")
