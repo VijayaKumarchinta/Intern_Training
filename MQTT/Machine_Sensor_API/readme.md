@@ -3,15 +3,6 @@ a small Flask REST api that stores and queries industrial machine sensor reading
 machines --- have ---> sensor readings ("Machine A" has TEMP 72.1 at 10:00)
 a client (postman, a script, an mqtt pipeline) sends http requests, the api validates them, talks to postgres and returns json
 
-### where this is going - live iiot monitoring platform
-this api is the backend foundation for a real-time iiott monitoring platform (see Live_IIoT_Monitoring_Platform_Plan.md for the full plan):
-    - mqtt ingestion - machines or a telemetry simulator publish sensor readings to a mosquitto broker over tls/mtls (port 8883), a separate python ingestion worker subscribes, validates, normalizes, and persists readings through this same service/database layer
-    - topic convention - factory/{site_id}/{machine_id}/telemetry with a json payload carrying message_id, machine_id, sensor_tag, value, unit, measured_at (iso 8601 utc)
-    - delivery policy - begin with qos 1 (at-least-once), assume duplicates, use message_id for idempotent persistence, never claim database durability just because the mqtt callback fired
-    - alarms - threshold-based alarm evaluation with auditable lifecycle (opened/acknowledged/resolved) stored in new alarm_events table
-    - dashboard - a web dashboard polls the api (2-5s refresh initially) for machine status, current readings, trends, and alarms; no browser connects directly to mqtt, the api remains the access-control and data-contract boundary
-    - deployment shape - modular monolith: the flask api and the mqtt ingestion worker are separate processes that share application modules (services, database, validation) but do not depend on each other being alive
-
 ### what i did in this project in short
 - built a three layer api (routes → services → database) where each layer has one job, the golden rule: the waiter never cooks and the kitchen never takes orders
 - rebuilt it to production standard: waitress instead of the dev server, connection pool with timeouts, global json error handlers, honest status codes, rotating logs
@@ -214,31 +205,3 @@ the cmds in order are
     - the csv stage decision - keep .pkl → csv → postgres (audit artifact) or go direct, decide before writing more importer code
     - tests for the export generator and init_db.py - the two untested paths left
     - authentication - all endpoints are open on purpose in this local learning setup
-    - mqtt ingestion worker - the separate process that subscribes to mosquitto, validates payloads, and persists readings through the service layer; planned Phase 2 of the iiott platform
-    - alarm evaluation and lifecycle - threshold rules, auditable alarm state transitions, acknowledgement workflow; planned Phase 3
-    - dashboard - web ui consuming the api for operations overview, machine detail, alarms, and historical analysis; planned Phase 4
-    - authentication and authorization - api is open locally; dashboard write ops (alarm acknowledge) and any production deployment need auth; queued for hardening
-    - queue-based ingestion - the iiott python guide identifies mqtt → consumer → queue → worker → postgres as the central ingestion pattern; current plan goes direct to postgres for mvp, revisit when throughput or resilience requirements justify a queue
-    - telemetry retention policy - how long raw telemetry and alarm history remain available; decision needed before telemetry volume grows, not after
-
-# mqtt / iiott platform - current status
-- mosquitto broker - running on windows as a service on port 8883 with tls/mtls (ca, server cert, client cert), require_certificate true, use_identity_as_username true, allow_anonymous false; certs built with openssl (see /f/Intern_Training/MQTT/mqtt_readme.md for the full chain and conf)
-- paho python client - mqttdemo.py demonstrates the full pub/sub round trip over tls with all five callbacks (on_connect, on_subscribe, on_publish, on_message, on_disconnect), return-code checks, and logging.exception in every error path
-- ingestion worker - not yet built; planned as a separate process in the iiott platform plan (Phase 2), reusing this project's services/database/validation layers with its own database manager instance
-- mqtt contract - not yet enforced; planned topic convention and json schema in the iiott platform plan (Phase 1)
-- qos/retained/lwt/persistent sessions - studied conceptually, not yet used in practice
-
-# data model - planned additions for the iiott platform
-these tables are proposed in the live iiott monitoring platform plan, not yet created:
-    - machine_sensors - machine_id + sensor_tag unique, with unit, display_name, warning_threshold, critical_threshold, enabled; anchors validation so the worker knows what sensors each machine actually has
-    - telemetry_messages - message_id unique, machine_id, received_at, processing_status, failure_reason; optional traceability table for end-to-end message tracking with a retention policy
-    - machine_status - machine_id, connection_state, last_seen_at, last_reading_at, updated_at; separates connectivity (mqtt client alive) from telemetry freshness (machine producing healthy readings)
-    - alarm_events - id, machine_id, sensor_tag, severity, event_type, observed_value, threshold_value, opened_at, acknowledged_at, resolved_at, status; auditable alarm lifecycle, decision needed on whether repeated breaches update an existing alarm or create new events
-
-# dashboard - planned next layer
-- screen a - operations overview: kpi strip (total/healthy/warning/critical/offline), machine status table with last-seen and current values, active alarms by severity and age, telemetry freshness indicator, last-refresh timestamp
-- screen b - machine detail: identity, connectivity, current values per sensor with units and threshold context, time-series chart with selectable window, recent alarms, historical readings table and export
-- screen c - alarms and events: active/acknowledged/resolved states, severity/machine/sensor/value/threshold/time, filters, acknowledgement and resolution history
-- screen d - historical analysis: machine/sensor selectors, time-range with server-side pagination, trends and min/max/avg, csv export, clear empty/loading/stale/error states
-- visual direction - industrial operations-console layout: compact status cards, dense readable table, prominent alarm severity, restrained colors, charts with labeled units and time axes, no decorative charts
-- live update - release 1 polls the api at 2-5s intervals; release 2 adds sse or websockets only if polling latency or request load becomes a measured problem
