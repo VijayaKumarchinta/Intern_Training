@@ -1,563 +1,334 @@
 # Order and Sales Management Application
 
-## 1. Project Overview
+A small web app that simulates how an online store handles orders and sales.
 
-The Order and Sales Management Application is a web-based application designed to simulate the order processing and sales operations of a retail or e-commerce business.
+You can place orders, track their status, catch duplicate submissions, and see sales reports by product and by date.
 
-The application manages customer orders, validates order details, calculates order totals, tracks order statuses, identifies duplicate orders, and generates product-wise and date-wise sales reports.
+**Tech stack:** Vue.js (screens) + Flask (API) + PostgreSQL (data)
 
-The application follows a three-tier architecture using Vue.js for the frontend, Flask for the backend, and PostgreSQL for data storage.
+---
 
-## 2. Project Objectives
+## What it does
 
-The primary objectives are to:
-
-- Manage customer orders and their associated order details.
-- Validate order information before processing.
-- Calculate order totals accurately.
-- Track order statuses throughout the order lifecycle.
-- Identify duplicate order submissions.
-- Generate product-wise sales reports.
-- Generate date-wise sales reports.
-- Maintain data consistency through appropriate database operations.
-- Separate frontend presentation, backend business logic, and database access.
-
-## 3. Technology Stack
-
-| Technology | Purpose |
+| Feature | In plain words |
 |---|---|
-| Vue.js | Frontend interface |
-| JavaScript | Frontend application logic |
-| Flask | Backend REST API |
-| Python | Business logic and validation |
-| PostgreSQL | Relational database |
-| SQL | Data retrieval, order persistence, and sales aggregation |
-| Postman | API testing |
-| Git | Version control |
+| **Manage orders** | Create, view, list and edit orders |
+| **Validate orders** | Rejects bad input (negative quantity, wrong date, etc.) with a clear message |
+| **Calculate totals** | Total = unit price x quantity, always calculated by the server |
+| **Track status** | Pending, Shipped, Delivered, Returned, Cancelled, with rules on what can change to what |
+| **Catch duplicates** | Stops double-clicks and retries from creating the same order twice |
+| **Sales reports** | Sales grouped by product and by date, with gross and net figures |
 
-## 4. System Architecture
+---
 
-The application uses a traditional three-tier architecture.
+## How it fits together
 
 ```text
-+----------------------------------+
-|          Vue.js Frontend         |
-|----------------------------------|
-| Customer Orders                  |
-| Order Validation Feedback        |
-| Order Details and Status         |
-| Product-wise Sales Report        |
-| Date-wise Sales Report           |
-+----------------------------------+
-                 |
-                 | HTTP / JSON
-                 v
-+----------------------------------+
-|           Flask Backend          |
-|----------------------------------|
-| Order Management                 |
-| Request Validation               |
-| Duplicate Order Detection        |
-| Order Total Calculation          |
-| Order Status Management          |
-| Sales Report Generation          |
-+----------------------------------+
-                 |
-                 | SQL
-                 v
-+----------------------------------+
-|          PostgreSQL              |
-|----------------------------------|
-| Existing Database Tables         |
-| Customer and Order Data          |
-| Product and Sales Data           |
-+----------------------------------+
+  Vue.js (browser)  --->  Flask API  --->  PostgreSQL
+   screens & forms        rules & logic      orders table
 ```
 
-### Frontend responsibilities
-
-- Display customer orders and order details.
-- Collect order information.
-- Submit requests to the Flask API.
-- Display validation errors and processing results.
-- Display order statuses.
-- Present product-wise and date-wise sales reports.
-
-### Backend responsibilities
-
-- Validate incoming order requests.
-- Retrieve authoritative product information.
-- Calculate order totals.
-- Apply duplicate-order detection rules.
-- Enforce permitted order-status transitions.
-- Persist order information.
-- Generate sales reports using database queries.
-
-### Database responsibilities
-
-- Store and retrieve customer, product, and order information according to the existing schema.
-- Maintain relational integrity through existing constraints.
-- Support transactional order processing.
-- Provide the data required for sales aggregation.
-
-## 5. Core Functional Requirements
-
-### 5.1 Customer Order Management
-
-The application must manage customer orders and their associated details.
-
-Expected functionality:
-
-- Create an order for a customer.
-- Associate one or more products with an order.
-- Record product quantities and applicable prices.
-- Retrieve order details.
-- List customer orders according to the application's access rules.
-- Update order information when permitted by the business rules.
-
-Each order should have a unique identifier and contain sufficient information to identify the customer, ordered products, quantities, total amount, and current status, as supported by the existing database structure.
-
-### 5.2 Order Validation
-
-The application must validate order details before processing or saving an order.
-
-Validation should include:
-
-- Required order fields are provided.
-- The customer identifier is valid.
-- At least one order line is provided, if required.
-- Product identifiers refer to valid, orderable products.
-- Quantities are positive integers.
-- Product prices are retrieved from the database rather than trusted from the frontend.
-- Product availability is checked if inventory is part of the existing data model.
-- The order request follows the expected data format.
-
-Invalid orders must be rejected with a meaningful error message.
-
-The backend must enforce all critical validation rules, even if the frontend performs preliminary validation.
-
-### 5.3 Order Total Calculation
-
-The application must calculate the total amount of an order based on its products, quantities, and applicable prices.
-
-**Line total:**
-
-`Line Total = Unit Price × Quantity`
-
-**Order total:**
-
-`Order Total = Sum of All Line Totals`
-
-For example:
-
-| Product | Unit Price | Quantity | Line Total |
-|---|---:|---:|---:|
-| Product A | 500.00 | 2 | 1,000.00 |
-| Product B | 250.00 | 3 | 750.00 |
-| **Order Total** | | | **1,750.00** |
-
-The values above are illustrative.
-
-Calculation requirements:
-
-- Retrieve authoritative unit prices from PostgreSQL.
-- Calculate line totals on the backend.
-- Calculate the final order total on the backend.
-- Use appropriate decimal arithmetic for monetary values.
-- Apply consistent rounding rules.
-- Store or return calculated totals according to the existing data model.
-
-Taxes, discounts, shipping charges, and refunds should only be included if they are part of the agreed business requirements.
-
-### 5.4 Order Status Tracking
-
-The application must track the current status of each order.
-
-A possible order lifecycle is:
-
-```text
-Pending
-   |
-   v
-Confirmed
-   |
-   v
-Processing
-   |
-   v
-Shipped
-   |
-   v
-Delivered
-```
-
-Cancellation may be permitted from selected statuses according to the business rules.
-
-The application must:
-
-- Display the current order status.
-- Allow permitted status updates.
-- Reject invalid status transitions.
-- Prevent unauthorized status changes.
-- Persist the updated status.
-- Return the current status after a successful update.
-
-The status values and transition rules must be aligned with the existing database structure and agreed business requirements.
-
-Historical status tracking is optional unless explicitly required and supported by the existing schema.
-
-### 5.5 Duplicate Order Detection
-
-The application must identify duplicate order submissions and prevent accidental duplicate processing where the available database design supports it.
-
-Duplicate submissions may occur because of:
-
-- Repeated button clicks.
-- Browser retries.
-- Network interruptions.
-- Client resubmission of the same request.
-
-The recommended approach is **idempotency-based duplicate protection**.
-
-Expected behavior:
-
-- A new valid submission is processed normally.
-- A retry using the same supported idempotency key returns the original result.
-- Reusing the same key with a different request is rejected.
-- Concurrent retries do not create multiple orders when durable idempotency is implemented.
-
-Identical products and quantities do not necessarily indicate a duplicate business order; customers may legitimately place the same order more than once.
-
-The actual duplicate-detection mechanism must be selected after inspecting the existing database schema. If durable idempotency cannot be supported without a schema change, document the limitation rather than claiming guaranteed duplicate prevention.
-
-### 5.6 Product-wise Sales Reports
-
-The application must generate sales summaries grouped by product.
-
-The report may include:
-
-- Product identifier.
-- Product name.
-- Quantity sold.
-- Total sales amount.
-- Number of orders containing the product, if required.
-
-Example:
-
-| Product | Quantity Sold | Total Sales |
-|---|---:|---:|
-| Product A | 25 | 12,500.00 |
-| Product B | 18 | 9,000.00 |
-| Product C | 12 | 6,000.00 |
-
-These values are illustrative and are not actual database results.
-
-The report must aggregate the relevant order data and apply the agreed rules for order statuses and sales calculations.
-
-### 5.7 Date-wise Sales Reports
-
-The application must generate sales summaries grouped by date.
-
-The report may include:
-
-- Order date.
-- Number of orders.
-- Quantity sold.
-- Total sales amount.
-
-Example:
-
-| Date | Number of Orders | Total Sales |
-|---|---:|---:|
-| 2026-10-01 | 12 | 18,500.00 |
-| 2026-10-02 | 9 | 12,250.00 |
-| 2026-10-03 | 15 | 21,000.00 |
-
-These values are illustrative.
-
-The report should support a selected date range and define which timestamp determines the reporting date. Date boundaries and timezone handling must be consistent.
-
-The application must also define whether cancelled orders, discounts, tax, shipping, and refunds affect the reported totals.
-
-## 6. Order Processing Workflow
-
-```text
-Customer Selects Products
-           |
-           v
-      Submit Order
-           |
-           v
-   Validate Order Details
-           |
-           v
-   Verify Products and Prices
-           |
-           v
-   Detect Duplicate Submission
-           |
-           v
-    Calculate Order Total
-           |
-           v
-   Persist Order Transactionally
-           |
-           v
-    Assign / Return Status
-           |
-           v
-      Track Order Status
-           |
-           v
-   Generate Sales Reports
-```
-
-### Workflow explanation
-
-1. The frontend collects the customer and order details.
-2. Vue.js sends the order request to Flask.
-3. Flask validates the request.
-4. The backend retrieves product information and authoritative prices.
-5. The backend checks for a repeated submission using the supported duplicate-detection mechanism.
-6. The backend calculates line totals and the order total.
-7. The order and its associated lines are persisted in a database transaction where supported by the existing schema.
-8. The application returns the order identifier, total, and status.
-9. Authorized users can retrieve order details and perform permitted status updates.
-10. Sales reports aggregate eligible order data by product or date.
-
-## 7. Database Integration
-
-The application must use the existing PostgreSQL database.
-
-| Configuration | Value |
+| Part | Job |
 |---|---|
-| Database system | PostgreSQL |
-| Database name | `machine_monitor_db` |
-| Target schema | `Order_sales_schema` |
+| **Frontend (Vue.js)** | Forms, order list, status badges, report tables. It never decides totals. |
+| **Backend (Flask)** | Checks every request, calculates totals, applies status and duplicate rules. |
+| **Database (PostgreSQL)** | Stores orders and runs the report queries. |
 
-### Database integration requirements
+---
 
-Before implementing queries, inspect the actual database structure and verify:
+## Quick start (Windows / PowerShell)
 
-- Existing table and column names.
-- Primary and foreign keys.
-- Unique constraints.
-- Column data types and nullability.
-- Customer-to-order relationships.
-- Order-to-product relationships.
-- Price and quantity representations.
-- Order-status representation.
-- Existing support for duplicate detection.
-- Columns required for product-wise and date-wise reporting.
+**You need:** Python 3.11+, Node.js 18+, PostgreSQL 14+
 
-Do not assume that tables named `customers`, `products`, `orders`, or `order_lines` exist until verified.
+### 1. Set up the database
 
-**Database modification restriction:** the application must not create, alter, drop, truncate, or seed database objects without explicit approval. If a required capability is missing, document the gap and request approval before proposing a schema change.
+The app uses your existing `machine_monitor_db` database. No new database is needed. Run the schema script once:
 
-All database queries must use parameterized SQL. Related order writes must use transactions where applicable to prevent partially persisted orders.
+```powershell
+psql -U postgres -d machine_monitor_db -f backend\sql\schema.sql
+```
 
-## 8. Suggested Project Structure
+This creates a separate `sales_schema` schema with the `orders` table, an order-ID sequence and indexes. Your existing tables stay untouched, because everything lives inside `sales_schema`.
+
+### 2. Configure the backend
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item ..\.env.example .env
+```
+
+Open `.env` and fill in your own values (see [Configuration](#configuration)).
+
+### 3. Load the sample data (optional)
+
+```powershell
+python scripts\load_orders.py --csv ..\data\Online-Store-Orders-Updated.csv
+```
+
+The loader prints a summary and saves unusable rows to `data\rejected_orders.csv`. See [About the sample data](#about-the-sample-data).
+
+### 4. Start the backend
+
+```powershell
+python run.py
+```
+
+API runs at `http://localhost:5000`. Check it: `http://localhost:5000/api/health`
+
+### 5. Start the frontend
+
+```powershell
+cd ..\frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+---
+
+## Configuration
+
+Settings live in `backend/.env`. **Never commit this file.** It is already in `.gitignore`.
+
+| Setting | What it is | Example |
+|---|---|---|
+| `DB_HOST` | Database server | `localhost` |
+| `DB_PORT` | Database port | `5432` |
+| `DB_NAME` | Existing database | `machine_monitor_db` |
+| `DB_USER` | Database user | `postgres` |
+| `DB_PASSWORD` | Database password | *(your own)* |
+| `DB_SCHEMA` | Schema holding the tables | `sales_schema` |
+
+---
+
+## How an order works
+
+### The order fields
+
+| Field | Rule |
+|---|---|
+| `customer_id` | Like `C0001` (letter C plus 4 or more digits) |
+| `product` | Required text, for example `Laptop` |
+| `quantity` | Whole number greater than 0 |
+| `unit_price` | Number, 0 or more, up to 2 decimals |
+| `order_date` | `YYYY-MM-DD`, a real date, not in the future |
+
+New orders always start as **Pending**. You cannot send a total. The server calculates it.
+
+### Status rules
+
+```text
+Pending   -->  Shipped  or  Cancelled
+Shipped   -->  Delivered  or  Returned
+Delivered -->  Returned
+Cancelled, Returned  =  final (cannot change)
+```
+
+Anything else is rejected with `409 INVALID_STATUS_TRANSITION`.
+
+Only an admin (using `ADMIN_API_TOKEN`) can change a status or edit an order. Orders can be edited only while they are **Pending**.
+
+### Duplicate protection
+
+Every create request must include an `Idempotency-Key` header. Use a new random value (UUID) for each new order.
+
+| What you send | What happens |
+|---|---|
+| New key | Order is created (`201`) |
+| Same key, same data (retry) | You get the original order back (`200`), with no second order |
+| Same key, different data | Rejected (`409 IDEMPOTENCY_KEY_REUSED`) |
+| New key, but identical customer, product, quantity, price and date to an existing order | Rejected (`409 DUPLICATE_SUSPECTED`). If it really is a repeat order, resend with `"allow_duplicate": true` |
+
+---
+
+## API guide
+
+Base URL: `http://localhost:5000`
+
+| Method | Endpoint | What it does | Admin only |
+|---|---|---|---|
+| POST | `/api/orders` | Create an order | No |
+| GET | `/api/orders` | List orders (filters: `status`, `customer_id`, `start_date`, `end_date`, `page`, `page_size`) | No |
+| GET | `/api/orders/<id>` | Get one order with its total | No |
+| PATCH | `/api/orders/<id>` | Edit a Pending order (`product`, `quantity`, `unit_price`) | Yes |
+| PATCH | `/api/orders/<id>/status` | Change status | Yes |
+| GET | `/api/reports/sales/by-product` | Sales per product | No |
+| GET | `/api/reports/sales/by-date` | Sales per day (`start_date`, `end_date`) | No |
+| GET | `/api/health` | Is the server running? | No |
+
+Admin requests need the header `Authorization: Bearer <ADMIN_API_TOKEN>`.
+
+### Example: create an order (PowerShell)
+
+```powershell
+$body = @{
+  customer_id = "C1203"
+  product     = "Laptop"
+  quantity    = 2
+  unit_price  = "500.00"
+  order_date  = "2026-10-14"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/orders `
+  -ContentType "application/json" `
+  -Headers @{ "Idempotency-Key" = [guid]::NewGuid().ToString() } `
+  -Body $body
+```
+
+Response:
+
+```json
+{
+  "data": { "order_id": "ORD1203", "status": "Pending", "total": "1000.00" }
+}
+```
+
+### Example: ship an order
+
+```powershell
+Invoke-RestMethod -Method Patch -Uri http://localhost:5000/api/orders/ORD1203/status `
+  -ContentType "application/json" `
+  -Headers @{ Authorization = "Bearer $env:ADMIN_API_TOKEN" } `
+  -Body '{"status":"Shipped"}'
+```
+
+### Errors
+
+Every error looks the same:
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "quantity must be a positive integer." } }
+```
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | Bad or missing input |
+| `UNAUTHORIZED` / `FORBIDDEN` | 401 / 403 | Missing or wrong admin token |
+| `NOT_FOUND` | 404 | Order does not exist |
+| `DUPLICATE_SUSPECTED` | 409 | Looks like an accidental repeat order |
+| `IDEMPOTENCY_KEY_REUSED` | 409 | Same key used with different data |
+| `INVALID_STATUS_TRANSITION` | 409 | That status change is not allowed |
+| `ORDER_NOT_EDITABLE` | 409 | Only Pending orders can be edited |
+| `INTERNAL_ERROR` | 500 | Unexpected problem (details stay in server logs) |
+
+---
+
+## Sales reports
+
+Both reports show **gross** and **net** sales:
+
+| Figure | Meaning |
+|---|---|
+| **Gross sales** | All orders, whatever their status |
+| **Net sales** | Excludes `Cancelled` and `Returned` orders |
+
+| Report | Grouped by | Columns |
+|---|---|---|
+| By product | Product | `order_count`, `net_order_count`, `quantity_sold`, `gross_sales`, `net_sales` (highest net first) |
+| By date | `order_date` | same columns, sorted by date |
+
+Date filters are inclusive. `start_date` must not be after `end_date`. Tax, discounts, shipping and refunds are not included.
+
+---
+
+## About the sample data
+
+`data/Online-Store-Orders-Updated.csv` has 1,202 order rows. Some are intentionally messy, so the loader checks each row and sets aside the bad ones.
+
+| Issue | Rows | What the loader does |
+|---|---|---|
+| Quantity is `two`, `-3` or `0` | ORD0016, ORD0123, ORD0290 | Rejected |
+| Negative price | ORD0624 | Rejected |
+| Blank date | ORD0457, ORD0741, ORD1200 | Rejected |
+| Status `Received` (not a valid status) | ORD0082, ORD0327 | Rejected |
+| Copies of earlier orders (new ID, same details) | ORD1195-ORD1199, ORD1201 | Set aside as `DUPLICATE_CONTENT` for review |
+| Price is `0.00` | ORD0702 | Loaded, with a warning |
+
+Everything set aside goes to `data/rejected_orders.csv` with the reason. About 1,187 rows load cleanly. The loader prints the exact numbers each run. Loading happens in one transaction, so a failure leaves the database unchanged.
+
+---
+
+## Project layout
 
 ```text
 order-sales-management/
-│
-├── frontend/
-│   └── src/
-│       ├── components/
-│       ├── views/
-│       ├── services/
-│       ├── router/
-│       └── App.vue
-│
-├── backend/
-│   ├── app/
-│   │   ├── routes/
-│   │   │   ├── orders.py
-│   │   │   └── reports.py
-│   │   ├── services/
-│   │   │   ├── order_service.py
-│   │   │   └── report_service.py
-│   │   ├── repositories/
-│   │   │   ├── order_repository.py
-│   │   │   └── report_repository.py
-│   │   ├── validators/
-│   │   │   └── order_validator.py
-│   │   ├── config.py
-│   │   └── __init__.py
-│   │
-│   ├── tests/
-│   ├── requirements.txt
-│   └── run.py
-│
-├── docs/
-│   ├── database-discovery.md
-│   ├── api-contracts.md
-│   └── business-rules.md
-│
-├── .env.example
-├── .gitignore
-└── README.md
+|-- frontend/              Vue.js app (components, views, services, router)
+|-- backend/
+|   |-- app/
+|   |   |-- routes/        orders.py, reports.py       (HTTP endpoints)
+|   |   |-- services/      order_service.py, report_service.py   (business rules)
+|   |   |-- repositories/  order_repository.py, report_repository.py   (SQL)
+|   |   |-- validators/    order_validator.py
+|   |   `-- config.py
+|   |-- scripts/           load_orders.py
+|   |-- sql/               schema.sql
+|   |-- tests/
+|   |-- requirements.txt
+|   `-- run.py
+|-- data/                  sample CSV and rejected_orders.csv
+|-- docs/                  api-contracts.md, business-rules.md, database-discovery.md
+|-- .env.example
+`-- README.md
 ```
 
-This is a proposed structure. It should be adapted to the existing repository rather than replacing files unnecessarily.
+Request flow: **route** receives the request, **validator** checks it, **service** applies rules, **repository** runs the SQL.
 
-## 9. REST API Design
+---
 
-The following endpoints are proposed. Their implementation depends on the verified database structure and agreed API contracts.
+## Running the tests
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | `/api/orders` | Create an order |
-| GET | `/api/orders` | Retrieve permitted orders |
-| GET | `/api/orders/<id>` | Retrieve order details |
-| PATCH | `/api/orders/<id>/status` | Update an order status |
-| GET | `/api/reports/sales/by-product` | Generate product-wise sales |
-| GET | `/api/reports/sales/by-date` | Generate date-wise sales |
-| GET | `/api/health` | Check application health |
+Use a separate test database. Never test against real data.
 
-### Example order request
-
-```json
-{
-  "items": [
-    {
-      "product_id": "PRODUCT_ID",
-      "quantity": 2
-    },
-    {
-      "product_id": "ANOTHER_PRODUCT_ID",
-      "quantity": 1
-    }
-  ]
-}
+```powershell
+cd backend
+pytest
 ```
 
-The identifiers are placeholders. The actual request must match the verified product identifier types.
+| Area | What is checked |
+|---|---|
+| Orders | Create, fetch, list, edit rules |
+| Validation | Missing fields, bad quantity, bad price, bad date |
+| Totals | Correct math, rounding, client-sent totals ignored |
+| Duplicates | Retries, key reuse, concurrent requests, genuine repeat orders |
+| Status | Every allowed and disallowed change, admin token required |
+| Reports | Gross vs net, date boundaries, empty ranges |
+| Loader | Rejected rows, quarantined copies, rollback on failure |
 
-The frontend should not be trusted to supply the final order total.
+---
 
-### Example successful response
+## Design decisions worth knowing
 
-```json
-{
-  "data": {
-    "order_id": "GENERATED_ORDER_ID",
-    "status": "Pending",
-    "total": "1750.00"
-  }
-}
-```
+| Topic | Decision |
+|---|---|
+| One product per order | Matches the dataset. Multi-product orders would need a new table. |
+| No customer or product tables | Customer IDs are checked by format only. Prices come from the order itself, because the data has no price list. |
+| Totals are not stored | Always calculated as `quantity x unit_price` using exact decimal math. |
+| Safe SQL | All queries are parameterized. Multi-step writes use transactions. |
+| Limited database changes | The app only creates the objects in `backend/sql/schema.sql`, inside `sales_schema`. |
+| Simple admin security | A single token protects admin actions. This is fine for a simulation but is not full user authentication. |
 
-### Example validation error
+---
 
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Quantity must be a positive integer."
-  }
-}
-```
+## Troubleshooting
 
-Use consistent response structures and suitable HTTP status codes for validation errors, missing resources, conflicts, and unexpected failures.
+| Problem | Likely fix |
+|---|---|
+| `/api/health` fails | Check the backend is running and `.env` values are correct |
+| Database connection error | Confirm PostgreSQL is running and `DB_*` settings match |
+| `relation "orders" does not exist` | Run `schema.sql` (step 1) |
+| Browser CORS error | Make sure `FRONTEND_ORIGIN` matches the frontend address exactly |
+| `400` on create with a missing key message | Add the `Idempotency-Key` header |
+| `403` on status change | Send `Authorization: Bearer <ADMIN_API_TOKEN>` |
+| PowerShell blocks the venv script | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once |
 
-## 10. Environment Configuration
+---
 
-Database credentials must be stored outside source code.
+## Security notes
 
-Example `.env.example`:
-
-```dotenv
-FLASK_ENV=development
-SECRET_KEY=
-DATABASE_URL=
-DB_SCHEMA=Order_sales_schema
-FRONTEND_ORIGIN=http://localhost:5173
-```
-
-These are configuration placeholders. Use the connection format required by the selected PostgreSQL driver.
-
-Never commit actual credentials or secret keys.
-
-## 11. Testing Strategy
-
-### Order management tests
-
-- Create an order with valid details.
-- Retrieve an existing order.
-- Reject invalid customer or product identifiers.
-- Reject missing required fields.
-- Reject zero, negative, or non-integer quantities.
-
-### Calculation tests
-
-- Verify line totals.
-- Verify order totals for multiple products.
-- Verify monetary precision and rounding.
-- Confirm that client-supplied totals cannot override backend calculations.
-
-### Duplicate detection tests
-
-- Submit a new order.
-- Retry the same submission using the supported idempotency mechanism.
-- Reuse a key with different request content.
-- Test concurrent repeated submissions.
-- Verify that separate legitimate orders are not incorrectly rejected.
-
-### Status tracking tests
-
-- Verify permitted status transitions.
-- Reject invalid transitions.
-- Reject unauthorized status updates.
-- Confirm that successful changes are persisted.
-
-### Reporting tests
-
-- Verify product-wise quantity and sales aggregates.
-- Verify date-wise order counts and totals.
-- Test date-range boundaries.
-- Verify treatment of cancelled orders and other applicable adjustments.
-
-Use an isolated test database. Do not run destructive tests against production.
-
-## 12. Error Handling
-
-The application must handle:
-
-- Invalid order details.
-- Unknown customers or products.
-- Invalid quantities.
-- Duplicate submissions.
-- Invalid order-status transitions.
-- Database connection failures.
-- Transaction failures.
-- Invalid report filters.
-
-Use consistent error responses and appropriate HTTP status codes.
-
-Unexpected server errors must not expose SQL statements, credentials, or internal stack traces to users. Failed transactional operations must be rolled back.
-
-## 13. Acceptance Criteria
-
-The application is considered complete when:
-
-- [ ] Customer orders can be created and retrieved.
-- [ ] Order details are validated by the backend.
-- [ ] Order totals are calculated accurately on the server.
-- [ ] Invalid orders are rejected without partial persistence.
-- [ ] Order statuses can be tracked and updated according to defined rules.
-- [ ] Duplicate order submissions are identified using a documented mechanism.
-- [ ] Product-wise sales reports return verified aggregates.
-- [ ] Date-wise sales reports return verified aggregates.
-- [ ] Database queries use parameterized SQL.
-- [ ] Database transactions are used where required.
-- [ ] Automated tests cover expected behavior and failure cases.
-- [ ] The existing database schema remains unchanged without explicit approval.
-
-## 14. Conclusion
-
-The Order and Sales Management Application focuses on six core business capabilities: customer order management, order validation, order total calculation, order status tracking, duplicate order detection, and product-wise and date-wise sales reporting.
-
-The Vue.js frontend provides the user interface, Flask implements the business rules and REST API, and PostgreSQL supplies the persistent data and reporting queries.
-
-The implementation must prioritize accurate calculations, reliable order persistence, controlled status transitions, meaningful duplicate detection, and correct sales aggregates while remaining compatible with the verified existing database structure.
+- Keep `.env` out of Git. Use `.env.example` for placeholders only.
+- If a password was ever shared or committed, change it.
+- Error responses never show SQL, credentials or stack traces.
