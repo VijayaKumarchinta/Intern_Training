@@ -1,8 +1,9 @@
 BEGIN;
 
-CREATE SCHEMA IF NOT EXISTS order_sales;
+DROP SCHEMA IF EXISTS order_sales CASCADE;
+CREATE SCHEMA order_sales;
 
-CREATE TABLE IF NOT EXISTS order_sales.users (
+CREATE TABLE order_sales.users (
     id                  SERIAL PRIMARY KEY,
     email               VARCHAR(255) UNIQUE NOT NULL,
     password_hash       VARCHAR(255) NOT NULL,
@@ -16,29 +17,28 @@ CREATE TABLE IF NOT EXISTS order_sales.users (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS order_sales.customers (
-    customer_id VARCHAR(20) PRIMARY KEY, 
+CREATE TABLE order_sales.customers (
+    customer_id VARCHAR(20) PRIMARY KEY,
     user_id     INTEGER REFERENCES order_sales.users(id) ON DELETE SET NULL,
     name        VARCHAR(255),
     email       VARCHAR(255),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS order_sales.orders (
-    order_id     VARCHAR(20) PRIMARY KEY,
-    order_date   DATE,
-    customer_id  VARCHAR(20),
-    product      VARCHAR(100),
-    quantity     NUMERIC(10,2),       
-    unit_price   NUMERIC(12,2),
-    order_status VARCHAR(20),
-    is_valid     BOOLEAN NOT NULL DEFAULT FALSE,
+CREATE TABLE order_sales.orders (
+    order_id          VARCHAR(20) PRIMARY KEY,
+    order_date        DATE,
+    customer_id       VARCHAR(20),
+    product           VARCHAR(100),
+    quantity          NUMERIC(10,2),
+    unit_price        NUMERIC(12,2),
+    order_status      VARCHAR(20),
+    is_valid          BOOLEAN NOT NULL DEFAULT FALSE,
     validation_errors TEXT,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-DROP TABLE IF EXISTS order_sales.staging_orders;
 CREATE TABLE order_sales.staging_orders (
     order_id     TEXT,
     order_date   TEXT,
@@ -49,8 +49,7 @@ CREATE TABLE order_sales.staging_orders (
     order_status TEXT
 );
 
-
-CREATE INDEX IF NOT EXISTS idx_orders_customer ON order_sales.orders(customer_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status   ON order_sales.orders(order_status);
+CREATE INDEX idx_orders_customer ON order_sales.orders(customer_id);
+CREATE INDEX idx_orders_status   ON order_sales.orders(order_status);
 
 COMMIT;
