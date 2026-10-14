@@ -30,7 +30,7 @@ You can place orders, track their status, catch duplicate submissions, and see s
 
 | Part | Job |
 |---|---|
-| **Frontend (Vue.js)** | Forms, order list, status badges, report tables. It never decides totals. |
+| **client (Vue.js)** | Forms, order list, status badges, report tables. It never decides totals. |
 | **server (Flask)** | Checks every request, calculates totals, applies status and duplicate rules. |
 | **Database (PostgreSQL)** | Stores orders and runs the report queries. |
 
@@ -78,10 +78,10 @@ python run.py
 
 API runs at `http://localhost:5000`. Check it: `http://localhost:5000/api/health`
 
-### 5. Start the frontend
+### 5. Start the client
 
 ```powershell
-cd ..\frontend
+cd ..\client
 npm install
 npm run dev
 ```
@@ -320,7 +320,7 @@ pytest
 | `/api/health` fails | Check the server is running and `.env` values are correct |
 | Database connection error | Confirm PostgreSQL is running and `DB_*` settings match |
 | `relation "orders" does not exist` | Run `schema.sql` (step 1) |
-| Browser CORS error | Make sure `FRONTEND_ORIGIN` matches the frontend address exactly |
+| Browser CORS error | Make sure `client_ORIGIN` matches the client address exactly |
 | `400` on create with a missing key message | Add the `Idempotency-Key` header |
 | `403` on status change | Send `Authorization: Bearer <ADMIN_API_TOKEN>` |
 | PowerShell blocks the venv script | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once |
