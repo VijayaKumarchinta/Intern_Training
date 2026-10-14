@@ -256,8 +256,8 @@ Everything set aside goes to `data/rejected_orders.csv` with the reason. About 1
 
 ```text
 order-sales-management/
-|-- frontend/              Vue.js app (components, views, services, router)
-|-- backend/
+|-- client/              Vue.js app (components, views, services, router)
+|-- server/
 |   |-- app/
 |   |   |-- routes/        orders.py, reports.py       (HTTP endpoints)
 |   |   |-- services/      order_service.py, report_service.py   (business rules)
