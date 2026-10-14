@@ -2,68 +2,59 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-import psycopg2
+from flask import Flask
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
-
-_env_path = Path(__file__).resolve().parent / ".env"
-if _env_path.exists():
-    load_dotenv(_env_path, override=False)
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None or raw == "":
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None or raw == "":
-        return default
-    try:
-        return int(raw.strip())
-    except ValueError:
-        return default
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 
 class Config:
-    def __init__(self):
-        self.ENV = os.getenv("FLASK_ENV", "production")
-        self.DEBUG = _env_bool("FLASK_DEBUG", self.ENV == "development")
+    SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-        self.DB_HOST = os.getenv("DB_HOST", "localhost")
-        self.DB_PORT = _env_int("DB_PORT", 5432)
-        self.DB_NAME = os.getenv("DB_NAME", "machine_monitor_db")
-        self.DB_USER = os.getenv("DB_USER", "postgres")
-        self.DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-        self.DB_SCHEMA = os.getenv("DB_SCHEMA", "sales_schema")
+    JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+    JWT_ACCESS_TOKEN_EXPIRES_SECONDS = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRES_SECONDS", "900"))
+    JWT_REFRESH_TOKEN_EXPIRES_SECONDS = int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRES_SECONDS", "86400"))
 
-        self.ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", "")
-        self.FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ("true", "1", "yes")
+    MAIL_USERNAME = os.environ["MAIL_USERNAME"]
+    MAIL_PASSWORD = os.environ["MAIL_PASSWORD"]
 
-        self._dsn = None
-        self._conn = None
+    SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 
-    @property
-    def dsn(self) -> str:
-        if self._dsn is None:
-            self._dsn = (
-                f"host={self.DB_HOST}"
-                f" port={self.DB_PORT}"
-                f" dbname={self.DB_NAME}"
-                f" user={self.DB_USER}"
-                f" password={self.DB_PASSWORD}"
-                f" connect_timeout=5"
-            )
-        return self._dsn
+    PRODUCTS = [
+        "Monitor",
+        "Phone",
+        "Tablet",
+        "Chair",
+        "Printer",
+        "Laptop",
+        "Desk",
+    ]
 
-    def connect(self):
-        """Return a cached connection (reuse for the life of the config)."""
-        if self._conn is None:
-            self._conn = psycopg2.connect(self.dsn)
-        return self._conn
+    ORDER_STATUSES = [
+        "Pending",
+        "Shipped",
+        "Delivered",
+        "Cancelled",
+        "Returned",
+    ]
+
+    STATUS_TRANSITIONS = {
+        "Pending": {"Shipped", "Cancelled"},
+        "Shipped": {"Delivered", "Returned"},
+        "Delivered": {"Returned"},
+        "Cancelled": set(),
+        "Returned": set(),
+        "Received": set(),
+    }
 
 
-# Shared config instance used across the app.
-config = Config()
+@event.listens_for(Engine, "connect")
+def set_search_path(dbapi_conn, _):
+    with dbapi_conn.cursor() as cur:
+        cur.execute("SET search_path TO order_sales, public")

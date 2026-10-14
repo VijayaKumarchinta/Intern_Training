@@ -1,151 +1,311 @@
-"""
-order_service - business rules for orders.
-
-Validation lives in app.validators; the service turns clean input into
-persisted orders, applies status transitions, and decides whether a duplicate
-submission has to be rejected or allowed (allow_duplicate).
-"""
-
-import hashlib
-import logging
-
-from app import repositories
-from app import validators
-
-logger = logging.getLogger(__name__)
+import re
+from decimal import Decimal
+import re
+from decimal import Decimal
+from datetime import datetime, timezone
 
 
-# ---- Order creation ----
+def _today():
+    return datetime.now(timezone.utc).date()
 
 
-def create_order(conn, payload, idempotency_key):
-    """
-    Create an order inside a transaction with duplicate protection.
-
-    Returns (order, created) where:
-      - created=True  -> a brand-new order was inserted
-      - created=False -> an existing order was returned for a retry
-    """
-    clean, error = validators.validate_body(payload, create=True)
-    if error:
-        return None, None, error
-
-    payload_hash = hashlib.sha256(
-        f"{clean['customer_id']}|{clean['product']}|{clean['quantity']}|"
-        f"{clean['unit_price']}|{clean['order_date']}".encode("utf-8")
-    ).hexdigest()
-
-    existing = repositories.find_by_idempotency_key(conn, idempotency_key)
-    if existing is not None:
-        # Same key: identical payload -> retry, return original.
-        if existing["payload_hash"] == payload_hash:
-            return repositories.find_order(conn, existing["order_id"]), False, None
-        # Same key: different payload -> key was reused with different data.
-        return None, None, "IDEMPOTENCY_KEY_REUSED"
-
-    # New key: only reject true duplicate content if the same tuple
-    # already exists under a different key.
-    dup_order_id = repositories.find_by_payload_hash(conn, payload_hash)
-    if dup_order_id is not None:
-        return None, None, "DUPLICATE_SUSPECTED"
-
-    order = {
-        "order_id": f"ORD{next_order_id(conn)}",
-        "customer_id": clean["customer_id"],
-        "product": clean["product"],
-        "quantity": clean["quantity"],
-        "unit_price": clean["unit_price"],
-        "order_date": clean["order_date"],
-        "status": "Pending",
-    }
-
-    repositories.record_idempotency(conn, idempotency_key, payload_hash, order["order_id"])
-    return repositories.insert_order(conn, order), True, None
+def _today():
+    return datetime.now(timezone.utc).date()
 
 
-def next_order_id(conn):
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT nextval('" + repositories._get_schema() + ".order_id_seq')"
+def _today():
+    return datetime.now(timezone.utc).date()
+
+
+def _today():
+    return datetime.now(timezone.utc).date()
+
+from flask import current_app
+from sqlalchemy import func, select
+
+from app.extensions import db
+from app import models
+
+
+ORDER_ID_RE = re.compile(r"^ORD\d{4}$")
+
+
+def validate_order(row: dict) -> list[str]:
+    errors: list[str] = []
+
+    order_id = row.get("order_id")
+    if not order_id or not isinstance(order_id, str) or not ORDER_ID_RE.match(order_id):
+        errors.append("Invalid OrderID format")
+
+    order_date = row.get("order_date")
+    if not order_date:
+        errors.append("Date is required")
+    else:
+        parsed = _parse_date(order_date)
+        if parsed is None:
+            errors.append("Invalid date")
+        elif parsed > _today():
+            errors.append("Date cannot be in the future")
+
+    customer_id = row.get("customer_id")
+    if not customer_id:
+        errors.append("CustomerID is required")
+
+    product = row.get("product")
+    if not product or not isinstance(product, str) or product not in current_app.config["PRODUCTS"]:
+        errors.append("Product must be a valid product")
+
+    quantity = row.get("quantity")
+    q = _to_int(quantity)
+    if q is None:
+        errors.append("Quantity must be an integer")
+    elif q <= 0 or q > 1000:
+        errors.append("Quantity must be between 1 and 1000")
+
+    unit_price = row.get("unit_price")
+    up = _to_decimal(unit_price)
+    if up is None:
+        errors.append("UnitPrice must be a number")
+    elif up < 0:
+        errors.append("UnitPrice cannot be negative")
+
+    status = row.get("order_status")
+    if not status or not isinstance(status, str) or status not in current_app.config["ORDER_STATUSES"]:
+        errors.append("OrderStatus is invalid")
+
+    return errors
+
+
+def _parse_date(value):
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(value.strip(), fmt).date()
+            except ValueError:
+                continue
+    return None
+
+
+def _to_int(value) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    if isinstance(value, (Decimal, float)):
+        try:
+            return int(Decimal(str(value)))
+        except Exception:
+            return None
+    return None
+
+
+def _to_decimal(value) -> Decimal | None:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            return Decimal(str(value))
+        except Exception:
+            return None
+    if isinstance(value, str):
+        try:
+            return Decimal(value.strip())
+        except Exception:
+            return None
+    return None
+
+
+def _customer_exists(customer_id: str) -> bool:
+    return db.session.execute(
+        select(models.Customer).where(models.Customer.customer_id == customer_id)
+    ).scalar_one_or_none() is not None
+
+
+def visible_orders_for(user: models.User):
+    if user.role == "admin":
+        stmt = db.select(models.Order)
+    else:
+        stmt = (
+            db.select(models.Order)
+            .join(models.Customer, models.Order.customer_id == models.Customer.customer_id)
+            .where(models.Customer.user_id == user.id)
         )
-        return cur.fetchone()[0]
+    return db.session.execute(stmt).scalars().all()
 
 
-# ---- Partial order edit (Pending only, admin) ----
-
-
-def edit_order(conn, order_id, payload, admin_token):
-    order = repositories.find_order(conn, order_id)
+def get_order_by_id(order_id: str, user: models.User | None = None) -> models.Order | None:
+    order = db.session.execute(
+        db.select(models.Order).where(models.Order.order_id == order_id)
+    ).scalar_one_or_none()
     if order is None:
-        return None, "NOT_FOUND"
-
-    if not _admin_ok(admin_token):
-        return None, "UNAUTHORIZED"
-
-    if order["status"] != "Pending":
-        return None, "ORDER_NOT_EDITABLE"
-
-    clean, error = validators.validate_body(payload, create=False)
-    if error:
-        return None, "VALIDATION_ERROR"
-
-    updated = repositories.update_order_fields(conn, order_id, clean)
-    if updated is None:
-        return None, "NOT_FOUND"
-    return updated, None
+        return None
+    if user is not None and user.role != "admin":
+        customer = db.session.execute(
+            db.select(models.Customer).where(
+                models.Customer.customer_id == order.customer_id,
+                models.Customer.user_id == user.id,
+            )
+        ).scalar_one_or_none()
+        if customer is None:
+            return None
+    return order
 
 
-# ---- Status change (admin) ----
+def change_status(order: models.Order, new_status: str) -> None:
+    current_status = order.order_status or "Pending"
+    allowed = current_app.config["STATUS_TRANSITIONS"].get(current_status, set())
+    if new_status not in allowed:
+        raise ValueError(f"Invalid status transition from {current_status} to {new_status}")
+    order.order_status = new_status
+    order.updated_at = datetime.now(timezone.utc)
 
 
-def change_status(conn, order_id, status, admin_token):
-    if not _admin_ok(admin_token):
-        return None, "UNAUTHORIZED"
+def line_total(quantity, unit_price) -> Decimal:
+    q = _to_int(quantity) or 0
+    up = _to_decimal(unit_price) or Decimal(0)
+    return Decimal(q) * up
 
-    allowed = {
-        "Pending":   {"Shipped", "Cancelled"},
-        "Shipped":   {"Delivered", "Returned"},
-        "Delivered": {"Returned"},
-        "Cancelled": set(),
-        "Returned":  set(),
+
+def find_duplicates() -> list[dict]:
+    rows = db.session.execute(
+        select(
+            models.Order.order_id,
+            models.Order.customer_id,
+            models.Order.product,
+            models.Order.order_date,
+            models.Order.quantity,
+            models.Order.unit_price,
+        )
+        .where(models.Order.is_valid.is_(True))
+        .order_by(models.Order.customer_id, models.Order.product, models.Order.order_date)
+    ).all()
+
+    by_key: dict[tuple, list[dict]] = {}
+    for row in rows:
+        key = (row.customer_id, row.product, row.order_date, row.quantity, row.unit_price)
+        by_key.setdefault(key, []).append(
+            {"order_id": row.order_id, "customer_id": row.customer_id, "product": row.product}
+        )
+
+    duplicates: list[dict] = []
+    for group in by_key.values():
+        if len(group) > 1:
+            for entry in group[1:]:
+                duplicates.append({"order_id": entry["order_id"], "duplicate_of": group[0]["order_id"]})
+
+    return duplicates
+
+
+def product_wise_report(filters: dict | None = None) -> list[dict]:
+    stmt = (
+        select(
+            models.Order.product,
+            func.coalesce(func.sum(models.Order.quantity), 0).label("total_quantity"),
+            func.coalesce(func.sum(func.cast(models.Order.quantity, db.Float) * func.cast(models.Order.unit_price, db.Float)), 0).label("total_revenue"),
+            func.count(models.Order.order_id).label("order_count"),
+        )
+        .where(models.Order.is_valid.is_(True))
+        .group_by(models.Order.product)
+    )
+    return _apply_filters(stmt, filters)
+
+
+def date_wise_report(filters: dict | None = None, group: str = "day") -> list[dict]:
+    date_expr = _date_group_expr(group)
+    stmt = (
+        select(
+            date_expr.label("period"),
+            func.coalesce(func.sum(models.Order.quantity), 0).label("total_quantity"),
+            func.coalesce(func.sum(func.cast(models.Order.quantity, db.Float) * func.cast(models.Order.unit_price, db.Float)), 0).label("total_revenue"),
+            func.count(models.Order.order_id).label("order_count"),
+        )
+        .where(models.Order.is_valid.is_(True))
+        .group_by(date_expr)
+        .order_by(date_expr)
+    )
+    return _apply_filters(stmt, filters)
+
+
+def summary_report(filters: dict | None = None) -> dict:
+    stmt = (
+        select(
+            func.count(models.Order.order_id).label("order_count"),
+            func.coalesce(func.sum(models.Order.quantity), 0).label("total_quantity"),
+            func.coalesce(func.sum(func.cast(models.Order.quantity, db.Float) * func.cast(models.Order.unit_price, db.Float)), 0).label("total_revenue"),
+        )
+        .where(models.Order.is_valid.is_(True))
+    )
+    row = db.session.execute(stmt).one()
+    return {
+        "order_count": int(row.order_count),
+        "total_quantity": float(row.total_quantity),
+        "total_revenue": float(row.total_revenue),
+        **_filter_counts(filters),
     }
 
-    current = repositories.find_order(conn, order_id)
-    if current is None:
-        return None, "NOT_FOUND"
-    if status not in allowed.get(current["status"], set()):
-        return None, "INVALID_STATUS_TRANSITION"
 
-    updated = repositories.update_order_status(conn, order_id, status)
-    if updated is None:
-        return None, "NOT_FOUND"
-    return updated, None
+def _apply_filters(stmt, filters: dict | None = None) -> list[dict]:
+    if not filters:
+        rows = db.session.execute(stmt).all()
+        return _to_dicts(rows)
 
-
-# ---- Read ----
+    stmt = _add_filters(stmt, filters)
+    rows = db.session.execute(stmt).all()
+    return _to_dicts(rows)
 
 
-def get_order(conn, order_id):
-    return repositories.find_order(conn, order_id)
+def _add_filters(stmt, filters: dict):
+    if filters.get("status"):
+        stmt = stmt.where(models.Order.order_status == filters["status"])
+    if filters.get("product"):
+        stmt = stmt.where(models.Order.product == filters["product"])
+    if filters.get("from_date"):
+        parsed = _parse_date(filters["from_date"])
+        if parsed is not None:
+            stmt = stmt.where(models.Order.order_date >= parsed)
+    if filters.get("to_date"):
+        parsed = _parse_date(filters["to_date"])
+        if parsed is not None:
+            stmt = stmt.where(models.Order.order_date <= parsed)
+    return stmt
 
 
-def list_orders(conn, status=None, customer_id=None, start_date=None, end_date=None, page=1, page_size=50):
-    return repositories.list_orders(conn, status, customer_id, start_date, end_date, page, page_size)
+def _filter_counts(filters: dict) -> dict:
+    base = db.select(func.count(models.Order.order_id).label("count")).where(models.Order.is_valid.is_(True))
+    filtered = _add_filters(base, filters)
+    count_row = db.session.execute(filtered).one()
+    total_row = db.session.execute(db.select(func.count(models.Order.order_id)).where(models.Order.is_valid.is_(True))).one()
+    return {
+        "total_orders": int(total_row["count"]),
+        "filtered_orders": int(count_row["count"]),
+    }
 
 
-# ---- Helpers ----
+def _to_dicts(rows) -> list[dict]:
+    out: list[dict] = []
+    for row in rows:
+        out.append({key: _serialize(val) for key, val in row._mapping.items()})
+    return out
 
 
-def _admin_ok(token):
-    return token and token == __import__("app").config.config.ADMIN_API_TOKEN
+def _serialize(val):
+    if isinstance(val, Decimal):
+        return float(val)
+    if isinstance(val, (datetime, date)):
+        return val.isoformat()
+    return val
 
 
-# ---- Report services ----
-
-
-def sales_by_product(conn):
-    return repositories._product_rows(conn)
-
-
-def sales_by_date(conn, start_date=None, end_date=None):
-    return repositories._date_rows(conn, start_date, end_date)
+def _date_group_expr(group: str):
+    if group == "day":
+        return func.cast(models.Order.order_date, db.String).label("period")
+    if group == "month":
+        return func.cast(func.date_trunc("month", models.Order.order_date), db.String).label("period")
+    return func.cast(models.Order.order_date, db.String).label("period")
