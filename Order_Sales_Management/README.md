@@ -31,7 +31,7 @@ You can place orders, track their status, catch duplicate submissions, and see s
 | Part | Job |
 |---|---|
 | **Frontend (Vue.js)** | Forms, order list, status badges, report tables. It never decides totals. |
-| **Backend (Flask)** | Checks every request, calculates totals, applies status and duplicate rules. |
+| **server (Flask)** | Checks every request, calculates totals, applies status and duplicate rules. |
 | **Database (PostgreSQL)** | Stores orders and runs the report queries. |
 
 ---
@@ -45,15 +45,15 @@ You can place orders, track their status, catch duplicate submissions, and see s
 The app uses your existing `machine_monitor_db` database. No new database is needed. Run the schema script once:
 
 ```powershell
-psql -U postgres -d machine_monitor_db -f backend\sql\schema.sql
+psql -U postgres -d machine_monitor_db -f server\sql\schema.sql
 ```
 
 This creates a separate `sales_schema` schema with the `orders` table, an order-ID sequence and indexes. Your existing tables stay untouched, because everything lives inside `sales_schema`.
 
-### 2. Configure the backend
+### 2. Configure the server
 
 ```powershell
-cd backend
+cd server
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -70,7 +70,7 @@ python scripts\load_orders.py --csv ..\data\Online-Store-Orders-Updated.csv
 
 The loader prints a summary and saves unusable rows to `data\rejected_orders.csv`. See [About the sample data](#about-the-sample-data).
 
-### 4. Start the backend
+### 4. Start the server
 
 ```powershell
 python run.py
@@ -92,7 +92,7 @@ Open `http://localhost:5173`.
 
 ## Configuration
 
-Settings live in `backend/.env`. **Never commit this file.** It is already in `.gitignore`.
+Settings live in `server/.env`. **Never commit this file.** It is already in `.gitignore`.
 
 | Setting | What it is | Example |
 |---|---|---|
@@ -284,7 +284,7 @@ Request flow: **route** receives the request, **validator** checks it, **service
 Use a separate test database. Never test against real data.
 
 ```powershell
-cd backend
+cd server
 pytest
 ```
 
@@ -308,7 +308,7 @@ pytest
 | No customer or product tables | Customer IDs are checked by format only. Prices come from the order itself, because the data has no price list. |
 | Totals are not stored | Always calculated as `quantity x unit_price` using exact decimal math. |
 | Safe SQL | All queries are parameterized. Multi-step writes use transactions. |
-| Limited database changes | The app only creates the objects in `backend/sql/schema.sql`, inside `sales_schema`. |
+| Limited database changes | The app only creates the objects in `server/sql/schema.sql`, inside `sales_schema`. |
 | Simple admin security | A single token protects admin actions. This is fine for a simulation but is not full user authentication. |
 
 ---
@@ -317,7 +317,7 @@ pytest
 
 | Problem | Likely fix |
 |---|---|
-| `/api/health` fails | Check the backend is running and `.env` values are correct |
+| `/api/health` fails | Check the server is running and `.env` values are correct |
 | Database connection error | Confirm PostgreSQL is running and `DB_*` settings match |
 | `relation "orders" does not exist` | Run `schema.sql` (step 1) |
 | Browser CORS error | Make sure `FRONTEND_ORIGIN` matches the frontend address exactly |
