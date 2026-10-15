@@ -1,12 +1,9 @@
 from flask import Flask, jsonify
 
-from .config import Config, configure_logging
-from .extensions import db, jwt, mail
+from flask import Flask, jsonify
 
 from .config import Config, configure_logging
 from .extensions import db, jwt, mail
-
-from .routes import auth, orders, reports
 
 
 def create_app():
@@ -19,9 +16,13 @@ def create_app():
     jwt.init_app(app)
     mail.init_app(app)
 
-    app.register_blueprint(auth, url_prefix="/api/auth")
-    app.register_blueprint(orders, url_prefix="/api/orders")
-    app.register_blueprint(reports, url_prefix="/api/reports")
+    from .routes.auth import auth_bp
+    from .routes.orders import orders_bp
+    from .routes.reports import reports_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(orders_bp)
+    app.register_blueprint(reports_bp)
 
     @app.get("/")
     def root():

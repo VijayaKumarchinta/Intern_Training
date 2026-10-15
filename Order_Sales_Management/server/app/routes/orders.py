@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 
-from ..decorators import current_user, role_required
+from flask import Blueprint, jsonify, request
+
+from ..utils.decorators import get_current_user, role_required
 from ..models import Customer, Order, OrderItem, Product
 from ..services.order_service import (
     change_status,
@@ -11,7 +13,11 @@ from ..services.order_service import (
     visible_orders_for,
 )
 
-bp = Blueprint("orders", __name__, url_prefix="/api/orders")
+orders_bp = Blueprint("orders", __name__, url_prefix="/api/orders")
+
+
+def _json():
+    return request.get_json(silent=True) or {}
 
 
 def _build_order_response(order, include_items=False):
@@ -23,40 +29,42 @@ def _build_order_response(order, include_items=False):
     return data
 
 
-@bp.route("", methods=["GET"])
+@orders_bp.get("")
 def list_orders():
-    user = current_user()
+    user = get_current_user()
     if user is None:
-        return jsonify(error="Authentication required"), 401
+        return jsonify(error="User not found"), 404
 
-    query = visible_orders_for(user)
+    q = visible_orders_for(user)
 
     status = request.args.get("status")
     if status:
-        query = query.filter(Order.order_status == status)
+        q = q.filter(Order.order_status == status)
+
+    customer_id = request.args.get("customer_id")
+    if customer_id:
+        q = q.filter(Order.customer_id == customer_id)
+
+    q = q.order_by(Order.order_date.desc(), Order.order_id.desc())
 
     page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 20, type=int)
-    per_page = min(max(per_page, 1), 100)
-
-    paginated = query.order_by(Order.order_date.desc().nullslast()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(max(per_page, 1), 200)
 
     return jsonify(
         orders=[_build_order_response(o) for o in paginated.items],
         page=paginated.page,
         per_page=paginated.per_page,
-        pages=paginated.pages,
         total=paginated.total,
+        pages=paginated.pages,
     ), 200
 
 
-@bp.route("/<order_id>", methods=["GET"])
+@orders_bp.get("/<order_id>")
 def get_order(order_id):
-    user = current_user()
+    user = get_current_user()
     if user is None:
-        return jsonify(error="Authentication required"), 401
+        return jsonify(error="User not found"), 404
 
     order = Order.query.filter_by(order_id=order_id).first()
     if order is None:
@@ -70,10 +78,10 @@ def get_order(order_id):
     return jsonify(_build_order_response(order, include_items=True)), 200
 
 
-@bp.route("", methods=["POST"])
+@orders_bp.post("")
 @role_required("admin")
 def create_order():
-    payload = request.get_json(silent=True) or {}
+    payload = _json()
     errors = validate_order_payload(payload)
     if errors:
         return jsonify(errors=errors), 400
@@ -111,23 +119,23 @@ def create_order():
 
         db.session.commit()
         return jsonify(_build_order_response(order, include_items=True)), 201
-    except Exception:  # noqa: BLE001
+    except Exception:  
         db.session.rollback()
         return jsonify(error="Failed to create order"), 400
 
 
-@bp.route("/validate", methods=["POST"])
+@orders_bp.post("/validate")
 @role_required("admin")
 def dry_run_validation():
-    payload = request.get_json(silent=True) or {}
+    payload = _json()
     errors = validate_order_payload(payload)
     return jsonify(valid=len(errors) == 0, errors=errors), 200
 
 
-@bp.route("/<order_id>/status", methods=["PATCH"])
+@orders_bp.patch("/<order_id>/status")
 @role_required("admin")
 def update_status(order_id):
-    payload = request.get_json(silent=True) or {}
+    payload = _json()
     new_status = payload.get("order_status")
     if not new_status:
         return jsonify(error="order_status is required"), 400
@@ -143,7 +151,7 @@ def update_status(order_id):
     return jsonify(_build_order_response(order)), 200
 
 
-@bp.route("/duplicates", methods=["GET"])
+@orders_bp.get("/duplicates")
 @role_required("admin")
 def list_duplicates():
     return jsonify(duplicates=find_duplicates()), 200

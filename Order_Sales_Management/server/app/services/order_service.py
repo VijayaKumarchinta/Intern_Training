@@ -7,7 +7,6 @@ from sqlalchemy import func
 from ..extensions import db
 from ..models import Customer, Order, OrderItem, Product
 
-
 VALID_STATUSES = {"Pending", "Received", "Shipped", "Delivered", "Cancelled", "Returned"}
 
 ALLOWED_TRANSITIONS = {
@@ -18,7 +17,6 @@ ALLOWED_TRANSITIONS = {
     "Returned": set(),
     "Received": set(),
 }
-
 
 def validate_order_payload(payload):
     errors = []
@@ -56,7 +54,7 @@ def validate_order_payload(payload):
         if product is None:
             errors.append(f"items[{i}].product_id does not exist")
 
-        qty_ok = False
+        qty = False
         if qty is None:
             errors.append(f"items[{i}].quantity is required")
         else:
@@ -68,9 +66,9 @@ def validate_order_payload(payload):
             if qd is not None:
                 if qd < 1 or qd > 1000:
                     errors.append(f"items[{i}].quantity must be 1..1000")
-                qty_ok = True
+                qty = True
 
-        price_ok = False
+        price = False
         if price is None:
             errors.append(f"items[{i}].unit_price is required")
         else:
@@ -82,11 +80,7 @@ def validate_order_payload(payload):
             if pd is not None:
                 if pd < 0:
                     errors.append(f"items[{i}].unit_price must be >= 0")
-                price_ok = True
-
-        if qty_ok and price_ok and product is not None:
-            if Decimal(str(price)) <= 0:
-                errors.append(f"items[{i}].unit_price must be > 0 for a valid line")
+                price = True
 
     status = payload.get("order_status", "Pending")
     if status not in VALID_STATUSES:
