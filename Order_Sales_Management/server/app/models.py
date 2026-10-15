@@ -1,6 +1,11 @@
 from datetime import datetime, timezone
 from .extensions import db
 
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
 class User(db.Model):
     __tablename__ = "users"
 
@@ -9,20 +14,24 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(255))
     role = db.Column(db.String(20), nullable=False, default="customer")
+
     is_verified = db.Column(db.Boolean, nullable=False, default=False)
     verification_token_hash = db.Column(db.String(255))
     verification_expires_at = db.Column(db.DateTime(timezone=True))
+    verification_attempts = db.Column(db.Integer, nullable=False, default=0)
+    
     reset_token_hash = db.Column(db.String(255))
     reset_token_expires_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=_now,
     )
     updated_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=_now,
+        onupdate=_now,
     )
 
     customer = db.relationship("Customer", backref="user", uselist=False)
@@ -51,7 +60,7 @@ class Customer(db.Model):
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=_now,
     )
 
     orders = db.relationship("Order", backref="customer", lazy="select")
@@ -102,19 +111,19 @@ class Order(db.Model):
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=_now,
     )
     updated_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=_now,
+        onupdate=_now,
     )
 
     items = db.relationship(
         "OrderItem",
         backref="order",
         lazy="select",
-        cascade="all, delete-orphan",
         order_by="OrderItem.order_item_id",
     )
 
