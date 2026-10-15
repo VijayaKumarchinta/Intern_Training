@@ -1,10 +1,6 @@
 from flask import Flask, jsonify
-
-from flask import Flask, jsonify
-
 from .config import Config, configure_logging
 from .extensions import db, jwt, mail
-
 
 def create_app():
     app = Flask(__name__)
@@ -34,8 +30,7 @@ def create_app():
 
     @app.get("/db")
     def database():
-        from .models import Order, Customer, User
-
+        from .models import Customer, Order, User
         return jsonify(
             orders=Order.query.count(),
             customers=Customer.query.count(),

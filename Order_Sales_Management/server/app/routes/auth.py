@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-
 from ..utils.decorators import get_current_user
 from ..services.auth_service import (
     register,
@@ -11,14 +10,11 @@ from ..services.auth_service import (
     forgot_password,
     reset_password,
 )
-from ..extensions import jwt
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
-
 def _json():
     return request.get_json(silent=True) or {}
-
 
 @auth_bp.post("/register")
 def register_route():
@@ -38,7 +34,6 @@ def register_route():
         is_verified=False,
     ), 201
 
-
 @auth_bp.post("/verify")
 def verify_route():
     body = _json()
@@ -54,13 +49,11 @@ def verify_route():
 
     return jsonify(message="Email verified", user_id=user.id, is_verified=True), 200
 
-
 @auth_bp.post("/resend-verification")
 def resend_route():
     body = _json()
     resend_verification_code(body.get("email"))
     return jsonify(message="If the email needs verification, a new code was sent"), 200
-
 
 @auth_bp.post("/login")
 def login_route():
@@ -73,13 +66,11 @@ def login_route():
         user=result["user"].to_dict(),
     ), 200
 
-
 @auth_bp.post("/forgot-password")
 def forgot_route():
     body = _json()
     forgot_password(body.get("email"))
     return jsonify(message="If the email exists, a reset link was sent"), 200
-
 
 @auth_bp.post("/reset-password")
 def reset_route():
@@ -88,7 +79,6 @@ def reset_route():
     if not ok:
         return jsonify(error=err), 400
     return jsonify(message="Password reset successful"), 200
-
 
 @auth_bp.get("/me")
 @jwt_required()

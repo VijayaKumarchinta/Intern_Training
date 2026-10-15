@@ -1,18 +1,13 @@
 from flask import Blueprint, jsonify, request
-
-from flask import Blueprint, jsonify, request
-
-from ..utils.decorators import role_required
 from ..services.order_service import date_wise_report, product_wise_report
+from ..utils.decorators import role_required
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/api/reports")
-
 
 @reports_bp.get("/product-wise")
 @role_required("admin")
 def product_wise():
     return jsonify(product_wise_report()), 200
-
 
 @reports_bp.get("/date-wise")
 @role_required("admin")

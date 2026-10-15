@@ -7,15 +7,7 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from flask_jwt_extended import create_access_token
 
-from ..extensions import _bcrypt_hash, _bcrypt_verify, db
-
-
-def bcrypt_hash(secret):
-    return _bcrypt_hash(secret)
-
-
-def bcrypt_verify(secret, hash):
-    return _bcrypt_verify(secret, hash)
+from ..extensions import db, hash_password, verify_password
 from ..models import Customer, User
 from ..utils.email import send_password_reset, send_verification_code
 
@@ -49,7 +41,6 @@ def _verify_max_attempts():
 def _reset_ttl_hours():
     return current_app.config.get("RESET_TTL_HOURS", 1)
 
-
 def register(email, password, full_name, customer_id):
     email = (email or "").strip().lower()
     full_name = (full_name or "").strip()
@@ -59,6 +50,8 @@ def register(email, password, full_name, customer_id):
         return None, "Invalid email"
     if not password or len(password) < 8:
         return None, "Password must be at least 8 characters"
+    if len(password.encode("utf-8")) > 72:
+        return None, "Password must be at most 72 bytes"
     if not customer_id:
         return None, "customer_id is required"
 
@@ -72,10 +65,9 @@ def register(email, password, full_name, customer_id):
         return None, "This Customer ID is already linked to another account"
 
     code = _new_otp()
-    safe_password = password[:72].encode("utf-8")
     user = User(
         email=email,
-        password_hash=bcrypt_hash(safe_password)
+        password_hash=hash_password(password),
         full_name=full_name,
         role="customer",
         is_verified=False,
@@ -89,7 +81,6 @@ def register(email, password, full_name, customer_id):
     send_verification_code(email, code)
     log.info("Register: user=%s customer=%s", user.id, customer_id)
     return user, None
-
 
 def verify_email(email, code):
     email = (email or "").strip().lower()
@@ -127,7 +118,6 @@ def verify_email(email, code):
     log.info("Verify: user=%s verified", user.id)
     return user, None
 
-
 def resend_verification_code(email):
     email = (email or "").strip().lower()
     if not email:
@@ -146,7 +136,6 @@ def resend_verification_code(email):
     send_verification_code(email, code)
     log.info("Resend: user=%s", user.id)
     return True, None
-
 
 def link_customer(user, customer_id):
     customer_id = (customer_id or "").strip()
@@ -172,7 +161,6 @@ def link_customer(user, customer_id):
     log.info("Link: customer=%s user=%s", customer_id, user.id)
     return True, None
 
-
 def login(email, password):
     email = (email or "").strip().lower()
     if not email or not password:
@@ -181,9 +169,7 @@ def login(email, password):
     user = User.query.filter(db.func.lower(User.email) == email).first()
     if user is None:
         return None, "Invalid credentials"
-
-    safe_password = password[:72].encode("utf-8")
-    if not bcrypt_verify(safe_password, user.password_hash):
+    if not verify_password(password, user.password_hash):
         return None, "Invalid credentials"
     if not user.is_verified:
         return None, "Please verify your email first"
@@ -194,7 +180,6 @@ def login(email, password):
     )
     log.info("Login: user=%s", user.id)
     return {"access_token": token, "user": user}, None
-
 
 def forgot_password(email):
     email = (email or "").strip().lower()
@@ -214,13 +199,14 @@ def forgot_password(email):
     log.info("Forgot: user=%s", user.id)
     return True, None
 
-
 def reset_password(token, new_password):
     token = (token or "").strip()
     if not token:
         return False, "Token is required"
     if not new_password or len(new_password) < 8:
         return False, "Password must be at least 8 characters"
+    if len(new_password.encode("utf-8")) > 72:
+        return False, "Password must be at most 72 bytes"
 
     user = User.query.filter_by(reset_token_hash=_hash(token)).first()
     if user is None:
@@ -228,8 +214,7 @@ def reset_password(token, new_password):
     if user.reset_token_expires_at is None or user.reset_token_expires_at < _now():
         return False, "Token expired"
 
-    safe_new_password = new_password[:72].encode("utf-8")
-    user.password_hash = bcrypt_hash(safe_new_password)
+    user.password_hash = hash_password(new_password)
     user.reset_token_hash = None
     user.reset_token_expires_at = None
     db.session.commit()

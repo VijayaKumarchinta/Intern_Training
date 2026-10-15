@@ -2,47 +2,39 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
-
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-
 def configure_logging(app):
-    app.logger.handlers = []
+    log_dir = os.path.join(BASE_DIR, "logs")
+    os.makedirs(log_dir, exist_ok=True)
 
-    _log_dir = os.path.join(BASE_DIR, "logs")
-    os.makedirs(_log_dir, exist_ok=True)
-
-    _formatter = logging.Formatter(
+    formatter = logging.Formatter(
         "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    _console = logging.StreamHandler(sys.stdout)
-    _console.setFormatter(_formatter)
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(formatter)
 
-    _file = RotatingFileHandler(
-        os.path.join(_log_dir, "app.log"),
+    file_handler = RotatingFileHandler(
+        os.path.join(log_dir, "app.log"),
         maxBytes=5 * 1024 * 1024,
         backupCount=3,
         encoding="utf-8",
     )
-    _file.setFormatter(_formatter)
+    file_handler.setFormatter(formatter)
 
-    _root = logging.getLogger()
-    _root.handlers = [_console, _file]
-    _root.setLevel(logging.INFO)
+    root = logging.getLogger()
+    root.handlers = [console, file_handler]
+    root.setLevel(logging.INFO)
 
-    for _lib in ("sqlalchemy.engine", "werkzeug", "flask_jwt_extended"):
-        logging.getLogger(_lib).setLevel(logging.WARNING)
+    for lib in ("sqlalchemy.engine", "werkzeug", "flask_jwt_extended"):
+        logging.getLogger(lib).setLevel(logging.WARNING)
 
-    app.logger.handlers = [_console, _file]
-    app.logger.setLevel(logging.INFO)
     app.logger.info("Logging configured: console + logs/app.log")
-
 
 class Config:
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -60,18 +52,18 @@ class Config:
         "pool_size": 5,
         "max_overflow": 10,
         "connect_args": {
-            "options": f"-c search_path={os.getenv('DB_SCHEMA', 'order_sales')},public"
+            "options": f"-c search_path={os.getenv('DB_SCHEMA')}"
         },
     }
 
     JWT_SECRET_KEY = SECRET_KEY
-    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS", "24")) * 3600
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS")) * 3600
 
-    MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-    MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
+    MAIL_SERVER = os.getenv("MAIL_SERVER")
+    MAIL_PORT = int(os.getenv("MAIL_PORT"))
     MAIL_USERNAME = os.getenv("MAIL_USERNAME")
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
+    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS").lower() == "true"
 
     DB_SCHEMA = os.getenv("DB_SCHEMA", "order_sales")
 

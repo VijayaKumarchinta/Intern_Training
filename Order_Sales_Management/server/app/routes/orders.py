@@ -1,26 +1,24 @@
+import logging
 from flask import Blueprint, jsonify, request
-
-from flask import Blueprint, jsonify, request
-
-from ..utils.decorators import get_current_user, role_required
+from ..extensions import db
 from ..models import Customer, Order, OrderItem, Product
 from ..services.order_service import (
     change_status,
-    date_wise_report,
     find_duplicates,
-    product_wise_report,
     validate_order_payload,
     visible_orders_for,
 )
+from ..utils.decorators import get_current_user, role_required
+from flask_jwt_extended import jwt_required
+
+log = logging.getLogger(__name__)
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api/orders")
-
 
 def _json():
     return request.get_json(silent=True) or {}
 
-
-def _build_order_response(order, include_items=False):
+def _order_response(order, include_items=False):
     data = order.to_dict(include_items=include_items)
     if include_items:
         data["total"] = float(
@@ -28,8 +26,13 @@ def _build_order_response(order, include_items=False):
         )
     return data
 
+@orders_bp.get("/duplicates")
+@role_required("admin")
+def list_duplicates():
+    return jsonify(duplicates=find_duplicates()), 200
 
 @orders_bp.get("")
+@jwt_required()
 def list_orders():
     user = get_current_user()
     if user is None:
@@ -47,20 +50,21 @@ def list_orders():
 
     q = q.order_by(Order.order_date.desc(), Order.order_id.desc())
 
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 50, type=int)
-    per_page = min(max(per_page, 1), 200)
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = min(max(request.args.get("per_page", 50, type=int), 1), 200)
+
+    paginated = q.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify(
-        orders=[_build_order_response(o) for o in paginated.items],
+        orders=[_order_response(o) for o in paginated.items],
         page=paginated.page,
         per_page=paginated.per_page,
         total=paginated.total,
         pages=paginated.pages,
     ), 200
 
-
 @orders_bp.get("/<order_id>")
+@jwt_required()
 def get_order(order_id):
     user = get_current_user()
     if user is None:
@@ -75,8 +79,7 @@ def get_order(order_id):
         if customer is None or customer.user_id != user.id:
             return jsonify(error="Order not found"), 404
 
-    return jsonify(_build_order_response(order, include_items=True)), 200
-
+    return jsonify(_order_response(order, include_items=True)), 200
 
 @orders_bp.post("")
 @role_required("admin")
@@ -86,9 +89,7 @@ def create_order():
     if errors:
         return jsonify(errors=errors), 400
 
-    customer = Customer.query.filter_by(
-        customer_id=payload.get("customer_id")
-    ).first()
+    customer = Customer.query.filter_by(customer_id=payload.get("customer_id")).first()
     if customer is None:
         return jsonify(error="Customer not found"), 404
 
@@ -103,26 +104,23 @@ def create_order():
         db.session.flush()
 
         for item in payload.get("items", []):
-            product = Product.query.filter_by(
-                product_id=item.get("product_id")
-            ).first()
+            product = Product.query.get(item.get("product_id"))
             if product is None:
                 db.session.rollback()
                 return jsonify(errors=[f"Product {item.get('product_id')} not found"]), 400
-            line = OrderItem(
+            db.session.add(OrderItem(
                 order_id=order.order_id,
                 product_id=product.product_id,
                 quantity=item.get("quantity"),
                 unit_price=item.get("unit_price"),
-            )
-            db.session.add(line)
+            ))
 
         db.session.commit()
-        return jsonify(_build_order_response(order, include_items=True)), 201
-    except Exception:  
+        return jsonify(_order_response(order, include_items=True)), 201
+    except Exception:
         db.session.rollback()
+        log.exception("create_order failed")
         return jsonify(error="Failed to create order"), 400
-
 
 @orders_bp.post("/validate")
 @role_required("admin")
@@ -131,12 +129,10 @@ def dry_run_validation():
     errors = validate_order_payload(payload)
     return jsonify(valid=len(errors) == 0, errors=errors), 200
 
-
 @orders_bp.patch("/<order_id>/status")
 @role_required("admin")
 def update_status(order_id):
-    payload = _json()
-    new_status = payload.get("order_status")
+    new_status = _json().get("order_status")
     if not new_status:
         return jsonify(error="order_status is required"), 400
 
@@ -148,10 +144,4 @@ def update_status(order_id):
     if not ok:
         return jsonify(error=msg), 400
 
-    return jsonify(_build_order_response(order)), 200
-
-
-@orders_bp.get("/duplicates")
-@role_required("admin")
-def list_duplicates():
-    return jsonify(duplicates=find_duplicates()), 200
+    return jsonify(_order_response(order)), 200
