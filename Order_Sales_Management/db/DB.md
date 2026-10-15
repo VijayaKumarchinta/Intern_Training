@@ -257,3 +257,313 @@ The application or import process must validate the staging records and insert v
 - **Indexes:** Support frequent customer, status, and product queries.
 
 The Flask application connects to this pre-created schema and implements the application logic for customer order management, input validation, order-total calculation, duplicate detection, status updates, and product-wise and date-wise sales reports.
+
+## How to load the dataset
+
+The dataset is loaded in stages so bad rows can be reviewed before they reach the normalized tables.
+
+Source file:
+
+- `data/Online_Store_Orders.csv`
+
+Expected columns:
+
+- `OrderID`
+- `Date`
+- `CustomerID`
+- `Product`
+- `Quantity`
+- `UnitPrice`
+- `OrderStatus`
+
+### Step 1: Create the schema and tables
+
+Run the schema script first.
+
+```bash
+psql -U postgres -d machine_sensor_db -f F:\Intern_Training\Order_Sales_Management\db\init.sql
+```
+
+Or from inside psql:
+
+```sql
+\i db/init.sql
+```
+
+This creates the `order_sales` schema and all tables, including `staging_orders`.
+
+### Step 2: Load the CSV into staging
+
+If PostgreSQL can read the file directly:
+
+```sql
+COPY order_sales.staging_orders (
+    order_id,
+    order_date,
+    customer_id,
+    product,
+    quantity,
+    unit_price,
+    order_status
+)
+FROM 'F:/Intern_Training/Order_Sales_Management/data/Online_Store_Orders.csv'
+WITH (FORMAT CSV, HEADER TRUE);
+```
+
+Use the actual absolute path to the CSV. If the file is only on your local machine and the server cannot reach it, import with pgAdmin or another client tool into `order_sales.staging_orders`.
+
+Quick row check:
+
+```sql
+SELECT COUNT(*) AS staging_rows
+FROM order_sales.staging_orders;
+```
+
+### Step 3: Validate staging rows
+
+Check for missing values first:
+
+```sql
+SELECT *
+FROM order_sales.staging_orders
+WHERE NULLIF(TRIM(order_id), '') IS NULL
+   OR NULLIF(TRIM(customer_id), '') IS NULL
+   OR NULLIF(TRIM(product), '') IS NULL
+   OR NULLIF(TRIM(quantity), '') IS NULL
+   OR NULLIF(TRIM(unit_price), '') IS NULL
+   OR NULLIF(TRIM(order_status), '') IS NULL;
+```
+
+Check date format:
+
+```sql
+SELECT *
+FROM order_sales.staging_orders
+WHERE NULLIF(TRIM(order_date), '') IS NULL
+   OR TRIM(order_date) !~ '^\d{4}-\d{2}-\d{2}$';
+```
+
+Check quantities:
+
+```sql
+SELECT *
+FROM order_sales.staging_orders
+WHERE CASE
+    WHEN TRIM(quantity) ~ '^[0-9]+$'
+    THEN TRIM(quantity)::NUMERIC <= 0
+    ELSE TRUE
+END;
+```
+
+Check prices:
+
+```sql
+SELECT *
+FROM order_sales.staging_orders
+WHERE CASE
+    WHEN TRIM(unit_price) ~ '^[0-9]+(\.[0-9]{1,2})?$'
+    THEN TRIM(unit_price)::NUMERIC < 0
+    ELSE TRUE
+END;
+```
+
+Check statuses:
+
+```sql
+SELECT TRIM(order_status) AS status, COUNT(*) AS row_count
+FROM order_sales.staging_orders
+GROUP BY TRIM(order_status)
+ORDER BY status;
+```
+
+Allowed statuses:
+
+- Pending
+- Received
+- Shipped
+- Delivered
+- Cancelled
+- Returned
+
+### Step 4: Insert customers and products
+
+Insert distinct customers:
+
+```sql
+INSERT INTO order_sales.customers (customer_id)
+SELECT DISTINCT TRIM(customer_id)
+FROM order_sales.staging_orders
+WHERE NULLIF(TRIM(customer_id), '') IS NOT NULL
+ON CONFLICT (customer_id) DO NOTHING;
+```
+
+Insert distinct products:
+
+```sql
+INSERT INTO order_sales.products (pro_name)
+SELECT DISTINCT TRIM(product)
+FROM order_sales.staging_orders
+WHERE NULLIF(TRIM(product), '') IS NOT NULL
+ON CONFLICT (pro_name) DO NOTHING;
+```
+
+Customer names and emails are not in this dataset, so `cust_name` and `email` stay NULL unless filled later. Do not set `current_price` from old order prices unless there is a defined rule for choosing the current price.
+
+### Step 5: Insert orders and order items
+
+Insert order headers:
+
+```sql
+INSERT INTO order_sales.orders (
+    order_id,
+    customer_id,
+    order_date,
+    order_status
+)
+SELECT DISTINCT
+    TRIM(s.order_id),
+    TRIM(s.customer_id),
+    TRIM(s.order_date)::DATE,
+    INITCAP(LOWER(TRIM(s.order_status)))
+FROM order_sales.staging_orders AS s
+WHERE NULLIF(TRIM(s.order_id), '') IS NOT NULL
+  AND NULLIF(TRIM(s.customer_id), '') IS NOT NULL
+  AND NULLIF(TRIM(s.order_date), '') IS NOT NULL
+  AND TRIM(s.order_date) ~ '^\d{4}-\d{2}-\d{2}$'
+  AND LOWER(TRIM(s.order_status)) IN (
+      'pending', 'received', 'shipped',
+      'delivered', 'cancelled', 'returned'
+  )
+ON CONFLICT (order_id) DO NOTHING;
+```
+
+Insert order items:
+
+```sql
+INSERT INTO order_sales.order_items (
+    order_id,
+    product_id,
+    quantity,
+    unit_price
+)
+SELECT
+    TRIM(s.order_id),
+    p.product_id,
+    TRIM(s.quantity)::INTEGER,
+    TRIM(s.unit_price)::NUMERIC(12,2)
+FROM order_sales.staging_orders AS s
+JOIN order_sales.orders AS o
+  ON o.order_id = TRIM(s.order_id)
+JOIN order_sales.products AS p
+  ON p.pro_name = TRIM(s.product)
+WHERE TRIM(s.quantity) ~ '^[0-9]+$'
+  AND TRIM(s.quantity)::NUMERIC > 0
+  AND TRIM(s.unit_price) ~ '^[0-9]+(\.[0-9]{1,2})?$'
+  AND TRIM(s.unit_price)::NUMERIC >= 0
+ON CONFLICT (order_id, product_id) DO NOTHING;
+```
+
+### Step 6: Verify the load
+
+Check counts:
+
+```sql
+SELECT COUNT(*) AS customers FROM order_sales.customers;
+SELECT COUNT(*) AS products  FROM order_sales.products;
+SELECT COUNT(*) AS orders      FROM order_sales.orders;
+SELECT COUNT(*) AS order_items FROM order_sales.order_items;
+```
+
+Confirm there is still one header per order:
+
+```sql
+SELECT
+    order_id,
+    COUNT(*) AS header_count
+FROM order_sales.orders
+GROUP BY order_id
+HAVING COUNT(*) > 1;
+```
+
+Sample order with line items:
+
+```sql
+SELECT
+    o.order_id,
+    o.order_date,
+    o.order_status,
+    c.cust_name,
+    oi.product_id,
+    p.pro_name,
+    oi.quantity,
+    oi.unit_price,
+    oi.quantity * oi.unit_price AS line_total
+FROM order_sales.orders AS o
+JOIN order_sales.customers AS c
+  ON c.customer_id = o.customer_id
+JOIN order_sales.order_items AS oi
+  ON oi.order_id = o.order_id
+JOIN order_sales.products AS p
+  ON p.product_id = oi.product_id
+WHERE o.order_id = 'PUT_ONE_ORDER_ID_HERE'
+ORDER BY oi.order_item_id;
+```
+
+Order total:
+
+```sql
+SELECT
+    o.order_id,
+    COALESCE(SUM(oi.quantity * oi.unit_price), 0)::NUMERIC(14,2) AS order_total
+FROM order_sales.orders AS o
+LEFT JOIN order_sales.order_items AS oi
+  ON oi.order_id = o.order_id
+WHERE o.order_id = 'PUT_ONE_ORDER_ID_HERE'
+GROUP BY o.order_id;
+```
+
+### Step 7: Reconcile rejected rows
+
+Do not assume the load is complete just because there were no SQL errors. Compare staging rows with imported rows:
+
+```sql
+SELECT
+    s.order_id,
+    s.product,
+    s.quantity,
+    s.unit_price,
+    s.order_status,
+    CASE
+        WHEN oi.order_item_id IS NOT NULL THEN 'imported'
+        ELSE 'not imported'
+    END AS load_result
+FROM order_sales.staging_orders AS s
+LEFT JOIN order_sales.order_items AS oi
+  ON oi.order_id = TRIM(s.order_id)
+ AND oi.product_id = (
+        SELECT p.product_id
+        FROM order_sales.products AS p
+        WHERE p.pro_name = TRIM(s.product)
+    )
+ORDER BY s.order_id, s.product;
+```
+
+If any rows are marked `not imported`, record why. Common reasons:
+
+- missing or malformed required fields
+- invalid date, quantity, or price
+- unrecognized status
+- customer or product not found
+- duplicate `order_id` and `product_id` already existed
+
+### Recommended dataset load order
+
+1. `psql -d order_sales_db -f db/init.sql`
+2. `COPY` the CSV into `order_sales.staging_orders`
+3. Run the staging validation queries
+4. Insert customers
+5. Insert products
+6. Insert orders
+7. Insert order items
+8. Run the count and sample queries
+9. Reconcile any rows that were not imported
