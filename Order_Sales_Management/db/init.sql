@@ -10,9 +10,12 @@ CREATE TABLE order_sales.users (
     full_name               VARCHAR(255),
     role                    VARCHAR(20) NOT NULL DEFAULT 'customer'
                             CHECK (role IN ('admin', 'customer')),
+
     is_verified             BOOLEAN NOT NULL DEFAULT FALSE,
     verification_token_hash VARCHAR(255),
     verification_expires_at TIMESTAMPTZ,
+    verification_attempts   INTEGER NOT NULL DEFAULT 0,
+    
     reset_token_hash        VARCHAR(255),
     reset_token_expires_at  TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
