@@ -4,39 +4,65 @@ DROP SCHEMA IF EXISTS order_sales CASCADE;
 CREATE SCHEMA order_sales;
 
 CREATE TABLE order_sales.users (
-    id                  SERIAL PRIMARY KEY,
-    email               VARCHAR(255) UNIQUE NOT NULL,
-    password_hash       VARCHAR(255) NOT NULL,
-    full_name           VARCHAR(255),
-    role                VARCHAR(20) NOT NULL DEFAULT 'customer'
-                        CHECK (role IN ('admin','customer')),
-    is_verified         BOOLEAN NOT NULL DEFAULT FALSE,
-    verification_token  VARCHAR(255),
-    reset_token         VARCHAR(255),
-    reset_token_expires TIMESTAMPTZ,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    email                   VARCHAR(255) NOT NULL,
+    password_hash           VARCHAR(255) NOT NULL,
+    full_name               VARCHAR(255),
+    role                    VARCHAR(20) NOT NULL DEFAULT 'customer'
+                            CHECK (role IN ('admin', 'customer')),
+    is_verified             BOOLEAN NOT NULL DEFAULT FALSE,
+    verification_token_hash VARCHAR(255),
+    verification_expires_at TIMESTAMPTZ,
+    reset_token_hash        VARCHAR(255),
+    reset_token_expires_at  TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX uq_users_email_lower
+    ON order_sales.users (LOWER(email));
 
 CREATE TABLE order_sales.customers (
     customer_id VARCHAR(20) PRIMARY KEY,
-    user_id     INTEGER REFERENCES order_sales.users(id) ON DELETE SET NULL,
-    name        VARCHAR(255),
+    user_id     INTEGER UNIQUE
+                    REFERENCES order_sales.users(id)
+                    ON DELETE SET NULL,
+    cust_name        VARCHAR(255),
     email       VARCHAR(255),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE order_sales.products (
+    product_id  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    pro_name          VARCHAR(100) NOT NULL UNIQUE,
+    current_price NUMERIC(12,2)
+                    CHECK (current_price IS NULL OR current_price >= 0)
+);
+
 CREATE TABLE order_sales.orders (
-    order_id          VARCHAR(20) PRIMARY KEY,
-    order_date        DATE,
-    customer_id       VARCHAR(20),
-    product           VARCHAR(100),
-    quantity          NUMERIC(10,2),
-    unit_price        NUMERIC(12,2),
-    order_status      VARCHAR(20),
-    is_valid          BOOLEAN NOT NULL DEFAULT FALSE,
-    validation_errors TEXT,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    order_id     VARCHAR(20) PRIMARY KEY,
+    customer_id  VARCHAR(20) NOT NULL
+                    REFERENCES order_sales.customers(customer_id),
+    order_date   DATE,
+    order_status VARCHAR(20) NOT NULL DEFAULT 'Pending'
+                    CHECK (order_status IN (
+                        'Pending', 'Received', 'Shipped',
+                        'Delivered', 'Cancelled', 'Returned'
+                    )),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE order_sales.order_items (
+    order_item_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_id      VARCHAR(20) NOT NULL
+                    REFERENCES order_sales.orders(order_id)
+                    ON DELETE CASCADE,
+    product_id    INTEGER NOT NULL
+                    REFERENCES order_sales.products(product_id),
+    quantity      INTEGER NOT NULL CHECK (quantity > 0),
+    unit_price    NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0),
+    UNIQUE (order_id, product_id)
 );
 
 CREATE TABLE order_sales.staging_orders (
@@ -49,7 +75,13 @@ CREATE TABLE order_sales.staging_orders (
     order_status TEXT
 );
 
-CREATE INDEX idx_orders_customer ON order_sales.orders(customer_id);
-CREATE INDEX idx_orders_status   ON order_sales.orders(order_status);
+CREATE INDEX idx_orders_customer_date
+    ON order_sales.orders (customer_id, order_date);
+
+CREATE INDEX idx_orders_status
+    ON order_sales.orders (order_status);
+
+CREATE INDEX idx_order_items_product
+    ON order_sales.order_items (product_id);
 
 COMMIT;
