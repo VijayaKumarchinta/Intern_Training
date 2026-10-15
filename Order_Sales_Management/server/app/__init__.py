@@ -11,8 +11,21 @@ def create_app():
     jwt.init_app(app)
     mail.init_app(app)
 
+    @app.get("/")
+    def root():
+        return jsonify("All set to go......")
+
     @app.get("/health")
     def health():
         return jsonify(status="ok"), 200
+
+    @app.get("/db")
+    def database():
+        from .models import Order, Customer, User
+        return jsonify(
+            orders=Order.query.count(),
+            customers=Customer.query.count(),
+            users=User.query.count(),
+        ), 200
 
     return app

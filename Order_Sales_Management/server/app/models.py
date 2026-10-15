@@ -25,7 +25,7 @@ class User(db.Model):
         default=lambda: datetime.now(timezone.utc),
     )
 
-    customer = db.relationship("Customer", backref="user", uselist=False, cascade="set null")
+    customer = db.relationship("Customer", backref="user", uselist=False)
 
     def to_dict(self):
         return {
