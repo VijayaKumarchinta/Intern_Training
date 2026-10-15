@@ -11,7 +11,7 @@ def create_app():
     jwt.init_app(app)
     mail.init_app(app)
 
-    @app.get("/")
+    @app.get("/health")
     def health():
         return jsonify(status="ok"), 200
 
