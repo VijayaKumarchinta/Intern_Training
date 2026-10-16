@@ -289,90 +289,10 @@ If `order_status_history` is enabled, insert the old and new status in the same 
 | Repeated API submission | Idempotency key scoped to the user, with a hash of the payload. Return the original result for the same key and payload; reject the same key with a different payload |
 | Potential business duplicate | Flag for admin review; do not delete automatically |
 
-```sql
-SELECT TRIM(order_id) AS order_id, COUNT(*) AS occurrences
-FROM order_sales.staging_orders
-GROUP BY TRIM(order_id) HAVING COUNT(*) > 1;
-
-SELECT customer_id, order_date, product, quantity, unit_price, COUNT(*) AS occurrence_count
-FROM order_sales.staging_orders
-GROUP BY customer_id, order_date, product, quantity, unit_price
-HAVING COUNT(*) > 1;
-```
 
 Matching rows do not prove a duplicate. A customer may legitimately buy the same product twice.
 
-## 9. SQL Reporting Queries
-
-Define what counts as a sale first. These examples count `Shipped` and `Delivered` orders.
-
-### 9.1 Product-wise sales
-
-```sql
-SELECT p.product_id, p.name AS product_name,
-       SUM(oi.quantity) AS units_sold,
-       SUM(oi.quantity * oi.unit_price)::NUMERIC(14,2) AS total_sales
-FROM order_sales.order_items AS oi
-JOIN order_sales.products AS p ON p.product_id = oi.product_id
-JOIN order_sales.orders   AS o ON o.order_id   = oi.order_id
-WHERE o.order_status IN ('Shipped', 'Delivered')
-GROUP BY p.product_id, p.name
-ORDER BY total_sales DESC;
-```
-
-### 9.2 Date-wise sales
-
-```sql
-SELECT o.order_date,
-       SUM(oi.quantity) AS units_sold,
-       SUM(oi.quantity * oi.unit_price)::NUMERIC(14,2) AS daily_sales
-FROM order_sales.orders AS o
-JOIN order_sales.order_items AS oi ON oi.order_id = o.order_id
-WHERE o.order_status IN ('Shipped', 'Delivered')
-  AND o.order_date BETWEEN %s AND %s
-GROUP BY o.order_date
-ORDER BY o.order_date;
-```
-
-### 9.3 Monthly sales
-
-```sql
-SELECT DATE_TRUNC('month', o.order_date)::DATE AS sales_month,
-       SUM(oi.quantity * oi.unit_price)::NUMERIC(14,2) AS monthly_sales
-FROM order_sales.orders AS o
-JOIN order_sales.order_items AS oi ON oi.order_id = o.order_id
-WHERE o.order_status IN ('Shipped', 'Delivered')
-GROUP BY DATE_TRUNC('month', o.order_date)
-ORDER BY sales_month;
-```
-
-### 9.4 Other useful queries
-
-```sql
--- Order totals
-SELECT o.order_id, o.order_date, o.customer_id, o.order_status,
-       COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS order_total
-FROM order_sales.orders AS o
-LEFT JOIN order_sales.order_items AS oi ON oi.order_id = o.order_id
-GROUP BY o.order_id, o.order_date, o.customer_id, o.order_status
-ORDER BY o.order_date DESC NULLS LAST;
-
--- Products never ordered
-SELECT p.product_id, p.name
-FROM order_sales.products AS p
-LEFT JOIN order_sales.order_items AS oi ON oi.product_id = p.product_id
-WHERE oi.product_id IS NULL
-ORDER BY p.name;
-
--- Orders by status
-SELECT order_status, COUNT(*) AS order_count
-FROM order_sales.orders
-GROUP BY order_status ORDER BY order_count DESC;
-```
-
-Reports expose business-wide data, so restrict them to admins.
-
-## 10. REST API Endpoints
+## 9. REST API Endpoints
 
 | Method | Endpoint | Purpose | Access |
 |---|---|---|---|
@@ -484,12 +404,10 @@ Services hold business rules and contain no HTTP code. Routes parse requests, ca
 Example `.env.example`:
 
 ```dotenv
-FLASK_ENV=development
 DB_SCHEMA=order_sales
 DATABASE_URL=postgresql+psycopg2://app_user:change_me@localhost:5432/your_database
 JWT_SECRET_KEY=replace_with_a_long_random_string
 JWT_ACCESS_TOKEN_EXPIRES_HOURS=12
-FRONTEND_URL=http://localhost:5173
 ```
 
 Never commit the real `.env` or production credentials. Use a secret manager or deployment environment variables in production.
