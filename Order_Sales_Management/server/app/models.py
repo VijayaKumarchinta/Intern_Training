@@ -1,27 +1,39 @@
 from datetime import datetime, timezone
+from sqlalchemy import CheckConstraint
+from .constants import Role
 from .extensions import db
-
 
 def _now():
     return datetime.now(timezone.utc)
 
-
 class User(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('admin', 'customer')",
+            name="users_role_check",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(255))
-    role = db.Column(db.String(20), nullable=False, default="customer")
+    role = db.Column(
+        db.String(20),
+        nullable=False,
+        default=Role.CUSTOMER.value,
+        server_default=Role.CUSTOMER.value,
+    )
 
     is_verified = db.Column(db.Boolean, nullable=False, default=False)
     verification_token_hash = db.Column(db.String(255))
     verification_expires_at = db.Column(db.DateTime(timezone=True))
     verification_attempts = db.Column(db.Integer, nullable=False, default=0)
-    
+
     reset_token_hash = db.Column(db.String(255))
     reset_token_expires_at = db.Column(db.DateTime(timezone=True))
+    token_version = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
@@ -44,7 +56,6 @@ class User(db.Model):
             "role": self.role,
             "is_verified": self.is_verified,
         }
-
 
 class Customer(db.Model):
     __tablename__ = "customers"
@@ -73,7 +84,6 @@ class Customer(db.Model):
             "email": self.email,
         }
 
-
 class Product(db.Model):
     __tablename__ = "products"
 
@@ -91,7 +101,6 @@ class Product(db.Model):
                 float(self.current_price) if self.current_price is not None else None
             ),
         }
-
 
 class Order(db.Model):
     __tablename__ = "orders"
@@ -139,7 +148,6 @@ class Order(db.Model):
         if include_items:
             data["items"] = [item.to_dict() for item in self.items]
         return data
-
 
 class OrderItem(db.Model):
     __tablename__ = "order_items"

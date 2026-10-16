@@ -1,12 +1,11 @@
 import re
+from datetime import date
 from decimal import Decimal
 from sqlalchemy import func
 from ..extensions import db
 from ..models import Customer, Order, OrderItem, Product
-from datetime import date
 
 VALID_STATUSES = {"Pending", "Received", "Shipped", "Delivered", "Cancelled", "Returned"}
-
 ALLOWED_TRANSITIONS = {
     "Pending":   {"Received", "Shipped", "Cancelled"},
     "Received":  {"Shipped", "Cancelled"},
@@ -15,6 +14,7 @@ ALLOWED_TRANSITIONS = {
     "Cancelled": set(),
     "Returned":  set(),
 }
+SALE_STATUSES = frozenset({"Shipped", "Delivered"})
 
 def validate_order_payload(payload):
     errors = []
@@ -82,6 +82,39 @@ def validate_order_payload(payload):
 
     return errors
 
+def create_order(payload):
+    errors = validate_order_payload(payload)
+    if errors:
+        return None, errors, 400
+
+    order_id = payload["order_id"]
+
+    if Order.query.get(order_id):
+        return None, f"Order {order_id} already exists", 409
+
+    order = Order(
+        order_id=order_id,
+        customer_id=payload["customer_id"],
+        order_date=date.fromisoformat(payload["order_date"]),
+        order_status=payload.get("order_status", "Pending"),
+    )
+    db.session.add(order)
+
+    try:
+        for item in payload.get("items", []):
+            db.session.add(OrderItem(
+                order_id=order.order_id,
+                product_id=item["product_id"],
+                quantity=item["quantity"],
+                unit_price=item["unit_price"],
+            ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return order, None, 201
+
 def visible_orders_for(user):
     if user is None:
         return Order.query.filter(False)
@@ -105,9 +138,6 @@ def change_status(order, new_status):
     db.session.commit()
     return True, None
 
-def _sale_statuses():
-    return {"Shipped", "Delivered"}
-
 def product_wise_report():
     rows = (
         db.session.query(
@@ -118,7 +148,7 @@ def product_wise_report():
         )
         .join(OrderItem, OrderItem.product_id == Product.product_id)
         .join(Order, Order.order_id == OrderItem.order_id)
-        .filter(Order.order_status.in_(_sale_statuses()))
+        .filter(Order.order_status.in_(SALE_STATUSES))
         .group_by(Product.pro_name)
         .order_by(func.sum(OrderItem.quantity * OrderItem.unit_price).desc())
         .all()
@@ -144,7 +174,7 @@ def date_wise_report(group="day"):
             func.sum(OrderItem.quantity * OrderItem.unit_price).label("revenue"),
         )
         .join(OrderItem, OrderItem.order_id == Order.order_id)
-        .filter(Order.order_status.in_(_sale_statuses()))
+        .filter(Order.order_status.in_(SALE_STATUSES))
         .group_by(bucket)
         .order_by(bucket)
         .all()

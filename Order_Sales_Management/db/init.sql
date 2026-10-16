@@ -1,4 +1,4 @@
-﻿BEGIN;
+BEGIN;
 
 DROP SCHEMA IF EXISTS order_sales CASCADE;
 CREATE SCHEMA order_sales;
@@ -18,6 +18,7 @@ CREATE TABLE order_sales.users (
     
     reset_token_hash        VARCHAR(255),
     reset_token_expires_at  TIMESTAMPTZ,
+    token_version           INTEGER NOT NULL DEFAULT 0,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -105,3 +106,13 @@ CREATE TRIGGER trg_orders_updated_at
     FOR EACH ROW EXECUTE FUNCTION order_sales.set_updated_at();
     
 COMMIT;
+-- RBAC hardening
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_role_valid;
+ALTER TABLE users ADD CONSTRAINT ck_users_role_valid CHECK (role IN ('admin', 'customer'));
+
+-- RBAC hardening (2026-10)
+SET search_path TO order_sales;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_role_valid;
+ALTER TABLE users ADD CONSTRAINT ck_users_role_valid CHECK (role IN ('admin', 'customer'));

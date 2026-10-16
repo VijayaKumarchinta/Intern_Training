@@ -1,15 +1,14 @@
-from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
-from ..utils.decorators import get_current_user
+from flask import Blueprint, g, jsonify, request
 from ..services.auth_service import (
-    register,
-    verify_email,
-    resend_verification_code,
+    forgot_password,
     link_customer,
     login,
-    forgot_password,
+    register,
+    resend_verification_code,
     reset_password,
+    verify_email,
 )
+from ..utils.decorators import auth_required
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -81,11 +80,9 @@ def reset_route():
     return jsonify(message="Password reset successful"), 200
 
 @auth_bp.get("/me")
-@jwt_required()
+@auth_required
 def me_route():
-    user = get_current_user()
-    if user is None:
-        return jsonify(error="User not found"), 404
+    user = g.current_user
     data = user.to_dict()
     if user.customer is not None:
         data["customer"] = {
