@@ -1,4 +1,4 @@
-BEGIN;
+﻿BEGIN;
 
 DROP SCHEMA IF EXISTS order_sales CASCADE;
 CREATE SCHEMA order_sales;
@@ -87,4 +87,21 @@ CREATE INDEX idx_orders_status
 CREATE INDEX idx_order_items_product
     ON order_sales.order_items (product_id);
 
+
+CREATE OR REPLACE FUNCTION order_sales.set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON order_sales.users
+    FOR EACH ROW EXECUTE FUNCTION order_sales.set_updated_at();
+
+CREATE TRIGGER trg_orders_updated_at
+    BEFORE UPDATE ON order_sales.orders
+    FOR EACH ROW EXECUTE FUNCTION order_sales.set_updated_at();
+    
 COMMIT;
