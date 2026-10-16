@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import random
 import secrets
 from datetime import datetime, timedelta, timezone
 from flask import current_app
@@ -20,7 +19,7 @@ def _hash(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 def _new_otp():
-    return f"{random.randint(0, 999999):06d}"
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 def _new_reset_token():
     return secrets.token_urlsafe(32)
