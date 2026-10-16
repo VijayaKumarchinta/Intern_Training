@@ -206,35 +206,78 @@ Authentication tests can replace email-sending functions with test doubles that 
 
 The backend separates HTTP handling from business logic and database models. This keeps individual parts easier to understand, test, and change.
 
-```text
-server/
-├── app/
-│   ├── routes/
-│   │   ├── auth.py
-│   │   ├── orders.py
-│   │   └── reports.py
-│   ├── services/
-│   │   ├── auth_service.py
-│   │   └── order_service.py
-│   ├── utils/
-│   │   ├── decorators.py
-│   │   ├── permissions.py
-│   │   ├── validators.py
-│   │   └── email.py
-│   ├── models.py
-│   ├── config.py
-│   ├── constants.py
-│   └── extensions.py
-├── tests/
-├── .env
-├── .env.example
-├── requirements.txt
-└── run.py
-
-client/
-db/
-└── init.sql
-```
+Order_Sales_Management/
+│
+├── client/                              # Vue 3 frontend (Vite)
+│   ├── src/
+│   │   ├── router/
+│   │   │   └── index.js                 # Frontend route definitions (login, register, orders, reports)
+│   │   ├── services/
+│   │   │   └── api.js                   # Axios/fetch wrapper — attaches the JWT to every request
+│   │   ├── stores/                      # Pinia stores for shared state (auth token, current user)
+│   │   ├── views/
+│   │   │   ├── Login.vue                # Login screen
+│   │   │   ├── Register.vue             # Registration + email verification screen
+│   │   │   ├── Orders.vue               # Order list / details (role-aware UI)
+│   │   │   └── Reports.vue              # Admin-only sales reports dashboard
+│   │   ├── App.vue                      # Root component — layout, nav, mount point
+│   │   └── main.js                      # Vue app bootstrap
+│   ├── index.html                       # Vite HTML entry
+│   ├── package.json                     # Node dependencies and scripts
+│   └── vite.config.js                   # Vite config (dev server, proxy to Flask API)
+│
+├── data/                                # Raw input data (not used at runtime)
+│   └── Online_Store_Orders.csv          # Source dataset used to seed the database
+│
+├── db/                                  # Database setup — version-controlled schema
+│   ├── DB.md                            # Notes on schema decisions and table relationships
+│   └── init.sql                         # Full DDL: schema, tables, indexes, constraints
+│
+├── server/                              # Flask backend
+│   ├── app/                             # Application package
+│   │   ├── routes/                      # HTTP layer — thin controllers, no business logic
+│   │   │   ├── auth.py                  # /api/auth/* endpoints (register, verify, login, reset, me)
+│   │   │   ├── orders.py                # /api/orders/* endpoints (CRUD, validate, status, duplicates)
+│   │   │   └── reports.py               # /api/reports/* endpoints (product-wise, date-wise)
+│   │   │
+│   │   ├── services/                    # Business logic — no HTTP, no Flask imports
+│   │   │   ├── auth_service.py          # Registration, verification, login, password reset rules
+│   │   │   └── order_service.py         # Validation, transitions, totals, duplicates, report queries
+│   │   │
+│   │   ├── utils/                       # Cross-cutting helpers used everywhere
+│   │   │   ├── decorators.py            # @auth_required and @role_required — enforce JWT + role
+│   │   │   ├── permissions.py           # Role hierarchy and ownership predicates (can_view_order, etc.)
+│   │   │   ├── validators.py            # Email / password format checks (single source of truth)
+│   │   │   └── email.py                 # Email dispatch — writes to dev_emails.log in dev
+│   │   │
+│   │   ├── __init__.py                  # App factory — create_app(), blueprint registration
+│   │   ├── config.py                    # Env-driven config — loads .env or .env.test based on FLASK_ENV
+│   │   ├── constants.py                 # Role enum — the single source of truth for role strings
+│   │   ├── extensions.py                # Shared singletons (db, jwt, mail) + password hashing helpers
+│   │   └── models.py                    # SQLAlchemy models — pure data, no business logic
+│   │
+│   ├── tests/                           # pytest suite (78 tests)
+│   │   ├── __init__.py                  # Marks the folder as a Python package
+│   │   ├── conftest.py                  # Shared fixtures: app, db, client, admin/customer tokens
+│   │   ├── test_permissions.py          # RBAC matrix, ownership, revocation (25 tests)
+│   │   ├── test_auth.py                 # Register / verify / login / reset lifecycle (27 tests)
+│   │   ├── test_orders.py               # Order creation, validation, transitions, duplicates (24 tests)
+│   │   └── test_smoke.py                # Sanity checks — app boots, DB is the test DB (2 tests)
+│   │
+│   ├── logs/
+│   │   └── app.log                      # Rotating application log (gitignored)
+│   │
+│   ├── .env                             # Local secrets (gitignored)
+│   ├── .env.example                     # Template — safe to commit, no real secrets
+│   ├── .env.test                        # Test DB config (gitignored)
+│   ├── .gitignore                       # Excludes .env, .env.test, logs/, __pycache__, .pytest_cache
+│   ├── manage.py                        # Flask CLI — `flask --app manage create-admin`
+│   ├── pytest.ini                       # pytest config — test paths, verbose output
+│   ├── requirements.txt                 # Python dependencies
+│   ├── run.py                           # Dev entry point — `python run.py`
+│   └── dev_emails.log                   # Captured OTPs and reset links during development (gitignored)
+│
+└── README.md                            # This file
 
 The exact layout should match the files present in the repository.
 
