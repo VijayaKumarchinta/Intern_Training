@@ -5,7 +5,10 @@ from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+_env_name = os.getenv("FLASK_ENV", "development")
+_env_file = ".env.test" if _env_name == "test" else ".env"
+load_dotenv(os.path.join(BASE_DIR, _env_file))
 
 def configure_logging(app):
     log_dir = os.path.join(BASE_DIR, "logs")

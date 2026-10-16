@@ -3,3 +3,4 @@ dev_emails.log
 __pycache__/
 *.pyc
 logs/
+.env.test
