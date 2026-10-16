@@ -12,7 +12,7 @@ def configure_logging(app):
     os.makedirs(log_dir, exist_ok=True)
 
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
@@ -31,10 +31,13 @@ def configure_logging(app):
     root.handlers = [console, file_handler]
     root.setLevel(logging.INFO)
 
-    for lib in ("sqlalchemy.engine", "werkzeug", "flask_jwt_extended"):
-        logging.getLogger(lib).setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("flask_jwt_extended").setLevel(logging.WARNING)
+    logging.getLogger("werkzeug").setLevel(logging.INFO)
 
-    app.logger.info("Logging configured: console + logs/app.log")
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        app.logger.info("Server ready")
 
 class Config:
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -52,7 +55,7 @@ class Config:
         "pool_size": 5,
         "max_overflow": 10,
         "connect_args": {
-            "options": f"-c search_path={os.getenv('DB_SCHEMA')}"
+            "options": f"-c search_path={os.getenv('DB_SCHEMA') or 'order_sales'}"
         },
     }
 
