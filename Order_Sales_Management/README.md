@@ -82,92 +82,7 @@ products  1 -------- many order_items
 
 The CSV supplies order and product data, not login credentials. Do not create accounts automatically for imported customers. Imported customers stay unlinked until their owner registers and an admin links the account (see section 7.5).
 
-### 4.2 Table definitions
-
-Use only in a fresh development database. `DROP SCHEMA ... CASCADE` permanently deletes everything in the schema.
-
-```sql
-BEGIN;
-
-DROP SCHEMA IF EXISTS order_sales CASCADE;
-CREATE SCHEMA order_sales;
-
-CREATE TABLE order_sales.users (
-    id                      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    email                   VARCHAR(255) NOT NULL,
-    password_hash           VARCHAR(255) NOT NULL,
-    full_name               VARCHAR(255),
-    role                    VARCHAR(20) NOT NULL DEFAULT 'customer'
-                            CHECK (role IN ('admin', 'customer')),
-    is_verified             BOOLEAN NOT NULL DEFAULT FALSE,
-    verification_token_hash VARCHAR(255),
-    verification_expires_at TIMESTAMPTZ,
-    reset_token_hash        VARCHAR(255),
-    reset_token_expires_at  TIMESTAMPTZ,
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX uq_users_email_lower
-    ON order_sales.users (LOWER(email));
-
-CREATE TABLE order_sales.customers (
-    customer_id VARCHAR(20) PRIMARY KEY,
-    user_id     BIGINT UNIQUE
-                REFERENCES order_sales.users(id) ON DELETE SET NULL,
-    name        VARCHAR(255),
-    email       VARCHAR(255),
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE order_sales.products (
-    product_id    INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name          VARCHAR(100) NOT NULL UNIQUE,
-    current_price NUMERIC(12,2)
-                  CHECK (current_price IS NULL OR current_price >= 0)
-);
-
-CREATE TABLE order_sales.orders (
-    order_id     VARCHAR(20) PRIMARY KEY,
-    customer_id  VARCHAR(20) NOT NULL
-                 REFERENCES order_sales.customers(customer_id),
-    order_date   DATE,
-    order_status VARCHAR(20) NOT NULL DEFAULT 'Pending'
-                 CHECK (order_status IN ('Pending', 'Received', 'Shipped',
-                                         'Delivered', 'Cancelled', 'Returned')),
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE order_sales.order_items (
-    order_item_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    order_id      VARCHAR(20) NOT NULL
-                  REFERENCES order_sales.orders(order_id) ON DELETE CASCADE,
-    product_id    INTEGER NOT NULL
-                  REFERENCES order_sales.products(product_id),
-    quantity      INTEGER NOT NULL CHECK (quantity > 0),
-    unit_price    NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0),
-    UNIQUE (order_id, product_id)
-);
-
-CREATE TABLE order_sales.staging_orders (
-    order_id     TEXT,
-    order_date   TEXT,
-    customer_id  TEXT,
-    product      TEXT,
-    quantity     TEXT,
-    unit_price   TEXT,
-    order_status TEXT
-);
-
-CREATE INDEX idx_orders_customer_date ON order_sales.orders (customer_id, order_date);
-CREATE INDEX idx_orders_status        ON order_sales.orders (order_status);
-CREATE INDEX idx_order_items_product  ON order_sales.order_items (product_id);
-
-COMMIT;
-```
-
-### 4.3 Design decisions
+### 4.2 Design decisions
 
 -   `users.email` is unique regardless of letter case.
 -   Passwords, verification tokens and reset tokens are stored only as hashes. Tokens also carry an expiry.
@@ -201,34 +116,6 @@ Source columns: `OrderID`, `Date`, `CustomerID`, `Product`, `Quantity`, `UnitPri
 7.  Do not hide failures with `ON CONFLICT DO NOTHING`. Report each conflict.
 
 A repeated order ID across rows means multiple items of the same order, not a duplicate header. Do not invent values for missing or malformed fields. A status such as `Received` must be mapped explicitly or flagged, never silently treated as `Delivered`. The regex date check misses impossible dates such as 31 February, so parse dates strictly in Python.
-
-Validation queries for the staging table:
-
-```sql
-SELECT * FROM order_sales.staging_orders
-WHERE NULLIF(TRIM(order_id), '')     IS NULL
-   OR NULLIF(TRIM(customer_id), '')  IS NULL
-   OR NULLIF(TRIM(product), '')      IS NULL
-   OR NULLIF(TRIM(quantity), '')     IS NULL
-   OR NULLIF(TRIM(unit_price), '')   IS NULL
-   OR NULLIF(TRIM(order_status), '') IS NULL;
-
-SELECT * FROM order_sales.staging_orders
-WHERE NULLIF(TRIM(order_date), '') IS NULL
-   OR TRIM(order_date) !~ '^\d{4}-\d{2}-\d{2}$';
-
-SELECT * FROM order_sales.staging_orders
-WHERE CASE WHEN TRIM(quantity) ~ '^[0-9]+$'
-           THEN TRIM(quantity)::NUMERIC <= 0 ELSE TRUE END;
-
-SELECT * FROM order_sales.staging_orders
-WHERE CASE WHEN TRIM(unit_price) ~ '^[0-9]+(\.[0-9]{1,2})?$'
-           THEN TRIM(unit_price)::NUMERIC < 0 ELSE TRUE END;
-
-SELECT TRIM(order_status) AS status, COUNT(*) AS row_count
-FROM order_sales.staging_orders
-GROUP BY TRIM(order_status) ORDER BY status;
-```
 
 ## 6. Validation Rules
 
