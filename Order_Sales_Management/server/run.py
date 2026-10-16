@@ -1,4 +1,4 @@
-import os, sys
+import sys
 from pathlib import Path
 
 _server_dir = Path(__file__).resolve().parent
