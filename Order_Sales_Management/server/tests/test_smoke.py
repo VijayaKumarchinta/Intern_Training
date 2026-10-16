@@ -1,4 +1,4 @@
-def test_fixtures_load(client, admin_headers, customer_headers, sample_product):
+﻿def test_fixtures_load(client, admin_headers, customer_headers, sample_product):
     # Just prove the plumbing works
     assert client is not None
     assert "Authorization" in admin_headers
@@ -12,4 +12,4 @@ def test_app_uses_test_db(app):
         from app.extensions import db
         from sqlalchemy import text
         db_name = db.session.execute(text("SELECT current_database()")).scalar()
-        assert db_name == "machine_sensor_test_db", f"Expected test DB, got {db_name}"
+        assert db_name == "order_sales_test_db", f"Expected test DB, got {db_name}"

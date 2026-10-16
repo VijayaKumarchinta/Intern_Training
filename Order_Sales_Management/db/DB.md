@@ -281,7 +281,7 @@ Expected columns:
 Run the schema script first.
 
 ```bash
-psql -U postgres -d machine_sensor_db -f F:\Intern_Training\Order_Sales_Management\db\init.sql
+psql -U postgres -d order_sales_db -f F:\Intern_Training\Order_Sales_Management\db\init.sql
 ```
 
 Or from inside psql:
