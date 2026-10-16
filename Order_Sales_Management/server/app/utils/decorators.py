@@ -16,9 +16,6 @@ def _load_user(uid):
     except (TypeError, ValueError):
         return None
 
-def get_current_user():
-    return _load_user(get_jwt_identity())
-
 def _resolve_request_user():
     uid = get_jwt_identity()
     user = _load_user(uid)

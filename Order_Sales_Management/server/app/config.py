@@ -68,8 +68,8 @@ class Config:
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     MAIL_USE_TLS = os.getenv("MAIL_USE_TLS").lower() == "true"
 
-    DB_SCHEMA = os.getenv("DB_SCHEMA", "order_sales")
+    DB_SCHEMA = os.getenv("DB_SCHEMA")
 
-    VERIFY_TTL_MINUTES = int(os.getenv("VERIFY_TTL_MINUTES", "2"))
-    VERIFY_MAX_ATTEMPTS = int(os.getenv("VERIFY_MAX_ATTEMPTS", "3"))
-    RESET_TTL_HOURS = int(os.getenv("RESET_TTL_HOURS", "1"))
+    VERIFY_TTL_MINUTES = int(os.getenv("VERIFY_TTL_MINUTES"))
+    VERIFY_MAX_ATTEMPTS = int(os.getenv("VERIFY_MAX_ATTEMPTS"))
+    RESET_TTL_HOURS = int(os.getenv("RESET_TTL_HOURS"))

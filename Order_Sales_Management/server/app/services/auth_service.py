@@ -86,7 +86,7 @@ def verify_email(email, code):
 
     user = User.query.filter(db.func.lower(User.email) == email).first()
     if user is None:
-        return None, "Invalid code"
+        return None, "Email already Registered"
     if user.is_verified:
         return None, "Email already verified"
     if not user.verification_token_hash:

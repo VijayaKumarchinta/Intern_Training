@@ -5,13 +5,13 @@ from ..constants import Role
 from ..models import Order
 from ..services.order_service import (
     change_status,
-    create_order,
+    create_order as create_order_service,
     find_duplicates,
     validate_order_payload,
     visible_orders_for,
 )
 from ..utils.decorators import auth_required, role_required
-
+from ..utils.permissions import can_view_order
 log = logging.getLogger(__name__)
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api/orders")
@@ -72,12 +72,8 @@ def get_order(order_id):
     order = Order.query.filter_by(order_id=order_id).first()
     if order is None:
         return jsonify(error="Order not found"), 404
-
-    if user.role != Role.ADMIN.value:
-        customer = order.customer
-        if customer is None or customer.user_id != user.id:
-            return jsonify(error="Order not found"), 404
-
+    if not can_view_order(user, order):
+        return jsonify(error="Order not found"), 404
     return jsonify(_order_response(order, include_items=True)), 200
 
 @orders_bp.post("")
@@ -85,7 +81,7 @@ def get_order(order_id):
 def create_order():
     payload = _json()
     try:
-        order, err, status = create_order(payload)
+        order, err, status = create_order_service(payload)
     except IntegrityError:
         return jsonify(error="Order already exists"), 409
     except Exception:
