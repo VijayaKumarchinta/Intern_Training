@@ -5,6 +5,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
     jwt_required,
 )
+from ..extensions import db
 from ..models import User
 from .permissions import role_at_least
 
@@ -12,7 +13,7 @@ def _load_user(uid):
     if uid is None:
         return None
     try:
-        return User.query.get(int(uid))
+        return db.session.get(User, int(uid))
     except (TypeError, ValueError):
         return None
 

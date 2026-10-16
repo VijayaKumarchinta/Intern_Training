@@ -51,7 +51,7 @@ def validate_order_payload(payload):
             errors.append(f"items[{i}].product_id is duplicated")
         seen.add(pid)
 
-        if pid is None or Product.query.get(pid) is None:
+        if pid is None or db.session.get(Product, pid) is None:
             errors.append(f"items[{i}].product_id does not exist")
 
         qty = item.get("quantity")
@@ -89,7 +89,7 @@ def create_order(payload):
 
     order_id = payload["order_id"]
 
-    if Order.query.get(order_id):
+    if db.session.get(Order, order_id):
         return None, f"Order {order_id} already exists", 409
 
     order = Order(

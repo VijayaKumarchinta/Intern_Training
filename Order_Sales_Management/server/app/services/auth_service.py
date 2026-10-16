@@ -50,7 +50,7 @@ def register(email, password, full_name, customer_id):
     if User.query.filter(db.func.lower(User.email) == email).first():
         return None, "Email already registered"
 
-    cust = Customer.query.get(customer_id)
+    cust = db.session.get(Customer, customer_id)
     if cust is None:
         return None, "Unknown Customer ID"
     if cust.user_id is not None:
@@ -140,7 +140,7 @@ def link_customer(user, customer_id):
     if not user.is_verified:
         return False, "User must be verified before linking a customer"
 
-    cust = Customer.query.get(customer_id)
+    cust = db.session.get(Customer, customer_id)
     if cust is None:
         return False, "Unknown Customer ID"
     if normalize_email(cust.email) != normalize_email(user.email):

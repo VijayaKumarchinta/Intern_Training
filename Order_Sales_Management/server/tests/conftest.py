@@ -53,14 +53,16 @@ def seed_products(app_ctx):
 @pytest.fixture(autouse=True)
 def clean_db(app_ctx):
     """Wipe transactional tables before each test. Products are preserved."""
-    _db.session.rollback()
+    _db.session.remove()
     _db.session.execute(text(
         "TRUNCATE order_sales.order_items, order_sales.orders, "
         "order_sales.customers, order_sales.users RESTART IDENTITY CASCADE"
     ))
     _db.session.commit()
+    _db.session.remove()
     yield
     _db.session.rollback()
+    _db.session.remove()
 
 
 @pytest.fixture
