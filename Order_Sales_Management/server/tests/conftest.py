@@ -162,3 +162,44 @@ def other_customer_headers(client, other_customer):
 @pytest.fixture
 def sample_product(app_ctx):
     return _db.session.query(Product).first()
+
+@pytest.fixture
+def sample_order(client, admin_headers, customer_user, sample_product, app_ctx):
+    """Create an order owned by the standard test customer (C9001)."""
+    payload = {
+        "order_id": "ORD9500",
+        "order_date": "2026-10-16",
+        "customer_id": customer_user.customer.customer_id,
+        "order_status": "Pending",
+        "items": [
+            {
+                "product_id": sample_product.product_id,
+                "quantity": 2,
+                "unit_price": 25.0,
+            }
+        ],
+    }
+    resp = client.post("/api/orders", json=payload, headers=admin_headers)
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()
+
+
+@pytest.fixture
+def other_customer_order(client, admin_headers, other_customer, sample_product, app_ctx):
+    """Create an order owned by other_customer (C9002)."""
+    payload = {
+        "order_id": "ORD9501",
+        "order_date": "2026-10-16",
+        "customer_id": other_customer.customer.customer_id,
+        "order_status": "Pending",
+        "items": [
+            {
+                "product_id": sample_product.product_id,
+                "quantity": 1,
+                "unit_price": 10.0,
+            }
+        ],
+    }
+    resp = client.post("/api/orders", json=payload, headers=admin_headers)
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()
