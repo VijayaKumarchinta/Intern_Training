@@ -45,8 +45,8 @@ def test_create_order_as_admin_succeeds(
     assert body["order_id"] == "ORD9600"
     assert body["order_status"] == "Pending"
     assert body["customer_id"] == "C9001"
-    assert body["total"] == 60.0
-
+    assert body["items"][0]["unit_price"] == float(sample_product.current_price)
+    assert body["total"] == 3 * float(sample_product.current_price)
 
 def test_create_order_duplicate_returns_409(client, admin_headers, sample_order):
     duplicate = _order_payload(
@@ -141,7 +141,7 @@ def test_create_order_quantity_bounds_high(
     assert resp.status_code == 400
 
 
-def test_create_order_negative_price(
+def test_create_order_ignores_negative_client_price(
     client, admin_headers, customer_user, sample_product
 ):
     payload = _order_payload(
@@ -154,7 +154,9 @@ def test_create_order_negative_price(
         ]
     )
     resp = client.post("/api/orders", json=payload, headers=admin_headers)
-    assert resp.status_code == 400
+    assert resp.status_code == 201
+    item = resp.get_json()["items"][0]
+    assert item["unit_price"] == float(sample_product.current_price)
 
 
 # --- Validate (dry-run) ---

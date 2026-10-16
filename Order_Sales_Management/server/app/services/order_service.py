@@ -65,17 +65,6 @@ def validate_order_payload(payload):
             except Exception:
                 errors.append(f"items[{i}].quantity is not a valid number")
 
-        price = item.get("unit_price")
-        if price is None:
-            errors.append(f"items[{i}].unit_price is required")
-        else:
-            try:
-                pd = Decimal(str(price))
-                if pd < 0:
-                    errors.append(f"items[{i}].unit_price must be >= 0")
-            except Exception:
-                errors.append(f"items[{i}].unit_price is not a valid number")
-
     status = payload.get("order_status", "Pending")
     if status not in VALID_STATUSES:
         errors.append(f"Invalid order_status: {status!r}")
@@ -102,11 +91,15 @@ def create_order(payload):
 
     try:
         for item in payload.get("items", []):
+            product = db.session.get(Product, item["product_id"])
+            if product is None or product.current_price is None:
+                db.session.rollback()
+                return None, f"Product {item['product_id']} has no current price", 400
             db.session.add(OrderItem(
                 order_id=order.order_id,
                 product_id=item["product_id"],
                 quantity=item["quantity"],
-                unit_price=item["unit_price"],
+                unit_price=product.current_price,
             ))
         db.session.commit()
     except Exception:
