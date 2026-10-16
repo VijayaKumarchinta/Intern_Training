@@ -10,6 +10,7 @@ from ..services.order_service import (
 )
 from ..utils.decorators import get_current_user, role_required
 from flask_jwt_extended import jwt_required
+from sqlalchemy.exc import IntegrityError
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +90,9 @@ def create_order():
     if errors:
         return jsonify(errors=errors), 400
 
+    if Order.query.get(payload["order_id"]):
+        return jsonify(error=f"Order {payload['order_id']} already exists"), 409
+    
     customer = Customer.query.filter_by(customer_id=payload.get("customer_id")).first()
     if customer is None:
         return jsonify(error="Customer not found"), 404
@@ -117,6 +121,9 @@ def create_order():
 
         db.session.commit()
         return jsonify(_order_response(order, include_items=True)), 201
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(error=f"Order {payload['order_id']} already exists"), 409
     except Exception:
         db.session.rollback()
         log.exception("create_order failed")

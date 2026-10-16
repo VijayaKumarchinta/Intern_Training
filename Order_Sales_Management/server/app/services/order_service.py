@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from ..extensions import db
 from ..models import Customer, Order, OrderItem, Product
+from datetime import date
 
 VALID_STATUSES = {"Pending", "Received", "Shipped", "Delivered", "Cancelled", "Returned"}
 
@@ -22,12 +23,20 @@ def validate_order_payload(payload):
     if not order_id or not re.match(r"^ORD\d{4}$", str(order_id)):
         errors.append("order_id must match ORD####")
 
-    if not payload.get("order_date"):
+    order_date = payload.get("order_date")
+    if not order_date:
         errors.append("order_date is required")
+    else:
+        try:
+            date.fromisoformat(str(order_date))
+        except (TypeError, ValueError):
+            errors.append("order_date must be YYYY-MM-DD")
 
     customer_id = payload.get("customer_id")
     if not customer_id:
         errors.append("customer_id is required")
+    elif not re.match(r"^C\d{4}$", str(customer_id)):
+        errors.append("customer_id must match C####")
     elif not Customer.query.filter_by(customer_id=str(customer_id)).first():
         errors.append(f"Unknown customer: {customer_id}")
 
