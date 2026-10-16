@@ -1,6 +1,7 @@
 from flask import Flask, jsonify
 from .config import Config, configure_logging
 from .extensions import db, jwt, mail
+from flask_jwt_extended import jwt_required
 
 def create_app():
     app = Flask(__name__)
@@ -29,6 +30,7 @@ def create_app():
         return jsonify(status="ok"), 200
 
     @app.get("/db")
+    @jwt_required()
     def database():
         from .models import Customer, Order, User
         return jsonify(
