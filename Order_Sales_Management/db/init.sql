@@ -106,13 +106,3 @@ CREATE TRIGGER trg_orders_updated_at
     FOR EACH ROW EXECUTE FUNCTION order_sales.set_updated_at();
     
 COMMIT;
--- RBAC hardening
-ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_role_valid;
-ALTER TABLE users ADD CONSTRAINT ck_users_role_valid CHECK (role IN ('admin', 'customer'));
-
--- RBAC hardening (2026-10)
-SET search_path TO order_sales;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_role_valid;
-ALTER TABLE users ADD CONSTRAINT ck_users_role_valid CHECK (role IN ('admin', 'customer'));

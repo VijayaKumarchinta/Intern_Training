@@ -86,7 +86,7 @@ def verify_email(email, code):
 
     user = User.query.filter(db.func.lower(User.email) == email).first()
     if user is None:
-        return None, "Email already Registered"
+        return None, "Invalid code"
     if user.is_verified:
         return None, "Email already verified"
     if not user.verification_token_hash:
@@ -217,6 +217,9 @@ def reset_password(token, new_password):
     user.password_hash = hash_password(new_password)
     user.reset_token_hash = None
     user.reset_token_expires_at = None
+    user.verification_token_hash = None
+    user.verification_expires_at = None
+    user.verification_attempts = 0
     user.token_version = user.token_version + 1
     db.session.commit()
 
