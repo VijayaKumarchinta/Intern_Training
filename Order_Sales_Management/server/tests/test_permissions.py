@@ -230,3 +230,16 @@ def test_other_customer_is_isolated(client, customer_headers, other_customer_hea
     cross_b = client.get("/api/orders?customer_id=C9001", headers=other_customer_headers)
     assert cross_a.status_code == 403
     assert cross_b.status_code == 403
+
+def test_deleted_user_token_returns_401(client, admin_headers, admin_user, app_ctx):
+    """A token for a user that no longer exists must not reveal that fact."""
+    from app.extensions import db
+
+    ok = client.get("/api/auth/me", headers=admin_headers)
+    assert ok.status_code == 200
+
+    db.session.delete(admin_user)
+    db.session.commit()
+
+    resp = client.get("/api/auth/me", headers=admin_headers)
+    assert resp.status_code == 401

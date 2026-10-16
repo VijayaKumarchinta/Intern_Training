@@ -21,10 +21,10 @@ def _resolve_request_user():
     uid = get_jwt_identity()
     user = _load_user(uid)
     if user is None:
-        return None, (jsonify(error="User not found"), 404)
+        return None, (jsonify(error="Invalid token"), 401)
     claims = get_jwt() or {}
     if claims.get("tv", 0) != user.token_version:
-        return None, (jsonify(error="Token expired"), 401)
+        return None, (jsonify(error="Invalid token"), 401)
     return user, None
 
 def auth_required(fn):

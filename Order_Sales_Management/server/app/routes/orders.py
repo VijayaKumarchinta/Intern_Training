@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from ..constants import Role
 from ..models import Order
 from ..services.order_service import (
+    VALID_STATUSES,
     change_status,
     create_order as create_order_service,
     find_duplicates,
@@ -40,6 +41,8 @@ def list_orders():
 
     status = request.args.get("status")
     if status:
+        if status not in VALID_STATUSES:
+            return jsonify(error=f"Invalid status: {status}"),400
         q = q.filter(Order.order_status == status)
 
     customer_id = request.args.get("customer_id")

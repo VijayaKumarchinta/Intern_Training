@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from ..extensions import db
 from ..models import Customer, Order, OrderItem, Product
+from ..constants import Role
 
 VALID_STATUSES = {"Pending", "Received", "Shipped", "Delivered", "Cancelled", "Returned"}
 ALLOWED_TRANSITIONS = {
@@ -111,7 +112,7 @@ def create_order(payload):
 def visible_orders_for(user):
     if user is None:
         return Order.query.filter(False)
-    if user.role == "admin":
+    if user.role == Role.ADMIN.value:
         return Order.query
     return (
         Order.query

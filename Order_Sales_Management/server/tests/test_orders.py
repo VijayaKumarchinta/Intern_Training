@@ -368,3 +368,13 @@ def test_duplicates_empty_when_no_repeats(client, admin_headers, sample_order):
     resp = client.get("/api/orders/duplicates", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.get_json()["duplicates"] == []
+
+def test_list_orders_invalid_status_returns_400(client, admin_headers):
+    resp = client.get("/api/orders?status=Garbage", headers=admin_headers)
+    assert resp.status_code == 400
+    assert "Invalid status" in resp.get_json()["error"]
+
+
+def test_list_orders_valid_status_returns_200(client, admin_headers):
+    resp = client.get("/api/orders?status=Pending", headers=admin_headers)
+    assert resp.status_code == 200
