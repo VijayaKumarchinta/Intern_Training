@@ -17,10 +17,14 @@ def create_app():
     from .routes.auth import auth_bp
     from .routes.orders import orders_bp
     from .routes.reports import reports_bp
+    from .routes.products import products_bp
+    from .routes.customers import customers_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(products_bp)
+    app.register_blueprint(customers_bp)
 
     @app.get("/")
     def root():

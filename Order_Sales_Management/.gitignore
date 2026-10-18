@@ -1,1 +1,30 @@
-*.mhtml
+$gitignore = @'
+# Environment
+.env
+.env.test
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Editor
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+logs/
+dev_emails.log
+'@
+[System.IO.File]::WriteAllText("$PWD\.gitignore", $gitignore, [System.Text.UTF8Encoding]::new($false))

@@ -51,20 +51,27 @@ def validate_order_payload(payload):
         if pid in seen:
             errors.append(f"items[{i}].product_id is duplicated")
         seen.add(pid)
-
-        if pid is None or db.session.get(Product, pid) is None:
-            errors.append(f"items[{i}].product_id does not exist")
+       
+        if pid is None:
+            errors.append(f"items[{i}].product_id is required")
+        else:
+            prod = db.session.get(Product, pid)
+            if prod is None:
+                errors.append(f"items[{i}].product_id does not exist")
+            elif prod.current_price is None:
+                errors.append(f"items[{i}].product_id has no price set")
 
         qty = item.get("quantity")
         if qty is None:
             errors.append(f"items[{i}].quantity is required")
         else:
             try:
-                qd = Decimal(str(qty))
-                if qd < 1 or qd > 1000:
+                if not isinstance(qty, int) or isinstance(qty, bool):
+                    raise ValueError
+                if qty < 1 or qty > 1000:
                     errors.append(f"items[{i}].quantity must be 1..1000")
-            except Exception:
-                errors.append(f"items[{i}].quantity is not a valid number")
+            except ValueError:
+                errors.append(f"items[{i}].quantity must be an integer")
 
     status = payload.get("order_status", "Pending")
     if status not in VALID_STATUSES:
@@ -86,21 +93,18 @@ def create_order(payload):
         order_id=order_id,
         customer_id=payload["customer_id"],
         order_date=date.fromisoformat(payload["order_date"]),
-        order_status=payload.get("order_status", "Pending"),
+        order_status="Pending",
     )
     db.session.add(order)
 
     try:
         for item in payload.get("items", []):
             product = db.session.get(Product, item["product_id"])
-            if product is None or product.current_price is None:
-                db.session.rollback()
-                return None, f"Product {item['product_id']} has no current price", 400
             db.session.add(OrderItem(
                 order_id=order.order_id,
                 product_id=item["product_id"],
                 quantity=item["quantity"],
-                unit_price=product.current_price,
+                unit_price=product.current_price, 
             ))
         db.session.commit()
     except Exception:

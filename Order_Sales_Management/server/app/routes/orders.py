@@ -61,7 +61,13 @@ def list_orders():
     paginated = q.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify(
-        orders=[_order_response(o) for o in paginated.items],
+        orders=[
+            {
+                **_order_response(o),
+                "total": float(sum(i.quantity * i.unit_price for i in o.items)),
+                "item_count": len(o.items)
+            } for o in paginated.items
+        ],
         page=paginated.page,
         per_page=paginated.per_page,
         total=paginated.total,
