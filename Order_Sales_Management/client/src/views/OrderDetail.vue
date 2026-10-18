@@ -54,11 +54,11 @@ onMounted(() => {
     
     <div class="card header-card">
       <div>
-        <h2>Order #{{ order.order_id }}</h2>
-        <p style="color: var(--text-secondary); margin-top: 4px;">Placed on {{ order.order_date }}</p>
+        <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">Order #{{ order.order_id }}</h2>
+        <p style="color: var(--text-secondary);">Placed on {{ order.order_date }} for {{ order.customer_id }}</p>
       </div>
       <div class="status-action">
-        <span class="status-pill" :class="order.order_status.toLowerCase()">{{ order.order_status }}</span>
+        <span class="status-pill" :class="order.order_status.toLowerCase()" style="font-size: 14px; padding: 8px 16px;">{{ order.order_status }}</span>
         <select v-if="isAdmin && allowedTransitions[order.order_status].length > 0" @change="updateStatus($event.target.value)" class="status-select">
           <option value="">Change Status...</option>
           <option v-for="s in allowedTransitions[order.order_status]" :key="s" :value="s">{{ s }}</option>
@@ -76,14 +76,14 @@ onMounted(() => {
           <tr v-for="item in order.items" :key="item.order_item_id">
             <td>{{ item.product_id }}</td>
             <td>{{ item.quantity }}</td>
-            <td class="mono">${{ item.unit_price.toFixed(2) }}</td>
-            <td class="mono">${{ item.line_total.toFixed(2) }}</td>
+            <td class="mono">₹{{ item.unit_price.toFixed(2) }}</td>
+            <td class="mono">₹{{ item.line_total.toFixed(2) }}</td>
           </tr>
         </tbody>
       </table>
       <div class="total-row">
         <span>Total:</span>
-        <span class="mono">${{ order.total.toFixed(2) }}</span>
+        <span class="mono">₹{{ order.total.toFixed(2) }}</span>
       </div>
     </div>
   </div>

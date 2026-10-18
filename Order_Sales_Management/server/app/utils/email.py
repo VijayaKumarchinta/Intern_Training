@@ -6,10 +6,11 @@ from flask import current_app
 log = logging.getLogger(__name__)
 
 DEV_EMAIL_LOG = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "dev_emails.log")
+    os.path.join(os.path.dirname(__file__), "..", "..","logs", "dev_emails.log")
 )
 
 def _write_dev_email_log(kind, email, payload):
+    os.makedirs(os.path.dirname(DEV_EMAIL_LOG),exist_ok=True)
     with open(DEV_EMAIL_LOG, "a", encoding="utf-8") as f:
         f.write(f"{datetime.now(timezone.utc).isoformat()} | {kind} | {email} | {payload}\n")
 

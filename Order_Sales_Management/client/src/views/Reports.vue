@@ -2,79 +2,135 @@
 import { ref, onMounted } from 'vue'
 import api from '@/services/api'
 import VueApexCharts from 'vue3-apexcharts'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
-const productData = ref([])
-const totalRevenue = ref(0)
+const router = useRouter()
+const auth = useAuthStore()
+
+const summary = ref({})
 const loading = ref(true)
 const errorMsg = ref('')
 
 const chartOptions = ref({
-  chart: { type: 'area', toolbar: { show: false } },
-  colors: ['#4A90D9'],
-  stroke: { curve: 'smooth', width: 2 },
-  fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
+  chart: { type: 'bar', toolbar: { show: false } },
+  colors: ['#5A4FCF'],
+  plotOptions: { bar: { borderRadius: 6, columnWidth: '40%' } },
   xaxis: { categories: [] },
-  dataLabels: { enabled: false }
+  dataLabels: { enabled: false },
+  grid: { show: false }
 })
 const chartSeries = ref([{ name: 'Revenue', data: [] }])
 
+const donutOptions = ref({
+  chart: { type: 'donut' },
+  labels: [],
+  colors: ['#5A4FCF', '#10B981', '#F59E0B', '#EC4899', '#6B7280', '#9CA3AF'],
+  dataLabels: { enabled: false },
+  legend: { show: false },
+  stroke: { show: false }
+})
+const donutSeries = ref([])
+
 onMounted(async () => {
   try {
-    const [prodRes, dateRes] = await Promise.all([
-      api.get('/reports/product-wise'),
-      api.get('/reports/date-wise?group=month')
-    ])
-    productData.value = prodRes.data
-    totalRevenue.value = prodRes.data.reduce((sum, item) => sum + item.revenue, 0)
-    chartOptions.value.xaxis.categories = dateRes.data.map(d => d.period)
-    chartSeries.value[0].data = dateRes.data.map(d => d.revenue)
+    const res = await api.get('/reports/summary')
+    summary.value = res.data
+
+    chartOptions.value.xaxis.categories = res.data.monthly_breakdown.map(d => d.period.slice(0, 7))
+    chartSeries.value[0].data = res.data.monthly_breakdown.map(d => d.revenue)
+
+    const topProducts = res.data.product_breakdown.slice(0, 5)
+    donutOptions.value.labels = topProducts.map(p => p.product)
+    donutSeries.value = topProducts.map(p => p.revenue)
   } catch (err) {
-    errorMsg.value = 'Failed to load reports.'
+    errorMsg.value = 'Failed to load dashboard data.'
   } finally {
     loading.value = false
   }
 })
+
+const downloadReport = (type, group = 'month') => {
+  let url = `/api/reports/${type}?format=csv`
+  if (type === 'date-wise') url += `&group=${group}`
+
+  fetch(url, { headers: { Authorization: `Bearer ${auth.token}` } })
+    .then(res => {
+      if (!res.ok) throw new Error('Download failed')
+      return res.blob()
+    })
+    .then(blob => {
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `${type}_report_${new Date().toISOString().slice(0, 10)}.csv`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    })
+    .catch(err => {
+      console.error(err)
+      alert('Failed to download report')
+    })
+}
 </script>
 
 <template>
-  <div v-if="errorMsg" class="error-banner">{{ errorMsg }}</div>
-  <div v-else-if="loading">Loading Reports...</div>
-  <div v-else class="reports-grid">
-    <div class="card kpi-card">
-      <h3>Total Revenue</h3>
-      <p class="kpi-value">${{ totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 }) }}</p>
-      <span class="kpi-sub">From Shipped & Delivered</span>
+  <div v-if="loading" class="loading-state">Loading dashboard...</div>
+  <div v-else-if="errorMsg" class="card error-state">{{ errorMsg }}</div>
+  
+  <div v-else>
+    <div class="report-actions">
+      <h2>Sales Reports</h2>
+      <div class="download-buttons">
+        <button @click="downloadReport('product-wise')" class="btn-secondary">
+          📥 Product-wise CSV
+        </button>
+        <button @click="downloadReport('date-wise', 'month')" class="btn-secondary">
+          📥 Date-wise CSV
+        </button>
+      </div>
     </div>
 
-    <div class="card chart-card">
-      <h3>Revenue Over Time</h3>
-      <div v-if="chartSeries[0].data.length === 0" class="empty-state">No revenue data yet. Ship some orders!</div>
-      <VueApexCharts v-else type="area" height="300" :options="chartOptions" :series="chartSeries" />
-    </div>
+    <div class="dashboard-grid">
+      <div class="kpi-card kpi-purple">
+        <span class="kpi-title">Revenue</span>
+        <h2 class="kpi-value">₹{{ summary.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 }) }}</h2>
+      </div>
+      <div class="kpi-card kpi-green">
+        <span class="kpi-title">Sales Orders</span>
+        <h2 class="kpi-value">{{ summary.sales_orders.toLocaleString() }}</h2>
+      </div>
+      <div class="kpi-card kpi-yellow">
+        <span class="kpi-title">Units Sold</span>
+        <h2 class="kpi-value">{{ summary.units_sold.toLocaleString() }}</h2>
+      </div>
+      <div class="kpi-card kpi-pink">
+        <span class="kpi-title">Awaiting Action</span>
+        <h2 class="kpi-value">{{ summary.awaiting_action.toLocaleString() }}</h2>
+      </div>
 
-    <div class="card" style="grid-column: 1 / -1;">
-      <h3>Product Breakdown</h3>
-      <div v-if="productData.length === 0" class="empty-state">No sales data yet.</div>
-      <table v-else class="data-table" style="margin-top: 16px;">
-        <thead>
-          <tr><th>Product</th><th>Units</th><th>Revenue</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="prod in productData" :key="prod.product">
-            <td>{{ prod.product }}</td>
-            <td>{{ prod.units }}</td>
-            <td class="mono">${{ prod.revenue.toFixed(2) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Charts -->
+      <div class="card chart-main">
+        <h3>Revenue by Month</h3>
+        <VueApexCharts type="bar" height="280" :options="chartOptions" :series="chartSeries" />
+      </div>
+
+      <div class="card chart-side">
+        <h3>Revenue by Product</h3>
+        <VueApexCharts type="donut" height="220" :options="donutOptions" :series="donutSeries" />
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.reports-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
-.kpi-value { font-size: 40px; font-weight: 700; margin: 12px 0; letter-spacing: -1px; }
-.kpi-sub { color: var(--text-secondary); font-size: 13px; }
-.error-banner { background: #FEE2E2; color: #991B1B; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
-.empty-state { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 14px; }
+.report-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.download-buttons {
+  display: flex;
+  gap: 12px;
+}
 </style>

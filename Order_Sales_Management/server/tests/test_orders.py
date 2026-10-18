@@ -158,52 +158,6 @@ def test_create_order_ignores_negative_client_price(
     item = resp.get_json()["items"][0]
     assert item["unit_price"] == float(sample_product.current_price)
 
-
-# --- Validate (dry-run) ---
-
-
-def test_validate_endpoint_does_not_create(
-    client, admin_headers, customer_user, sample_product, app_ctx
-):
-    from app.models import Order
-
-    payload = _order_payload(
-        order_id="ORD9990",
-        items=[
-            {
-                "product_id": sample_product.product_id,
-                "quantity": 1,
-                "unit_price": 10.0,
-            }
-        ],
-    )
-    resp = client.post("/api/orders/validate", json=payload, headers=admin_headers)
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert body["valid"] is True
-    assert body["errors"] == []
-
-    # Assert nothing was written
-    assert Order.query.filter_by(order_id="ORD9990").first() is None
-
-
-def test_validate_endpoint_reports_multiple_errors(client, admin_headers):
-    payload = {
-        "order_id": "BAD",
-        "order_date": "not-a-date",
-        "customer_id": "ZZZ",
-        "items": [],
-    }
-    resp = client.post("/api/orders/validate", json=payload, headers=admin_headers)
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert body["valid"] is False
-    assert len(body["errors"]) >= 3
-
-
-# --- Status transitions ---
-
-
 def test_status_transition_valid_flow(client, admin_headers, sample_order):
     """Pending -> Received -> Shipped -> Delivered."""
     for next_status in ("Received", "Shipped", "Delivered"):

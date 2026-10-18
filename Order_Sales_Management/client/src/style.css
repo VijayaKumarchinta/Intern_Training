@@ -1,20 +1,26 @@
 :root {
-  --bg-app: #F3F4F6;
+  --bg-app: #F4F6FB;
   --bg-card: #FFFFFF;
-  --text-primary: #111827;
+  --text-primary: #1A1D21;
   --text-secondary: #6B7280;
-  --accent-blue: #4A90D9;
-  --accent-green: #10B981;
-  --accent-red: #EF4444;
-  --border-color: #E5E7EB;
-  --radius-card: 12px;
-  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --border-color: #F3F4F6;
+  --radius-card: 16px;
+  --radius-pill: 99px;
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.02);
+  
+  --brand-purple: #5A4FCF;
+  --brand-purple-hover: #4A3FB8;
+  
+  --kpi-purple-bg: #E0E7FF; --kpi-purple-text: #3730A3;
+  --kpi-green-bg: #D1FAE5;  --kpi-green-text: #065F46;
+  --kpi-yellow-bg: #FEF3C7; --kpi-yellow-text: #92400E;
+  --kpi-pink-bg: #FCE7F3;   --kpi-pink-text: #9D174D;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, sans-serif;
   background-color: var(--bg-app);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
@@ -24,58 +30,41 @@ body {
   background: var(--bg-card);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  border: 1px solid var(--border-color);
-  padding: 24px;
+  padding: 32px;
 }
 
 button {
-  cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-weight: 500;
-  font-size: 14px;
+  cursor: pointer; border: none; border-radius: var(--radius-pill);
+  padding: 10px 24px; font-weight: 600; font-size: 14px;
   transition: all 0.2s;
 }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-primary { background: var(--text-primary); color: white; }
-.btn-primary:hover { background: #374151; }
+.btn-primary { background: var(--brand-purple); color: white; }
+.btn-primary:hover { background: var(--brand-purple-hover); }
+.btn-secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); }
+.btn-secondary:hover { background: var(--border-color); }
 
 input, select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 16px;
-  outline: none;
-  transition: border 0.2s;
+  width: 100%; padding: 12px 16px; border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill); font-size: 14px; margin-bottom: 20px; outline: none;
+  background: white;
 }
-input:focus, select:focus { border-color: var(--accent-blue); }
+input:focus, select:focus { border-color: var(--brand-purple); }
 
-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 6px;
-  color: var(--text-primary);
-}
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.mono { font-family: 'Courier New', Courier, monospace; font-weight: 600; }
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 14px;
-}
-.data-table th {
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-.data-table td {
-  padding: 16px 12px;
-  border-bottom: 1px solid var(--border-color);
-}
+.data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+.data-table th { padding: 16px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-weight: 500; font-size: 13px; }
+.data-table td { padding: 16px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
 .data-table tr:last-child td { border-bottom: none; }
-.mono { font-family: 'Courier New', Courier, monospace; }
+.data-table tr:hover td { background-color: #F9FAFB; }
+
+.status-pill { padding: 6px 12px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 600; display: inline-block; }
+.status-pill.pending { background: #FEF3C7; color: #92400E; }
+.status-pill.received { background: #E0E7FF; color: #3730A3; }
+.status-pill.shipped { background: #DBEAFE; color: #1E40AF; }
+.status-pill.delivered { background: #D1FAE5; color: #065F46; }
+.status-pill.cancelled { background: #FEE2E2; color: #991B1B; }
+.status-pill.returned { background: #FCE7F3; color: #9D174D; }
+
+.error-banner { background: #FEE2E2; color: #991B1B; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-size: 14px; font-weight: 500; }

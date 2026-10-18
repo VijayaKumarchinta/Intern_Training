@@ -8,7 +8,6 @@ from ..services.order_service import (
     change_status,
     create_order as create_order_service,
     find_duplicates,
-    validate_order_payload,
     visible_orders_for,
 )
 from ..utils.decorators import auth_required, role_required
@@ -103,13 +102,6 @@ def create_order():
         return jsonify(error=err), status
 
     return jsonify(_order_response(order, include_items=True)), status
-
-@orders_bp.post("/validate")
-@role_required(Role.ADMIN.value)
-def dry_run_validation():
-    payload = _json()
-    errors = validate_order_payload(payload)
-    return jsonify(valid=len(errors) == 0, errors=errors), 200
 
 @orders_bp.patch("/<order_id>/status")
 @role_required(Role.ADMIN.value)

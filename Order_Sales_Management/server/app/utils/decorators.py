@@ -7,7 +7,6 @@ from flask_jwt_extended import (
 )
 from ..extensions import db
 from ..models import User
-from .permissions import role_at_least
 
 def _load_user(uid):
     if uid is None:
@@ -47,21 +46,6 @@ def role_required(required_role):
             if err:
                 return err
             if user.role != required_role:
-                return jsonify(error="Forbidden"), 403
-            g.current_user = user
-            return fn(*args, **kwargs)
-        return decorated
-    return wrapper
-
-def min_role_required(required_role):
-    def wrapper(fn):
-        @wraps(fn)
-        @jwt_required()
-        def decorated(*args, **kwargs):
-            user, err = _resolve_request_user()
-            if err:
-                return err
-            if not role_at_least(user.role, required_role):
                 return jsonify(error="Forbidden"), 403
             g.current_user = user
             return fn(*args, **kwargs)

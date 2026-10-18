@@ -1,13 +1,5 @@
 from ..constants import Role
 
-ROLE_LEVEL = {
-    Role.CUSTOMER.value: 10,
-    Role.ADMIN.value: 100,
-}
-
-def role_at_least(user_role, required_role):
-    return ROLE_LEVEL.get(user_role, 0) >= ROLE_LEVEL.get(required_role, 0)
-
 def is_admin(user):
     return user is not None and user.role == Role.ADMIN.value
 

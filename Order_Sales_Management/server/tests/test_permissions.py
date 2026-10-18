@@ -57,12 +57,6 @@ def test_customer_blocked_from_duplicates(client, customer_headers):
     resp = client.get("/api/orders/duplicates", headers=customer_headers)
     assert resp.status_code == 403
 
-
-def test_customer_blocked_from_db_diagnostics(client, customer_headers):
-    resp = client.get("/db", headers=customer_headers)
-    assert resp.status_code == 403
-
-
 def test_customer_blocked_from_creating_order(client, customer_headers, sample_product):
     payload = {
         "order_id": "ORD9001",
@@ -79,12 +73,6 @@ def test_customer_blocked_from_creating_order(client, customer_headers, sample_p
     resp = client.post("/api/orders", json=payload, headers=customer_headers)
     assert resp.status_code == 403
 
-
-def test_customer_blocked_from_validate_endpoint(client, customer_headers):
-    resp = client.post("/api/orders/validate", json={}, headers=customer_headers)
-    assert resp.status_code == 403
-
-
 def test_customer_blocked_from_patching_status(client, customer_headers):
     resp = client.patch(
         "/api/orders/ORD0001/status",
@@ -99,19 +87,10 @@ def test_admin_can_access_reports(client, admin_headers):
     assert resp.status_code == 200
     assert isinstance(resp.get_json(), list)
 
-
-def test_admin_can_access_db_diagnostics(client, admin_headers):
-    resp = client.get("/db", headers=admin_headers)
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert "users" in body and "orders" in body and "customers" in body
-
-
 def test_admin_can_list_duplicates(client, admin_headers):
     resp = client.get("/api/orders/duplicates", headers=admin_headers)
     assert resp.status_code == 200
     assert "duplicates" in resp.get_json()
-
 
 def test_customer_listing_orders_sees_empty_when_none(client, customer_headers):
     resp = client.get("/api/orders", headers=customer_headers)

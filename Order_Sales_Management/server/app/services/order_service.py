@@ -222,3 +222,91 @@ def find_duplicates():
         }
         for r in rows
     ]
+
+def get_dashboard_summary():
+    
+    revenue = db.session.query(func.sum(OrderItem.quantity * OrderItem.unit_price))\
+        .join(Order, Order.order_id == OrderItem.order_id)\
+        .filter(Order.order_status.in_(SALE_STATUSES)).scalar() or 0.0
+
+    sales_orders = db.session.query(func.count(func.distinct(Order.order_id)))\
+        .filter(Order.order_status.in_(SALE_STATUSES)).scalar() or 0
+
+    units_sold = db.session.query(func.sum(OrderItem.quantity))\
+        .join(Order, Order.order_id == OrderItem.order_id)\
+        .filter(Order.order_status.in_(SALE_STATUSES)).scalar() or 0
+
+    awaiting_action = db.session.query(func.count(Order.order_id))\
+        .filter(Order.order_status.in_(["Pending", "Received"])).scalar() or 0
+
+    latest_orders = Order.query.order_by(Order.created_at.desc()).limit(5).all()
+    recent = []
+    for o in latest_orders:
+        total = sum(i.quantity * i.unit_price for i in o.items)
+        recent.append({
+            "order_id": o.order_id,
+            "customer_id": o.customer_id,
+            "order_date": o.order_date.isoformat() if o.order_date else None,
+            "order_status": o.order_status,
+            "total": float(total),
+        })
+
+    duplicates = find_duplicates()[:3]
+
+    product_rows = (
+        db.session.query(
+            Product.pro_name.label("product"),
+            func.count(OrderItem.order_item_id).label("items"),
+            func.sum(OrderItem.quantity).label("units"),
+            func.sum(OrderItem.quantity * OrderItem.unit_price).label("revenue"),
+        )
+        .join(OrderItem, OrderItem.product_id == Product.product_id)
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .filter(Order.order_status.in_(SALE_STATUSES))
+        .group_by(Product.pro_name)
+        .order_by(func.sum(OrderItem.quantity * OrderItem.unit_price).desc())
+        .all()
+    )
+    product_breakdown = [
+        {
+            "product": r.product,
+            "items": int(r.items or 0),
+            "units": float(r.units or 0),
+            "revenue": float(r.revenue or 0),
+        }
+        for r in product_rows
+    ]
+
+    monthly_rows = (
+        db.session.query(
+            func.date_trunc("month", Order.order_date).label("bucket"),
+            func.count(func.distinct(Order.order_id)).label("orders"),
+            func.sum(OrderItem.quantity).label("units"),
+            func.sum(OrderItem.quantity * OrderItem.unit_price).label("revenue"),
+        )
+        .join(OrderItem, OrderItem.order_id == Order.order_id)
+        .filter(Order.order_status.in_(SALE_STATUSES))
+        .group_by("bucket")
+        .order_by("bucket")
+        .all()
+    )
+    monthly_breakdown = [
+        {
+            "period": r.bucket.isoformat() if hasattr(r.bucket, "isoformat") else str(r.bucket),
+            "orders": int(r.orders or 0),
+            "units": float(r.units or 0),
+            "revenue": float(r.revenue or 0),
+        }
+        for r in monthly_rows
+    ]
+
+    return {
+        "revenue": float(revenue),
+        "sales_orders": int(sales_orders),
+        "units_sold": int(units_sold),
+        "awaiting_action": int(awaiting_action),
+        "latest_orders": recent,
+        "duplicate_groups": duplicates,
+        "product_breakdown": product_breakdown,
+        "monthly_breakdown": monthly_breakdown,
+    }

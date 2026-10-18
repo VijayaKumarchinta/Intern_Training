@@ -56,8 +56,8 @@ const handleSubmit = async () => {
     <div v-if="errorMsg" class="error-banner">{{ errorMsg }}</div>
     
     <form @submit.prevent="handleSubmit">
-      <label>Order ID (ORD1234)</label>
-      <input v-model="form.order_id" required pattern="ORD\d{4}" placeholder="ORD9999" />
+      <label>Order ID</label>
+      <input v-model="form.order_id" required pattern="ORD\d{4}" placeholder="e.g. ORD1234" />
 
       <label>Customer</label>
       <select v-model="form.customer_id" required>
@@ -72,14 +72,14 @@ const handleSubmit = async () => {
       <label>Product (Price is locked by server)</label>
       <select v-model="form.product_id" required>
         <option v-for="p in products" :key="p.product_id" :value="p.product_id">
-          {{ p.pro_name }} (${{ p.current_price }})
+          {{ p.pro_name }} (₹{{ p.current_price }})
         </option>
       </select>
 
       <label>Quantity</label>
       <input v-model.number="form.quantity" type="number" min="1" max="1000" required />
 
-      <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px;">Create Order</button>
+      <button type="submit" class="btn-primary" style="width: 100%; margin-top: 16px; padding: 14px;">Create Order</button>
     </form>
   </div>
 </template>

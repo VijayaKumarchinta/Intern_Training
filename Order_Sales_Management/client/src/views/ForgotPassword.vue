@@ -39,9 +39,9 @@ const handleSubmit = async () => {
 
 <style scoped>
 .auth-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-app); }
-.login-card { width: 100%; max-width: 400px; }
-h1 { font-size: 24px; margin-bottom: 4px; }
-.subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+.login-card { width: 100%; max-width: 420px; padding: 48px; border-radius: 24px; }
+h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; text-align: center; }
+.subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; text-align: center; }
 .error-banner { background: #FEE2E2; color: #991B1B; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
 .success-banner { background: #D1FAE5; color: #065F46; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
 .back-link { text-align: center; margin-top: 16px; font-size: 13px; }

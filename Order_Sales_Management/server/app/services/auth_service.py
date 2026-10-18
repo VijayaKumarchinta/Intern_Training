@@ -55,7 +55,7 @@ def register(email, password, full_name, customer_id):
         return None, "Unknown Customer ID"
     if cust.user_id is not None:
         return None, "This Customer ID is already linked to another account"
-    if normalize_email(cust.email) != email:
+    if cust.email is not None and normalize_email(cust.email) != email:
         return None, "Customer record does not match your email"
 
     code = _new_otp()

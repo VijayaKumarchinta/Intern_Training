@@ -2,7 +2,6 @@ from flask import Flask, jsonify
 from .config import Config, configure_logging
 from .constants import Role
 from .extensions import db, jwt, mail
-from .utils.decorators import role_required
 
 def create_app():
     app = Flask(__name__)
@@ -33,15 +32,4 @@ def create_app():
     @app.get("/health")
     def health():
         return jsonify(status="ok"), 200
-
-    @app.get("/db")
-    @role_required(Role.ADMIN.value)
-    def database():
-        from .models import Customer, Order, User
-        return jsonify(
-            orders=Order.query.count(),
-            customers=Customer.query.count(),
-            users=User.query.count(),
-        ), 200
-
     return app
