@@ -1,84 +1,217 @@
 <script setup>
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter, useRoute } from 'vue-router'
+import Icon from '@/components/Icon.vue'
+import TotalsPanel from '@/components/TotalsPanel.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
-const route = useRoute()
+
+const links = [
+  { name: 'Reports', label: 'Dashboard', icon: 'dashboard', admin: true },
+  { name: 'Orders', label: 'Orders', icon: 'orders', admin: true },
+  { name: 'MyOrders', label: 'My orders', icon: 'orders', admin: false, customerOnly: true },
+  { name: 'Products', label: 'Products', icon: 'products', admin: true },
+  { name: 'Customers', label: 'Customers', icon: 'customers', admin: true },
+  { name: 'Users', label: 'Users', icon: 'users', admin: true },
+  { name: 'Duplicates', label: 'Duplicates', icon: 'duplicates', admin: true },
+]
+
+const visibleLinks = () =>
+  links.filter((link) => (auth.isAdmin ? link.admin : link.customerOnly))
 
 const handleLogout = () => {
   auth.logout()
   router.replace('/login')
 }
+
+onMounted(() => {
+  auth.fetchMe()
+})
 </script>
 
 <template>
-  <div class="app-layout">
-    <aside class="sidebar">
-      <div class="logo">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-      </div>
-      <nav>
-        <router-link v-if="auth.isAdmin" to="/app/reports" title="Dashboard" class="nav-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-        </router-link>
-        <router-link to="/app/orders" title="Orders" class="nav-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-        </router-link>
-        <router-link v-if="auth.isAdmin" to="/app/products" title="Products" class="nav-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9m3 10H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-        </router-link>
-        <router-link v-if="auth.isAdmin" to="/app/customers" title="Customers" class="nav-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
-        </router-link>
-        <router-link v-if="auth.isAdmin" to="/app/users" title="Users" class="nav-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
-        </router-link>
-        <router-link v-if="auth.isAdmin" to="/app/duplicates" title="Duplicates" class="nav-icon">
-           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+  <div class="app-shell">
+    <aside class="rail">
+      <router-link to="/" class="rail-brand" title="OrderSync home">
+        <span class="rail-mark"><Icon name="layers" :size="24" :stroke-width="2.2" /></span>
+      </router-link>
+
+      <nav class="rail-nav" aria-label="Main navigation">
+        <router-link
+          v-for="link in visibleLinks()"
+          :key="link.name"
+          :to="link.name === 'MyOrders' ? '/app/my-orders' : `/app/${link.name.toLowerCase()}`"
+          class="rail-link"
+          :title="link.label"
+        >
+          <Icon :name="link.icon" :size="21" />
+          <span>{{ link.label }}</span>
         </router-link>
       </nav>
-      <button class="logout-btn" @click="handleLogout" title="Logout">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+
+      <button class="rail-logout" title="Log out" aria-label="Log out" @click="handleLogout">
+        <Icon name="logout" :size="21" />
       </button>
     </aside>
 
-    <main class="main-content">
-      <header class="topbar">
-        <div class="header-left">
-          <h1 v-if="route.name === 'Reports'">Good afternoon, {{ auth.user?.full_name?.split(' ')[0] || 'Admin' }}</h1>
-          <h1 v-else>{{ route.name }}</h1>
-          <p class="subtitle" v-if="route.name === 'Reports'">Here is how orders and sales look today.</p>
-        </div>
-        
-        <div class="header-right">
-          <button v-if="auth.isAdmin" class="btn-primary" @click="router.push('/app/new-order')">New order</button>
-          <div class="avatar">{{ auth.user?.full_name?.charAt(0) || 'A' }}</div>
-        </div>
-      </header>
+    <TotalsPanel v-if="auth.isAdmin" />
 
-      <div class="page-container">
-        <router-view />
-      </div>
+    <main class="app-main">
+      <router-view />
     </main>
   </div>
 </template>
 
 <style scoped>
-.app-layout { display: flex; min-height: 100vh; background: var(--bg-app); }
-.sidebar { width: 88px; background: white; display: flex; flex-direction: column; align-items: center; padding: 32px 0; border-right: 1px solid var(--border-color); }
-.logo { width: 44px; height: 44px; background: var(--brand-purple); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 48px; }
-nav { display: flex; flex-direction: column; gap: 12px; flex: 1; }
-.nav-icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; color: var(--text-secondary); transition: 0.2s; }
-.nav-icon:hover { background: var(--bg-app); color: var(--text-primary); }
-.nav-icon.router-link-active { background: var(--kpi-purple-bg); color: var(--brand-purple); }
-.logout-btn { background: transparent; padding: 12px; color: var(--text-secondary); border-radius: 12px; transition: 0.2s; }
-.logout-btn:hover { background: #FEE2E2; color: #991B1B; }
-.main-content { flex: 1; display: flex; flex-direction: column; }
-.topbar { display: flex; justify-content: space-between; align-items: flex-start; padding: 40px 48px 24px 48px; }
-.header-left h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.5px; }
-.subtitle { color: var(--text-secondary); font-size: 15px; }
-.header-right { display: flex; align-items: center; gap: 16px; }
-.avatar { width: 44px; height: 44px; border-radius: 50%; background: #1A1D21; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; }
-.page-container { padding: 0 48px 48px 48px; max-width: 1600px; width: 100%; margin: 0 auto; }
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 100vh;
+  padding: 16px;
+}
+.rail {
+  width: 112px;
+  flex: none;
+  position: sticky;
+  top: 16px;
+  height: calc(100vh - 32px);
+  background: #fff;
+  border-radius: 28px;
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: var(--shadow-card);
+  z-index: 20;
+}
+.rail-brand {
+  display: block;
+  margin-bottom: 26px;
+}
+.rail-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--lime);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.rail-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 11px 4px;
+  border-radius: 14px;
+  color: #7a8497;
+  text-decoration: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.rail-link:hover {
+  background: #f4f6fa;
+  color: var(--ink);
+}
+.rail-link.router-link-active {
+  background: var(--lime);
+  color: var(--ink);
+}
+.rail-link span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-logout {
+  margin-top: auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b95a8;
+  transition: 0.18s ease;
+}
+.rail-logout:hover {
+  background: #fff1f1;
+  color: #d92d20;
+}
+.app-main {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 24px 40px 8px;
+}
+@media (max-width: 1280px) {
+  .app-shell {
+    gap: 12px;
+  }
+  .app-main {
+    padding: 8px 8px 40px 4px;
+  }
+}
+@media (max-width: 1120px) {
+  .app-shell > :global(.totals-panel) {
+    display: none;
+  }
+}
+@media (max-width: 820px) {
+  .app-shell {
+    flex-direction: column;
+    padding: 12px;
+    gap: 12px;
+  }
+  .rail {
+    position: sticky;
+    top: 8px;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 8px;
+    border-radius: 22px;
+  }
+  .rail-brand {
+    margin-bottom: 0;
+    margin-right: 4px;
+  }
+  .rail-mark {
+    width: 42px;
+    height: 42px;
+  }
+  .rail-nav {
+    flex-direction: row;
+    gap: 2px;
+    overflow-x: auto;
+  }
+  .rail-link {
+    padding: 9px 10px;
+  }
+  .rail-link span {
+    display: none;
+  }
+  .rail-logout {
+    margin-top: 0;
+    margin-left: auto;
+    width: 42px;
+    height: 42px;
+  }
+  .app-main {
+    width: 100%;
+    padding: 4px 0 32px;
+  }
+}
 </style>

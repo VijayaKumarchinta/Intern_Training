@@ -55,6 +55,9 @@ class User(db.Model):
             "full_name": self.full_name,
             "role": self.role,
             "is_verified": self.is_verified,
+            "customer_id": (
+                self.customer.customer_id if self.customer is not None else None
+            ),
         }
 
 class Customer(db.Model):
@@ -175,6 +178,7 @@ class OrderItem(db.Model):
             "order_item_id": self.order_item_id,
             "order_id": self.order_id,
             "product_id": self.product_id,
+            "product_name": self.product.pro_name if self.product else None,
             "quantity": self.quantity,
             "unit_price": float(self.unit_price) if self.unit_price is not None else None,
             "line_total": (

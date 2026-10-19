@@ -192,6 +192,7 @@ def find_duplicates():
         db.session.query(
             Order.customer_id,
             OrderItem.product_id,
+            Product.pro_name.label("product_name"),
             OrderItem.quantity,
             OrderItem.unit_price,
             Order.order_date,
@@ -199,7 +200,9 @@ def find_duplicates():
             func.array_agg(Order.order_id).label("order_ids"),
         )
         .join(OrderItem, OrderItem.order_id == Order.order_id)
+        .join(Product, Product.product_id == OrderItem.product_id)
         .group_by(
+            Product.pro_name,
             Order.customer_id,
             OrderItem.product_id,
             OrderItem.quantity,
@@ -214,6 +217,7 @@ def find_duplicates():
         {
             "customer_id": r.customer_id,
             "product_id": r.product_id,
+            "product_name": r.product_name,
             "quantity": int(r.quantity) if r.quantity is not None else None,
             "unit_price": float(r.unit_price) if r.unit_price is not None else None,
             "order_date": r.order_date.isoformat() if r.order_date is not None else None,
@@ -239,7 +243,7 @@ def get_dashboard_summary():
     awaiting_action = db.session.query(func.count(Order.order_id))\
         .filter(Order.order_status.in_(["Pending", "Received"])).scalar() or 0
 
-    latest_orders = Order.query.order_by(Order.created_at.desc()).limit(5).all()
+    latest_orders = Order.query.order_by(Order.created_at.desc()).limit(6).all()
     recent = []
     for o in latest_orders:
         total = sum(i.quantity * i.unit_price for i in o.items)
@@ -300,11 +304,25 @@ def get_dashboard_summary():
         for r in monthly_rows
     ]
 
+    status_rows = (
+        db.session.query(Order.order_status, func.count(Order.order_id))
+        .group_by(Order.order_status)
+        .all()
+    )
+    status_breakdown = [
+        {"status": status, "count": int(count)} for status, count in status_rows
+    ]
+    total_orders = int(
+        db.session.query(func.count(Order.order_id)).scalar() or 0
+    )
+
     return {
         "revenue": float(revenue),
         "sales_orders": int(sales_orders),
         "units_sold": int(units_sold),
         "awaiting_action": int(awaiting_action),
+        "total_orders": total_orders,
+        "status_breakdown": status_breakdown,
         "latest_orders": recent,
         "duplicate_groups": duplicates,
         "product_breakdown": product_breakdown,

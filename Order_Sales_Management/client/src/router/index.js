@@ -14,6 +14,7 @@ const routes = [
     children: [
       { path: '', redirect: '/app/orders' },
       { path: 'orders', name: 'Orders', component: () => import('@/views/Orders.vue') },
+      { path: 'my-orders', name: 'MyOrders', component: () => import('@/views/MyOrders.vue') },
       { path: 'orders/:id', name: 'OrderDetail', component: () => import('@/views/OrderDetail.vue') },
       { path: 'products', name: 'Products', component: () => import('@/views/Products.vue'), meta: { requiresAdmin: true } },
       { path: 'customers', name: 'Customers', component: () => import('@/views/Customers.vue'), meta: { requiresAdmin: true } },
@@ -37,7 +38,13 @@ router.beforeEach((to, from, next) => {
   } 
   else if (to.meta.requiresAdmin && !auth.isAdmin) {
     next('/app/orders')
-  } 
+  }
+  else if (to.name === 'Orders' && auth.isAuthenticated && !auth.isAdmin) {
+    next('/app/my-orders')
+  }
+  else if (to.name === 'MyOrders' && auth.isAdmin) {
+    next('/app/orders')
+  }
   else {
     next()
   }

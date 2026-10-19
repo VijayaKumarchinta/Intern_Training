@@ -1,8 +1,9 @@
 import logging
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from ..constants import Role
-from ..models import Order
+from ..models import Customer, Order
 from ..services.order_service import (
     VALID_STATUSES,
     change_status,
@@ -24,6 +25,16 @@ def _order_response(order, include_items=False):
     if include_items:
         data["total"] = float(
             sum(i.quantity * i.unit_price for i in order.items) if order.items else 0
+        )
+        data["customer"] = (
+            {
+                "customer_id": order.customer.customer_id,
+                "cust_name": order.customer.cust_name,
+                "email": order.customer.email,
+                "user_id": order.customer.user_id,
+            }
+            if order.customer is not None
+            else None
         )
     return data
 
@@ -51,6 +62,22 @@ def list_orders():
         ):
             return jsonify(error="Forbidden"), 403
         q = q.filter(Order.customer_id == customer_id)
+
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = f"%{search}%"
+        q = q.filter(
+            or_(
+                Order.order_id.ilike(like),
+                Order.customer_id.ilike(like),
+                Order.customer.has(
+                    or_(
+                        Customer.cust_name.ilike(like),
+                        Customer.email.ilike(like),
+                    )
+                ),
+            )
+        )
 
     q = q.order_by(Order.order_date.desc(), Order.order_id.desc())
 

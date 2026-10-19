@@ -18,6 +18,16 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('token', this.token)
       localStorage.setItem('user', JSON.stringify(this.user))
     },
+    async fetchMe() {
+      if (!this.token) return
+      try {
+        const res = await api.get('/auth/me')
+        this.user = res.data
+        localStorage.setItem('user', JSON.stringify(this.user))
+      } catch (err) {
+        // The response interceptor handles expired sessions.
+      }
+    },
     logout() {
       this.token = null
       this.user = null
