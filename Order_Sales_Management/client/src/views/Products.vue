@@ -100,6 +100,7 @@ const deleteProduct = async (product) => {
 }
 
 onMounted(() => {
+  window.addEventListener('open-create-form', () => { showCreate.value = true })
   summaryStore.fetch()
   fetchProducts()
 })
@@ -117,7 +118,7 @@ onMounted(() => {
         <button class="btn btn-primary" @click="showCreate = !showCreate">
           {{ showCreate ? 'Close' : '+ New product' }}
         </button>
-        <div class="avatar">A</div>
+        
       </div>
     </header>
 

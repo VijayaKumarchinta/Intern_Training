@@ -17,7 +17,7 @@ const handleSubmit = async () => {
     submitting.value = true
     await api.post('/auth/forgot-password', { email: email.value })
     message.value =
-      'If the email exists, a reset link was sent. Check server/dev_emails.log in development.'
+      'If the email exists, a reset link was sent. Check server/logs/dev_emails.log in development.'
   } catch (err) {
     errorMsg.value = err.response?.data?.error || 'Something went wrong.'
   } finally {

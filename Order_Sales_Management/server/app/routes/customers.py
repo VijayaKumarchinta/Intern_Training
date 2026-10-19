@@ -31,3 +31,34 @@ def create_customer():
     db.session.add(customer)
     db.session.commit()
     return jsonify(customer=customer.to_dict()), 201
+
+
+@customers_bp.patch("/<customer_id>/link")
+@role_required(Role.ADMIN.value)
+def link_customer_route(customer_id):
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    
+    if not user_id:
+        return jsonify(error="user_id is required"), 400
+        
+    cust = db.session.get(Customer, customer_id)
+    if not cust:
+        return jsonify(error="Customer not found"), 404
+        
+    from ..models import User
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify(error="User not found"), 404
+        
+    if cust.user_id is not None:
+        return jsonify(error="Customer is already linked to a user"), 409
+    
+    cust.user_id = user.id
+    if not cust.email:
+        cust.email = user.email
+    if not cust.cust_name:
+        cust.cust_name = user.full_name
+        
+    db.session.commit()
+    return jsonify(message="Customer linked successfully", customer=cust.to_dict()), 200

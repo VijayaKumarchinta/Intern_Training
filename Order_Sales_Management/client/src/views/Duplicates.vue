@@ -81,7 +81,7 @@ onMounted(load)
         <h1>Duplicates</h1>
         <p class="page-sub">Orders sharing the same customer, product, quantity, price and date.</p>
       </div>
-      <div class="avatar">A</div>
+      
     </header>
 
     <div v-if="errorMsg" class="error-banner banner-gap">{{ errorMsg }}</div>
@@ -140,7 +140,11 @@ onMounted(load)
             <span class="group-note">
               {{ orderStatus(group.order_ids[0]) ? `Latest copy: ${orderStatus(group.order_ids[0])}` : 'Review each copy' }}
             </span>
+            <span v-if="group.latest_status === 'Delivered' || group.latest_status === 'Shipped'" class="muted" style="font-size:12px;">
+              Cannot cancel (already {{ group.latest_status }}). Return instead.
+            </span>
             <button
+              v-else
               class="btn btn-sm btn-outline-red"
               :disabled="!!cancelling"
               @click="cancelCopy(group)"

@@ -107,6 +107,12 @@ const onSearch = () => {
 
 const changeStatus = async (order, nextStatus) => {
   if (updatingId.value) return
+  
+  if (nextStatus === 'Returned' || nextStatus === 'Cancelled') {
+    const ok = window.confirm(`Are you sure you want to mark ${order.order_id} as ${nextStatus}? This cannot be undone.`)
+    if (!ok) return
+  }
+
   try {
     updatingId.value = order.order_id
     await api.patch(`/orders/${order.order_id}/status`, { order_status: nextStatus })
@@ -142,7 +148,6 @@ onMounted(async () => {
         <button class="btn btn-primary" @click="router.push('/app/new-order')">
           <Icon name="plus" :size="15" /> New order
         </button>
-        <div class="avatar">{{ (auth.user?.full_name || 'A').charAt(0).toUpperCase() }}</div>
       </div>
     </header>
 
@@ -234,7 +239,7 @@ onMounted(async () => {
       </div>
 
       <p v-if="!loading && !orders.length && !errorMsg" class="empty-state">
-        No orders match this filter.
+        {{ (search || statusFilter) ? 'No orders match this filter.' : 'No orders yet.' }}
       </p>
 
       <div v-if="pages > 1" class="pagination">

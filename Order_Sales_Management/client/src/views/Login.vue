@@ -27,11 +27,7 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <AuthShell
-    heading="Every order,"
-    accent="one clear view."
-    subtitle="Sign in to manage orders, check sales and catch duplicates. Customers see only their own orders."
-  >
+  <AuthShell>
     <h2 class="auth-title">Welcome back</h2>
     <p class="auth-sub">Enter your credentials to access the dashboard.</p>
 

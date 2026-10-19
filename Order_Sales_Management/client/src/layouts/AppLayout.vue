@@ -1,21 +1,22 @@
 <script setup>
 import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/Icon.vue'
-import TotalsPanel from '@/components/TotalsPanel.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const links = [
-  { name: 'Reports', label: 'Dashboard', icon: 'dashboard', admin: true },
-  { name: 'Orders', label: 'Orders', icon: 'orders', admin: true },
-  { name: 'MyOrders', label: 'My orders', icon: 'orders', admin: false, customerOnly: true },
-  { name: 'Products', label: 'Products', icon: 'products', admin: true },
-  { name: 'Customers', label: 'Customers', icon: 'customers', admin: true },
-  { name: 'Users', label: 'Users', icon: 'users', admin: true },
-  { name: 'Duplicates', label: 'Duplicates', icon: 'duplicates', admin: true },
+  { name: 'Reports', label: 'Dashboard', admin: true },
+  { name: 'Orders', label: 'Orders', admin: true },
+  { name: 'Products', label: 'Products', admin: true },
+  { name: 'Customers', label: 'Customers', admin: true },
+  { name: 'Users', label: 'Users', admin: true },
+  { name: 'Duplicates', label: 'Duplicates', admin: true },
+  { name: 'Totals', label: 'Totals', admin: true },
+  { name: 'MyOrders', label: 'My Orders', admin: false, customerOnly: true },
 ]
 
 const visibleLinks = () =>
@@ -33,31 +34,40 @@ onMounted(() => {
 
 <template>
   <div class="app-shell">
-    <aside class="rail">
-      <router-link to="/" class="rail-brand" title="OrderSync home">
-        <span class="rail-mark"><Icon name="layers" :size="24" :stroke-width="2.2" /></span>
-      </router-link>
-
-      <nav class="rail-nav" aria-label="Main navigation">
-        <router-link
-          v-for="link in visibleLinks()"
-          :key="link.name"
-          :to="link.name === 'MyOrders' ? '/app/my-orders' : `/app/${link.name.toLowerCase()}`"
-          class="rail-link"
-          :title="link.label"
-        >
-          <Icon :name="link.icon" :size="21" />
-          <span>{{ link.label }}</span>
+    <!-- Top Navigation Bar -->
+    <header class="top-nav">
+      <div class="nav-left">
+        <router-link to="/" class="brand">
+          <span class="brand-mark"><Icon name="layers" :size="20" :stroke-width="2.5" /></span>
+          <span class="brand-name">OrderSync</span>
         </router-link>
-      </nav>
+        
+        <nav class="nav-links" aria-label="Main navigation">
+          <router-link
+            v-for="link in visibleLinks()"
+            :key="link.name"
+            :to="link.name === 'MyOrders' ? '/app/my-orders' : `/app/${link.name.toLowerCase()}`"
+            class="nav-link"
+            :class="{ active: route.name === link.name }"
+          >
+            {{ link.label }}
+          </router-link>
+        </nav>
+      </div>
 
-      <button class="rail-logout" title="Log out" aria-label="Log out" @click="handleLogout">
-        <Icon name="logout" :size="21" />
-      </button>
-    </aside>
+      <div class="nav-right">
+        <div class="user-profile">
+          <span class="role-badge">{{ auth.user?.role || 'Admin' }}</span>
+          <div class="avatar">{{ (auth.user?.full_name || 'A').charAt(0).toUpperCase() }}</div>
+        </div>
+        
+        <button class="logout-btn" title="Log out" @click="handleLogout">
+          <Icon name="logout" :size="18" />
+        </button>
+      </div>
+    </header>
 
-    <TotalsPanel v-if="auth.isAdmin" />
-
+    <!-- Main Content -->
     <main class="app-main">
       <router-view />
     </main>
@@ -65,153 +75,28 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.app-shell {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  min-height: 100vh;
-  padding: 16px;
-}
-.rail {
-  width: 112px;
-  flex: none;
-  position: sticky;
-  top: 16px;
-  height: calc(100vh - 32px);
-  background: #fff;
-  border-radius: 28px;
-  padding: 18px 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  box-shadow: var(--shadow-card);
-  z-index: 20;
-}
-.rail-brand {
-  display: block;
-  margin-bottom: 26px;
-}
-.rail-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: var(--ink);
-  color: var(--lime);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.rail-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-.rail-link {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 11px 4px;
-  border-radius: 14px;
-  color: #7a8497;
-  text-decoration: none;
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 1.2;
-  transition: background 0.18s ease, color 0.18s ease;
-}
-.rail-link:hover {
-  background: #f4f6fa;
-  color: var(--ink);
-}
-.rail-link.router-link-active {
-  background: var(--lime);
-  color: var(--ink);
-}
-.rail-link span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rail-logout {
-  margin-top: auto;
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #8b95a8;
-  transition: 0.18s ease;
-}
-.rail-logout:hover {
-  background: #fff1f1;
-  color: #d92d20;
-}
-.app-main {
-  flex: 1;
-  min-width: 0;
-  padding: 12px 24px 40px 8px;
-}
-@media (max-width: 1280px) {
-  .app-shell {
-    gap: 12px;
-  }
-  .app-main {
-    padding: 8px 8px 40px 4px;
-  }
-}
-@media (max-width: 1120px) {
-  .app-shell > :global(.totals-panel) {
-    display: none;
-  }
-}
-@media (max-width: 820px) {
-  .app-shell {
-    flex-direction: column;
-    padding: 12px;
-    gap: 12px;
-  }
-  .rail {
-    position: sticky;
-    top: 8px;
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    padding: 8px;
-    border-radius: 22px;
-  }
-  .rail-brand {
-    margin-bottom: 0;
-    margin-right: 4px;
-  }
-  .rail-mark {
-    width: 42px;
-    height: 42px;
-  }
-  .rail-nav {
-    flex-direction: row;
-    gap: 2px;
-    overflow-x: auto;
-  }
-  .rail-link {
-    padding: 9px 10px;
-  }
-  .rail-link span {
-    display: none;
-  }
-  .rail-logout {
-    margin-top: 0;
-    margin-left: auto;
-    width: 42px;
-    height: 42px;
-  }
-  .app-main {
-    width: 100%;
-    padding: 4px 0 32px;
-  }
+.app-shell { display: flex; flex-direction: column; min-height: 100vh; background: #f7f8fb; }
+.top-nav { display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 72px; background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 50; }
+.nav-left { display: flex; align-items: center; gap: 48px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--ink); color: var(--lime); display: flex; align-items: center; justify-content: center; }
+.brand-name { font-family: 'Inter Tight', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.04em; }
+.nav-links { display: flex; gap: 4px; }
+.nav-link { text-decoration: none; color: var(--text-secondary); font-size: 14px; font-weight: 500; padding: 8px 16px; border-radius: 8px; transition: 0.2s; }
+.nav-link:hover { background: #f4f6fa; color: var(--ink); }
+.nav-link.active { background: #eef1f7; color: var(--ink); font-weight: 600; }
+.nav-right { display: flex; align-items: center; gap: 20px; }
+.user-profile { display: flex; align-items: center; gap: 12px; }
+.role-badge { font-size: 13px; text-transform: capitalize; color: var(--text-secondary); background: #f1f3f8; padding: 6px 12px; border-radius: 99px; font-weight: 500; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+.logout-btn { color: var(--text-secondary); padding: 8px; border-radius: 8px; transition: 0.2s; }
+.logout-btn:hover { background: #fee2e2; color: #991b1b; }
+.app-main { flex: 1; padding: 32px 40px; max-width: 1600px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+@media (max-width: 1100px) {
+  .nav-links { display: none; }
+  .top-nav { padding: 0 20px; }
+  .app-main { padding: 20px; }
+  .nav-left { gap: 20px; }
 }
 </style>

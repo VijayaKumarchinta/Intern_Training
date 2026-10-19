@@ -10,6 +10,7 @@ const customers = ref([])
 const errorMsg = ref('')
 const submitting = ref(false)
 const loading = ref(true)
+const customerSearch = ref('')
 
 const form = ref({
   order_id: '',
@@ -23,19 +24,19 @@ const selectedProduct = computed(() =>
   products.value.find((product) => product.product_id === form.value.product_id),
 )
 
-const selectedCustomer = computed(() =>
-  customers.value.find((customer) => customer.customer_id === form.value.customer_id),
-)
+const filteredCustomers = computed(() => {
+  const term = customerSearch.value.toLowerCase().trim()
+  if (!term) return customers.value.slice(0, 200) // Show first 200 if no search
+  return customers.value.filter(
+    (c) =>
+      c.customer_id.toLowerCase().includes(term) ||
+      (c.cust_name && c.cust_name.toLowerCase().includes(term)) ||
+      (c.email && c.email.toLowerCase().includes(term))
+  ).slice(0, 50)
+})
 
 const lineTotal = computed(
   () => (selectedProduct.value?.current_price || 0) * (Number(form.value.quantity) || 0),
-)
-
-const suggestions = computed(() =>
-  customers.value.slice(0, 200).map((customer) => ({
-    value: customer.customer_id,
-    label: `${customer.customer_id} - ${customer.cust_name || customer.email || 'Unnamed'}`,
-  })),
 )
 
 onMounted(async () => {
@@ -90,7 +91,9 @@ const handleSubmit = async () => {
         <p class="eyebrow">OrderSync · Admin</p>
         <h1>Create order</h1>
       </div>
-      <div class="avatar">A</div>
+      <div class="head-actions" style="display:flex; gap:12px; align-items:center;">
+        <div class="avatar">A</div>
+      </div>
     </header>
 
     <div v-if="loading" class="spinner-state">Loading form data…</div>
@@ -117,30 +120,32 @@ const handleSubmit = async () => {
             <span class="hint">Format: ORD followed by 4 digits</span>
           </div>
 
-          <div class="field">
-            <label for="customer">Customer</label>
+          <div class="field full">
+            <label for="customer-search">Search Customer</label>
             <input
-              id="customer"
-              v-model="form.customer_id"
+              id="customer-search"
+              v-model="customerSearch"
               class="input"
-              list="customer-options"
-              required
-              placeholder="C0001"
+              placeholder="Type a customer name or ID to filter..."
             />
-            <datalist id="customer-options">
-              <option v-for="customer in suggestions" :key="customer.value" :value="customer.value">
-                {{ customer.label }}
-              </option>
-            </datalist>
-            <span class="hint">{{ selectedCustomer?.cust_name || 'Pick a customer ID' }}</span>
           </div>
 
-          <div class="field">
+          <div class="field full">
+            <label for="customer">Select Customer</label>
+            <select id="customer" v-model="form.customer_id" class="input" required>
+              <option v-for="customer in filteredCustomers" :key="customer.customer_id" :value="customer.customer_id">
+                {{ customer.customer_id }} - {{ customer.cust_name || customer.email || 'Unnamed' }}
+              </option>
+            </select>
+            <span class="hint" v-if="customerSearch">Showing up to 50 matches</span>
+          </div>
+
+          <div class="field full">
             <label for="order-date">Order date</label>
             <input id="order-date" v-model="form.order_date" class="input" type="date" required />
           </div>
 
-          <div class="field">
+          <div class="field full">
             <label for="product">Product (price is locked by the server)</label>
             <select id="product" v-model="form.product_id" class="input" required>
               <option v-for="product in products" :key="product.product_id" :value="product.product_id">
@@ -149,7 +154,7 @@ const handleSubmit = async () => {
             </select>
           </div>
 
-          <div class="field">
+          <div class="field full">
             <label for="quantity">Quantity</label>
             <input
               id="quantity"
@@ -231,8 +236,8 @@ const handleSubmit = async () => {
 }
 .order-form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px 16px;
+  grid-template-columns: 1fr;
+  gap: 18px;
 }
 .full {
   grid-column: 1 / -1;

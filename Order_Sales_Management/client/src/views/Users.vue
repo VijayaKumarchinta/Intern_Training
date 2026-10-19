@@ -6,6 +6,11 @@ import { number, percent } from '@/utils/format'
 const users = ref([])
 const loading = ref(true)
 const errorMsg = ref('')
+const successMsg = ref('')
+
+const showCreate = ref(false)
+const saving = ref(false)
+const newUser = ref({ email: '', password: '', full_name: '', role: 'customer' })
 
 const admins = computed(() => users.value.filter((user) => user.role === 'admin'))
 const unverified = computed(() => users.value.filter((user) => !user.is_verified))
@@ -13,7 +18,7 @@ const customers = computed(() => users.value.filter((user) => user.role === 'cus
 
 const avatarTone = (role) => (role === 'admin' ? 'tone-dark' : 'tone-lavender')
 
-onMounted(async () => {
+const fetchUsers = async () => {
   try {
     const res = await api.get('/users')
     users.value = res.data.users
@@ -22,7 +27,27 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+const createUser = async () => {
+  if (saving.value) return
+  try {
+    errorMsg.value = ''
+    successMsg.value = ''
+    saving.value = true
+    await api.post('/users', newUser.value)
+    successMsg.value = 'User created successfully.'
+    showCreate.value = false
+    newUser.value = { email: '', password: '', full_name: '', role: 'customer' }
+    await fetchUsers()
+  } catch (err) {
+    errorMsg.value = err.response?.data?.error || 'Failed to create user.'
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(fetchUsers)
 </script>
 
 <template>
@@ -33,8 +58,30 @@ onMounted(async () => {
         <h1>Users</h1>
         <p class="page-sub">Everyone who has registered for the app.</p>
       </div>
-      <div class="avatar">A</div>
+      <div class="head-actions">
+        <button class="btn btn-primary" @click="showCreate = !showCreate">
+          {{ showCreate ? 'Close' : '+ New user' }}
+        </button>
+        
+      </div>
     </header>
+
+    <div v-if="showCreate" class="create-bar">
+      <span class="create-label">Create user</span>
+      <input v-model="newUser.email" class="input" type="email" placeholder="Email" />
+      <input v-model="newUser.password" class="input" type="password" placeholder="Password" />
+      <input v-model="newUser.full_name" class="input" placeholder="Full Name" />
+      <select v-model="newUser.role" class="input" style="max-width: 140px;">
+        <option value="customer">Customer</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button class="btn btn-dark" :disabled="saving" @click="createUser">
+        {{ saving ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+
+    <div v-if="errorMsg" class="error-banner banner-gap">{{ errorMsg }}</div>
+    <div v-if="successMsg" class="success-banner banner-gap">{{ successMsg }}</div>
 
     <section class="stats">
       <div class="stat dark-stat">
@@ -57,8 +104,6 @@ onMounted(async () => {
         </p>
       </div>
     </section>
-
-    <div v-if="errorMsg" class="error-banner banner-gap">{{ errorMsg }}</div>
 
     <section class="card table-card">
       <div class="table-top">
@@ -114,175 +159,44 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.users-page {
-  max-width: 1400px;
-}
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-.page-head h1 {
-  font-size: clamp(30px, 2.6vw, 40px);
-  font-weight: 700;
-  letter-spacing: -0.045em;
-  margin-top: 6px;
-}
-.page-sub {
-  margin-top: 6px;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.stat {
-  border-radius: 26px;
-  padding: 24px;
-  min-height: 150px;
-  display: flex;
-  flex-direction: column;
-}
-.dark-stat {
-  background: var(--ink);
-  color: #fff;
-}
-.blue-stat {
-  background: var(--blue);
-  color: #fff;
-}
-.orange-stat {
-  background: var(--orange);
-  color: var(--ink);
-}
-.stat-label {
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.85);
-}
-.stat-label.dark {
-  color: var(--ink);
-}
-.stat-big {
-  font-family: 'Inter Tight', sans-serif;
-  font-size: clamp(34px, 3.4vw, 48px);
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  line-height: 1;
-  margin: auto 0 10px;
-}
-.dark-stat .stat-big {
-  color: var(--lime);
-}
-.stat-big.dark {
-  color: var(--ink);
-}
-.stat-foot {
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.8);
-}
-.stat-foot.dark {
-  color: #4a2a17;
-}
-.table-card {
-  padding: 0;
-  overflow: hidden;
-}
-.table-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 22px 24px;
-}
-h2 {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.count-pill {
-  background: #f1f3f8;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.user-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 500;
-}
-.user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  flex: none;
-}
-.tone-dark {
-  background: var(--ink);
-  color: var(--lime);
-}
-.tone-lavender {
-  background: var(--lavender);
-  color: #4b3fa8;
-}
-.role-pill {
-  border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.role-admin {
-  background: var(--lavender);
-  color: #4b3fa8;
-}
-.role-customer {
-  background: #f1f3f8;
-  color: #4b5563;
-}
-.status-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12.5px;
-  font-weight: 500;
-}
-.status-text i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.verified {
-  color: #4b5563;
-}
-.verified i {
-  background: #17a34a;
-}
-.unverified {
-  color: #8a5a00;
-}
-.unverified i {
-  background: #f4c542;
-}
-.banner-gap {
-  margin-bottom: 16px;
-}
-@media (max-width: 860px) {
-  .stats {
-    grid-template-columns: 1fr;
-  }
-}
+/* Add the same styling for the user page that was there */
+.users-page { max-width: 1400px; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 20px; }
+.page-head h1 { font-size: clamp(30px, 2.6vw, 40px); font-weight: 700; letter-spacing: -0.045em; margin-top: 6px; }
+.page-sub { margin-top: 6px; font-size: 14px; color: var(--text-secondary); }
+.head-actions { display: flex; align-items: center; gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.stat { border-radius: 26px; padding: 24px; min-height: 150px; display: flex; flex-direction: column; }
+.dark-stat { background: var(--ink); color: #fff; }
+.blue-stat { background: var(--blue); color: #fff; }
+.orange-stat { background: var(--orange); color: var(--ink); }
+.stat-label { font-size: 13.5px; color: rgba(255, 255, 255, 0.85); }
+.stat-label.dark { color: var(--ink); }
+.stat-big { font-family: 'Inter Tight', sans-serif; font-size: clamp(34px, 3.4vw, 48px); font-weight: 800; letter-spacing: -0.05em; line-height: 1; margin: auto 0 10px; }
+.dark-stat .stat-big { color: var(--lime); }
+.stat-big.dark { color: var(--ink); }
+.stat-foot { font-size: 12.5px; color: rgba(255, 255, 255, 0.8); }
+.stat-foot.dark { color: #4a2a17; }
+.create-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--lime); border-radius: 24px; padding: 16px 20px; margin-bottom: 16px; }
+.create-label { font-size: 14px; font-weight: 700; margin-right: 4px; }
+.create-bar .input { flex: 1; min-width: 150px; border-color: transparent; height: 46px; }
+.table-card { padding: 0; overflow: hidden; }
+.table-top { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; }
+h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.03em; display: flex; align-items: center; gap: 10px; }
+.count-pill { background: #f1f3f8; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.user-cell { display: inline-flex; align-items: center; gap: 10px; font-weight: 500; }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none; }
+.tone-dark { background: var(--ink); color: var(--lime); }
+.tone-lavender { background: var(--lavender); color: #4b3fa8; }
+.role-pill { border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; }
+.role-admin { background: var(--lavender); color: #4b3fa8; }
+.role-customer { background: #f1f3f8; color: #4b5563; }
+.status-text { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; }
+.status-text i { width: 8px; height: 8px; border-radius: 50%; }
+.verified { color: #4b5563; }
+.verified i { background: #17a34a; }
+.unverified { color: #8a5a00; }
+.unverified i { background: #f4c542; }
+.banner-gap { margin-bottom: 16px; }
+@media (max-width: 860px) { .stats { grid-template-columns: 1fr; } }
 </style>

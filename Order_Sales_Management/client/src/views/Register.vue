@@ -24,7 +24,7 @@ const handleRegister = async () => {
     submitting.value = true
     await api.post('/auth/register', form.value)
     step.value = 2
-    successMsg.value = 'Code sent. In development, read it from server/dev_emails.log.'
+    successMsg.value = 'Code sent. In development, read it from server/logs/dev_emails.log.'
   } catch (err) {
     errorMsg.value = err.response?.data?.error || 'Registration failed'
   } finally {
