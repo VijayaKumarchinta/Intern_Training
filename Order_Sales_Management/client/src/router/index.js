@@ -20,6 +20,7 @@ const routes = [
       { path: 'reports', name: 'Reports', component: () => import('@/views/Reports.vue'), meta: { requiresAdmin: true } },
       { path: 'duplicates', name: 'Duplicates', component: () => import('@/views/Duplicates.vue'), meta: { requiresAdmin: true } },
       { path: 'new-order', name: 'CreateOrder', component: () => import('@/views/CreateOrder.vue'), meta: { requiresAdmin: true } },
+      { path: 'users', name: 'Users', component: () => import('@/views/Users.vue'), meta: { requiresAdmin: true } },
     ]
   }
 ]

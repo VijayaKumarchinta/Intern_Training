@@ -13,7 +13,11 @@ const handleLogin = async () => {
   try {
     errorMsg.value = ''
     await auth.login(email.value, password.value)
-    router.push('/app/orders')
+    if (auth.isAdmin) {
+      router.push('/app/reports')
+    } else {
+      router.push('/app/orders')
+    }
   } catch (err) {
     errorMsg.value = err.response?.data?.error || 'Login failed'
   }

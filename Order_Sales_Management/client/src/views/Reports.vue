@@ -81,12 +81,8 @@ const downloadReport = (type, group = 'month') => {
     <div class="report-actions">
       <h2>Sales Reports</h2>
       <div class="download-buttons">
-        <button @click="downloadReport('product-wise')" class="btn-secondary">
-          📥 Product-wise CSV
-        </button>
-        <button @click="downloadReport('date-wise', 'month')" class="btn-secondary">
-          📥 Date-wise CSV
-        </button>
+        <button @click="downloadReport('product-wise')" class="btn-secondary">📥 Product-wise CSV</button>
+        <button @click="downloadReport('date-wise', 'month')" class="btn-secondary">📥 Date-wise CSV</button>
       </div>
     </div>
 
@@ -108,7 +104,6 @@ const downloadReport = (type, group = 'month') => {
         <h2 class="kpi-value">{{ summary.awaiting_action.toLocaleString() }}</h2>
       </div>
 
-      <!-- Charts -->
       <div class="card chart-main">
         <h3>Revenue by Month</h3>
         <VueApexCharts type="bar" height="280" :options="chartOptions" :series="chartSeries" />
@@ -123,14 +118,17 @@ const downloadReport = (type, group = 'month') => {
 </template>
 
 <style scoped>
-.report-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-.download-buttons {
-  display: flex;
-  gap: 12px;
-}
+.report-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.download-buttons { display: flex; gap: 12px; }
+.dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.kpi-card { padding: 24px; border-radius: var(--radius-card); display: flex; flex-direction: column; gap: 8px; }
+.kpi-title { font-size: 14px; font-weight: 500; }
+.kpi-value { font-size: 32px; font-weight: 700; letter-spacing: -1px; }
+.kpi-purple { background: #E0E7FF; color: #3730A3; }
+.kpi-green { background: #D1FAE5; color: #065F46; }
+.kpi-yellow { background: #FEF3C7; color: #92400E; }
+.kpi-pink { background: #FCE7F3; color: #9D174D; }
+.chart-main { grid-column: span 2; }
+.chart-side { grid-column: span 2; }
+.loading-state, .error-state { padding: 40px; text-align: center; color: var(--text-secondary); }
 </style>

@@ -55,6 +55,7 @@ def register(email, password, full_name, customer_id):
         return None, "Unknown Customer ID"
     if cust.user_id is not None:
         return None, "This Customer ID is already linked to another account"
+    
     if cust.email is not None and normalize_email(cust.email) != email:
         return None, "Customer record does not match your email"
 
@@ -143,8 +144,10 @@ def link_customer(user, customer_id):
     cust = db.session.get(Customer, customer_id)
     if cust is None:
         return False, "Unknown Customer ID"
-    if normalize_email(cust.email) != normalize_email(user.email):
+        
+    if cust.email is not None and normalize_email(cust.email) != normalize_email(user.email):
         return False, "Customer record does not match your email"
+        
     if cust.user_id is not None and cust.user_id != user.id:
         return False, "This Customer ID is already linked to another account"
 

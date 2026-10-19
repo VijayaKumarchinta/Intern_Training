@@ -7,7 +7,7 @@ from ..constants import Role
 customers_bp = Blueprint("customers", __name__, url_prefix="/api/customers")
 
 @customers_bp.get("")
-@auth_required
+@role_required(Role.ADMIN.value)
 def list_customers():
     customers = Customer.query.order_by(Customer.customer_id).all()
     return jsonify(customers=[c.to_dict() for c in customers]), 200
