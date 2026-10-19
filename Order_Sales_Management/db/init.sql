@@ -1,5 +1,6 @@
-BEGIN;
+\c machine_sensor_db
 
+BEGIN;
 DROP SCHEMA IF EXISTS order_sales CASCADE;
 CREATE SCHEMA order_sales;
 
