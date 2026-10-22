@@ -1,6 +1,5 @@
 from flask import Flask, jsonify
 from .config import Config, configure_logging
-from .constants import Role
 from .extensions import db, jwt, mail
 
 def create_app():

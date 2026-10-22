@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from ..models import Customer
 from ..extensions import db
-from ..utils.decorators import auth_required, role_required
+from ..utils.decorators import  role_required
 from ..constants import Role
 
 customers_bp = Blueprint("customers", __name__, url_prefix="/api/customers")

@@ -77,8 +77,6 @@ def delete_user(user_id):
         admin_count = User.query.filter_by(role=Role.ADMIN.value).count()
         if admin_count <= 1:
             return jsonify(error="Cannot delete the last remaining admin"), 400
-
-    # Unlink any customer record so order history isn't lost
     if user.customer:
         user.customer.user_id = None
         db.session.add(user.customer)

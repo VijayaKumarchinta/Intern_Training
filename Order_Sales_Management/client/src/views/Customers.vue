@@ -11,7 +11,6 @@ const showCreate = ref(false)
 const saving = ref(false)
 const search = ref('')
 
-// Link modal state
 const linkingCustomer = ref(null)
 const targetUserId = ref('')
 

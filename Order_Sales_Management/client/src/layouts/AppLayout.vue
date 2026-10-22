@@ -34,7 +34,6 @@ onMounted(() => {
 
 <template>
   <div class="app-shell">
-    <!-- Top Navigation Bar -->
     <header class="top-nav">
       <div class="nav-left">
         <router-link to="/" class="brand">

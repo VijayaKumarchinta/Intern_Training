@@ -26,7 +26,7 @@ const selectedProduct = computed(() =>
 
 const filteredCustomers = computed(() => {
   const term = customerSearch.value.toLowerCase().trim()
-  if (!term) return customers.value.slice(0, 200) // Show first 200 if no search
+  if (!term) return customers.value.slice(0, 200)
   return customers.value.filter(
     (c) =>
       c.customer_id.toLowerCase().includes(term) ||

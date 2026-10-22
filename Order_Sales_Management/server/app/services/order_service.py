@@ -1,6 +1,5 @@
 import re
 from datetime import date
-from decimal import Decimal
 from sqlalchemy import func
 from ..extensions import db
 from ..models import Customer, Order, OrderItem, Product

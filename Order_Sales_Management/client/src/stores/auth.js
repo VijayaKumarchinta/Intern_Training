@@ -25,7 +25,6 @@ export const useAuthStore = defineStore('auth', {
         this.user = res.data
         localStorage.setItem('user', JSON.stringify(this.user))
       } catch (err) {
-        // The response interceptor handles expired sessions.
       }
     },
     logout() {

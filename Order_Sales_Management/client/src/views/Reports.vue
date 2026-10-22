@@ -2,11 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import VueApexCharts from 'vue3-apexcharts'
-import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useSummaryStore } from '@/stores/summary'
-import { formatDate, money, number, percent } from '@/utils/format'
-import Icon from '@/components/Icon.vue'
+import {money, number, percent } from '@/utils/format'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -23,7 +21,6 @@ const greeting = computed(() => {
   return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 })
 
-// Line Chart (Last 12 Months)
 const chartOptions = ref({
   chart: { type: 'area', height: 300, toolbar: { show: false } },
   colors: ['#2f5bff'],
@@ -40,7 +37,6 @@ const duplicates = computed(() => summary.value.duplicate_groups || [])
 onMounted(async () => {
   try {
     await summaryStore.fetch(true)
-    // Limit to last 12 months for Dashboard
     const monthly = (summary.value.monthly_breakdown || []).slice(-12)
     chartOptions.value.xaxis.categories = monthly.map((m) => m.period.slice(0, 7))
     chartSeries.value[0].data = monthly.map((m) => m.revenue)
@@ -64,7 +60,6 @@ onMounted(async () => {
     <div v-if="loading" class="loading">Loading dashboard...</div>
     
     <div v-else class="grid">
-      <!-- 4 KPI Cards -->
       <div class="kpi-card dark">
         <span class="kpi-label">Revenue</span>
         <span class="kpi-value">{{ money(summary.revenue) }}</span>
@@ -84,13 +79,11 @@ onMounted(async () => {
         <span class="kpi-sub">{{ number(summary.awaiting_action) }} open queue</span>
       </div>
 
-      <!-- Line Chart (Full Width) -->
       <div class="card span-3">
         <h2>Revenue Over Time (Last 12 Months)</h2>
         <VueApexCharts type="area" height="300" :options="chartOptions" :series="chartSeries" />
       </div>
 
-      <!-- Latest Orders (Span 2) -->
       <div class="card span-2">
         <h2>Latest Orders</h2>
         <table class="data-table">
@@ -108,7 +101,6 @@ onMounted(async () => {
         </table>
       </div>
 
-      <!-- Duplicate Alert (Span 1) -->
       <div class="card duplicate-card" v-if="duplicates.length">
         <h2>Duplicate Alert</h2>
         <p class="dup-text">{{ duplicates.length }} group(s) of duplicate orders found.</p>
