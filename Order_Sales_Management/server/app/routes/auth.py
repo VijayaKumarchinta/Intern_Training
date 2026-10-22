@@ -1,7 +1,6 @@
 from flask import Blueprint, g, jsonify, request
 from ..services.auth_service import (
     forgot_password,
-    link_customer,
     login,
     register,
     resend_verification_code,
@@ -12,8 +11,10 @@ from ..utils.decorators import auth_required
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
+
 def _json():
     return request.get_json(silent=True) or {}
+
 
 @auth_bp.post("/register")
 def register_route():
@@ -33,26 +34,30 @@ def register_route():
         is_verified=False,
     ), 201
 
+
 @auth_bp.post("/verify")
 def verify_route():
     body = _json()
-    user, err = verify_email(body.get("email"), body.get("code"))
+    user, err = verify_email(
+        body.get("email"),
+        body.get("code"),
+        body.get("customer_id"),
+    )
     if err:
         return jsonify(error=err), 400
+    return jsonify(
+        message="Email verified",
+        user_id=user.id,
+        is_verified=True,
+    ), 200
 
-    customer_id = body.get("customer_id")
-    if customer_id:
-        ok, err = link_customer(user, customer_id)
-        if not ok:
-            return jsonify(error=err), 409
-
-    return jsonify(message="Email verified", user_id=user.id, is_verified=True), 200
 
 @auth_bp.post("/resend-verification")
 def resend_route():
     body = _json()
     resend_verification_code(body.get("email"))
     return jsonify(message="If the email needs verification, a new code was sent"), 200
+
 
 @auth_bp.post("/login")
 def login_route():
@@ -65,11 +70,13 @@ def login_route():
         user=result["user"].to_dict(),
     ), 200
 
+
 @auth_bp.post("/forgot-password")
 def forgot_route():
     body = _json()
     forgot_password(body.get("email"))
     return jsonify(message="If the email exists, a reset link was sent"), 200
+
 
 @auth_bp.post("/reset-password")
 def reset_route():
@@ -78,6 +85,7 @@ def reset_route():
     if not ok:
         return jsonify(error=err), 400
     return jsonify(message="Password reset successful"), 200
+
 
 @auth_bp.get("/me")
 @auth_required

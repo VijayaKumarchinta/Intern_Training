@@ -1,6 +1,7 @@
 import logging
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import or_
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 from ..constants import Role
 from ..models import Customer, Order
@@ -79,6 +80,7 @@ def list_orders():
             )
         )
 
+    q = q.options(joinedload(Order.items)).options(joinedload(Order.customer))
     q = q.order_by(Order.order_date.desc(), Order.order_id.desc())
 
     page = max(request.args.get("page", 1, type=int), 1)

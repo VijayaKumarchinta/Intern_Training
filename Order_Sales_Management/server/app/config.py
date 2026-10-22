@@ -10,6 +10,7 @@ _env_name = os.getenv("FLASK_ENV", "development")
 _env_file = ".env.test" if _env_name == "test" else ".env"
 load_dotenv(os.path.join(BASE_DIR, _env_file))
 
+
 def configure_logging(app):
     log_dir = os.path.join(BASE_DIR, "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -42,6 +43,7 @@ def configure_logging(app):
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         app.logger.info("Server ready")
 
+
 class Config:
     DATABASE_URL = os.getenv("DATABASE_URL")
     if not DATABASE_URL:
@@ -63,16 +65,17 @@ class Config:
     }
 
     JWT_SECRET_KEY = SECRET_KEY
-    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS")) * 3600
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_HOURS", "24")) * 3600
 
-    MAIL_SERVER = os.getenv("MAIL_SERVER")
-    MAIL_PORT = int(os.getenv("MAIL_PORT"))
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS").lower() == "true"
+    MAIL_SERVER = os.getenv("MAIL_SERVER", "localhost")
+    MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
+    MAIL_USERNAME = os.getenv("MAIL_USERNAME", "")
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
+    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
+    MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "no-reply@example.com")
 
-    DB_SCHEMA = os.getenv("DB_SCHEMA")
+    DB_SCHEMA = os.getenv("DB_SCHEMA", "order_sales")
 
-    VERIFY_TTL_MINUTES = int(os.getenv("VERIFY_TTL_MINUTES"))
-    VERIFY_MAX_ATTEMPTS = int(os.getenv("VERIFY_MAX_ATTEMPTS"))
-    RESET_TTL_HOURS = int(os.getenv("RESET_TTL_HOURS"))
+    VERIFY_TTL_MINUTES = int(os.getenv("VERIFY_TTL_MINUTES", "2"))
+    VERIFY_MAX_ATTEMPTS = int(os.getenv("VERIFY_MAX_ATTEMPTS", "3"))
+    RESET_TTL_HOURS = int(os.getenv("RESET_TTL_HOURS", "1"))

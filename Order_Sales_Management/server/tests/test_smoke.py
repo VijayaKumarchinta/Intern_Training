@@ -1,4 +1,4 @@
-﻿def test_fixtures_load(client, admin_headers, customer_headers, sample_product):
+def test_fixtures_load(client, admin_headers, customer_headers, sample_product):
     # Just prove the plumbing works
     assert client is not None
     assert "Authorization" in admin_headers
