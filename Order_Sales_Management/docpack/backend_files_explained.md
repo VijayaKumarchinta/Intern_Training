@@ -1,6 +1,6 @@
 # Backend Files Explained — OrderSalesManagement (OrderSync)
 
-All paths are relative to `Order_Sales_Management/server/app/`. The Flask app factory is created by `server/run.py` with `from app import create_app`. Tests live under `server/app/tests/` and are run with `pytest`.
+All paths are relative to `Order_Sales_Management/server/app/`. The Flask app factory is created by `server/run.py` with `from app import create_app`. Tests live under `server/tests/` and are run with `pytest`.
 
 ---
 
@@ -59,7 +59,7 @@ All paths are relative to `Order_Sales_Management/server/app/`. The Flask app fa
   - `CUSTOMER = "customer"`
 - `Role.values()` → `{ "admin", "customer" }`.
 - `Role.is_valid(value)` → checks membership.
-- **Role:** single source of truth for role strings used in decorators, guards, and validation. Using an enum avoids duplicate `"admin"` / `"customer"` strings scattered across routes.
+- **Role:** single source of truth for role strings used in decorators, guards, and validation. Using an enum avoids duplicate `\"admin\"` / `\"customer\"` strings scattered across routes.
 
 ---
 
@@ -126,7 +126,7 @@ All paths are relative to `Order_Sales_Management/server/app/`. The Flask app fa
   - `customer_id` — FK to `customers.customer_id`, not null.
   - `order_date` — `Date`.
   - `order_status` — `String(20)`, default `Pending`; DB check constraint restricts to valid statuses.
-  - `created_at` / `updated_at` — UTC timestamps (DB trigger updates `updated_at`).
+  - `created_at` / `updated_at` — UTC timestamps.
 - `to_dict(include_items=False)` → order fields; when `include_items=True`, also includes line items.
 - Relationship: `items` → `OrderItem` (ordered by ID).
 
@@ -141,7 +141,6 @@ All paths are relative to `Order_Sales_Management/server/app/`. The Flask app fa
   - `unit_price` — `Numeric(12,2)`, not null, DB check `unit_price >= 0`.
   - Unique `(order_id, product_id)` — a product can appear only once per order.
 - `to_dict()` returns `order_item_id`, `order_id`, `product_id`, `product_name`, `quantity`, `unit_price`, `line_total`.
-
 - **Role:** defines the data model and JSON serialization only. Business rules live in `services/`.
 
 ---
@@ -296,6 +295,7 @@ All paths are relative to `Order_Sales_Management/server/app/`. The Flask app fa
 ### `validate_order_payload(payload)`
 
 Returns a list of errors:
+
 - `order_id` must match `ORD####`.
 - `order_date` must be parseable as `YYYY-MM-DD`.
 - `customer_id` must match `C####` and exist.
@@ -517,6 +517,83 @@ Returns a list of errors:
 
 ---
 
+## 27. `tests/conftest.py` — test fixtures and DB plumbing
+
+- Forces `FLASK_ENV=test` before importing app.
+- App fixture: `create_app()` with `TESTING=True`.
+- Session-scoped autouse fixture seeds products once per session.
+- Autouse per-test fixture truncates `order_sales.order_items`, `orders`, `customers`, `users` (with `RESTART IDENTITY CASCADE`); products survive.
+- `sample_product` returns the seeded product.
+- `_make_user(...)` creates users plus linked customers with `customer_id`.
+- `_login(client, email, password)` helper.
+- Fixtures: `admin_user`, `customer_user`, `other_customer`, `sample_order`, `other_customer_order`, plus token/headers.
+
+---
+
+## 28. `tests/test_auth.py`
+
+Covers registration, OTP verification, login, password reset, and the loyalty-card ownership model:
+
+- Registration with/without `customer_id`, email/cust mismatch, unknown customer, already-linked.
+- OTP attempts, expiry, wrong code.
+- Unverified login, generic 401.
+- Forgot/reset token lifecycle and `token_version` bump.
+
+---
+
+## 29. `tests/test_orders.py`
+
+Covers order creation, validation, status transitions, pagination, and duplicates.
+
+- Admin create with/without client price, forbidden values, duplicate product, duplicate `order_id`.
+- Status machine: valid flow, terminal-state lock, invalid transition.
+- List filters, pagination, status filter, search.
+- Duplicate detection endpoint.
+
+---
+
+## 30. `tests/test_permissions.py`
+
+RBAC regression tests:
+
+- Health/root public, auth required, malformed tokens.
+- Customer blocked from reports, duplicates, order creation, status updates.
+- Admin can access reports and duplicates.
+- Customer-only order visibility; customer `customer_id` filter rules.
+- Order `404` vs `200` for owner vs other customer.
+- Token version bump revokes tokens; new login works.
+- Role cannot be forged via JWT.
+- Deleted user token returns `401`.
+
+---
+
+## 31. `tests/test_pricing.py`
+
+Server-side pricing enforcement:
+
+- Creates an order with a client `unit_price` and asserts the stored item price equals `products.current_price`.
+- Order without `unit_price` succeeds.
+- Wildly inflated `unit_price` is ignored.
+
+---
+
+## 32. `tests/test_reports.py`
+
+Report accuracy:
+
+- Only Shipped/Delivered count toward revenue; assertions for `units_sold`, `sales_orders`, `product_breakdown`.
+- Summary contains all sections: KPIs, latest orders, duplicate groups, product and monthly breakdowns.
+- Empty DB returns zeros and empty arrays.
+
+---
+
+## 33. `tests/test_smoke.py`
+
+- Plumbing checks: fixtures, admin/customer headers, seeded product.
+- App uses the test database (`order_sales_test_db`).
+
+---
+
 # Backend summary
 
 ## Layers
@@ -533,7 +610,7 @@ Returns a list of errors:
 
 ## Key design decisions
 
-- **Single source of truth:** `constants.Role` replaces string literals like `"admin"` / `"customer"` across routes, decorators, and tests.
+- **Single source of truth:** `constants.Role` replaces string literals like `\"admin\"` / `\"customer\"` across routes, decorators, and tests.
 - **Auth:** JWTs only carry `user.id` plus a `token_version` claim; roles and name/email are reloaded from the DB per request.
 - **Ownership:** customer routes show only orders whose `customers.user_id` matches the caller; cross-tenant access returns `404`, not `403`, to avoid order-ID leakage.
 - **Pricing:** `products.current_price` is the server-side price; client-sent prices are ignored in order creation.
@@ -548,7 +625,6 @@ Returns a list of errors:
 - Test suite:
   ```powershell
   cd Order_Sales_Management/server
-  . ../../.venv/Scripts/activate
-  python -m pytest tests/ -v
+  python -m pytest tests/ -q
   ```
-- Result verified: **82 passed**
+- Result verified: **84 passed**

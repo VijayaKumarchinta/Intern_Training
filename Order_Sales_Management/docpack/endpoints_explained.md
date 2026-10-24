@@ -839,4 +839,4 @@ Run from `Order_Sales_Management/server`:
 . ../../.venv/Scripts/activate
 python -m pytest tests/ -v
 ```
-Result verified: **82 passed**.
+Result verified: **84 passed**.

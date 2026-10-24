@@ -4,6 +4,8 @@ This file shows the exact files, functions, and lines where the Vue frontend and
 
 All paths are relative to the repository root `Order_Sales_Management/`.
 
+---
+
 ## 1. Global communication contract
 
 ### Request path
@@ -108,11 +110,14 @@ Browser
   -> client/src/services/api.js        (response)
   -> client/src/stores/auth.js         (save token/user)
   -> client/src/router/index.js        (guards allow access to /app routes)
+```
 
 Every later request follows the same path:
-  /api/orders  -> client/src/views/Orders.vue -> client/src/services/api.js -> Vite proxy -> server/app/routes/orders.py
-  /api/reports -> client/src/views/Reports.vue -> client/src/services/api.js -> Vite proxy -> server/app/routes/reports.py
-  /api/products-> client/src/views/Products.vue -> client/src/services/api.js -> Vite proxy -> server/app/routes/products.py
+
+```text
+/api/orders  -> client/src/views/Orders.vue -> client/src/services/api.js -> Vite proxy -> server/app/routes/orders.py
+/api/reports -> client/src/views/Reports.vue -> client/src/services/api.js -> Vite proxy -> server/app/routes/reports.py
+/api/products -> client/src/views/Products.vue -> client/src/services/api.js -> Vite proxy -> server/app/routes/products.py
 ```
 
 ---
@@ -208,7 +213,7 @@ Every later request follows the same path:
 
 ## 6. Why this setup is used here
 
-- `-` Separation of concerns: Vue only knows the API, Flask never touches the browser.
-- `-` Vite proxy allows development on `localhost:5173` while the API runs on `localhost:5000`, with no CORS or absolute-host config needed in dev.
-- `-` JWTs are sent automatically, so components only call `api.get('/orders')` instead of managing headers manually.
-- `-` Service files contain the business rules; routes contain request/response handling only.
+- Separation of concerns: Vue only knows the API, Flask never touches the browser.
+- Vite proxy allows development on `localhost:5173` while the API runs on `localhost:5000`, with no CORS or absolute-host config needed in dev.
+- JWTs are sent automatically, so components only call `api.get('/orders')` instead of managing headers manually.
+- Service files contain the business rules; routes contain request/response handling only.

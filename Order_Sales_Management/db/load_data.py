@@ -19,6 +19,11 @@ load_dotenv(SERVER_DIR / ".env")
 from app import create_app
 from app.extensions import db
 from app.models import Customer, Order, OrderItem, Product
+from app.services.order_service import VALID_STATUSES
+
+
+
+DATE_OPTIONAL_FOR = {"Cancelled", "Returned"}
 
 
 def _to_decimal(s):
@@ -58,14 +63,15 @@ def import_csv():
             for lineno, row in enumerate(reader, start=2):
                 stats["rows"] += 1
                 try:
-                    qty_raw    = _first(row, "Quantity", "Qty")
-                    price_raw  = _first(row, "UnitPrice", "Unit Price", "Price")
-                    prod_name  = _first(row, "Product", "ProductName", "Product Name")
-                    cust_id    = _first(row, "CustomerID", "Customer ID", "CustomerId")
-                    order_id   = _first(row, "OrderID", "Order ID", "OrderId")
-                    order_date = _first(row, "OrderDate", "Order Date", "Date")
-                    cust_name  = _first(row, "CustomerName", "Customer Name", "Name") or cust_id
-                    cust_email = _first(row, "Email", "CustomerEmail", "Customer Email") or None
+                    qty_raw     = _first(row, "Quantity", "Qty")
+                    price_raw   = _first(row, "UnitPrice", "Unit Price", "Price")
+                    prod_name   = _first(row, "Product", "ProductName", "Product Name")
+                    cust_id     = _first(row, "CustomerID", "Customer ID", "CustomerId")
+                    order_id    = _first(row, "OrderID", "Order ID", "OrderId")
+                    order_date  = _first(row, "OrderDate", "Order Date", "Date")
+                    status_raw  = _first(row, "OrderStatus", "Order Status", "Status")
+                    cust_name   = _first(row, "CustomerName", "Customer Name", "Name") or cust_id
+                    cust_email  = _first(row, "Email", "CustomerEmail", "Customer Email") or None
 
                     if not prod_name or not cust_id or not order_id:
                         raise ValueError("missing Product / CustomerID / OrderID")
@@ -83,6 +89,16 @@ def import_csv():
                     od = _to_date(order_date) if order_date else None
                     if order_date and od is None:
                         raise ValueError(f"invalid date {order_date!r}")
+
+                    if not status_raw:
+                        raise ValueError("missing OrderStatus")
+                    if status_raw not in VALID_STATUSES:
+                        raise ValueError(f"invalid status {status_raw!r} (allowed: {sorted(VALID_STATUSES)})")
+                    if od is None and status_raw not in DATE_OPTIONAL_FOR:
+                        raise ValueError(
+                            f"date required for status {status_raw!r} "
+                            f"(only {sorted(DATE_OPTIONAL_FOR)} may omit it)"
+                        )
 
                     prod = seen_products.get(prod_name)
                     if prod is None:
@@ -107,7 +123,7 @@ def import_csv():
                             order_id=order_id,
                             customer_id=cust_id,
                             order_date=od,
-                            order_status="Pending",
+                            order_status=status_raw,   
                         )
                         db.session.add(order)
                         db.session.flush()
@@ -123,7 +139,7 @@ def import_csv():
                             order_id=order_id,
                             product_id=prod.product_id,
                             quantity=qty,
-                            unit_price=prod.current_price or price,
+                            unit_price=price,
                         ))
 
                     db.session.commit()
@@ -141,7 +157,6 @@ def import_csv():
         print(f"Rejected:    {stats['rejected']}")
         print("=" * 60)
         return 0 if stats["rejected"] == 0 else 2
-
 
 if __name__ == "__main__":
     sys.exit(import_csv())

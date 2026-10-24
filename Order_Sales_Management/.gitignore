@@ -1,5 +1,4 @@
-$gitignore = @'
-# Environment
+﻿# Environment
 .env
 .env.test
 .venv/
@@ -10,6 +9,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.log
+.ruff_cache/
 
 # Node
 node_modules/
@@ -24,7 +24,20 @@ dist-ssr/
 .idea/
 .DS_Store
 
+# Logs
 logs/
 dev_emails.log
-'@
-[System.IO.File]::WriteAllText("$PWD\.gitignore", $gitignore, [System.Text.UTF8Encoding]::new($false))
+
+# Backups
+_backup_*/
+
+# Generated dumps
+all_code.txt
+dump_code.py
+
+dist-zips/
+
+db/*_backup.sql
+
+server/.env
+server/.env.test

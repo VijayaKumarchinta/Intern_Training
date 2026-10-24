@@ -42,18 +42,6 @@ def _reset_ttl_hours():
 
 
 def _check_customer_ownership(customer_id, email, current_user_id=None):
-    """
-    Validate that the caller may claim this customer_id.
-
-    Returns (cust, error_message).
-
-    Rules (in order):
-      1. Customer must exist.
-      2. If already linked to a *different* user -> reject.
-      3. If already linked to *this* user -> allow (idempotent).
-      4. Customer must have an email on file (NULL -> reject; legacy/imported).
-      5. That email must exactly match the registering email.
-    """
     customer_id = (customer_id or "").strip().upper()
     if not customer_id:
         return None, "customer_id is required"
@@ -78,13 +66,6 @@ def _check_customer_ownership(customer_id, email, current_user_id=None):
 
 
 def register(email, password, full_name, customer_id=None):
-    """
-    Register a new user account (with optional loyalty customer_id).
-
-    The customer is NOT linked at register time — that happens after OTP
-    verification succeeds, so an attacker cannot bind a customer ID to an
-    account before proving they control the corresponding inbox.
-    """
     email = normalize_email(email)
     full_name = (full_name or "").strip()
     customer_id = (customer_id or "").strip().upper() or None
@@ -99,8 +80,6 @@ def register(email, password, full_name, customer_id=None):
     if User.query.filter(db.func.lower(User.email) == email).first():
         return None, "Email already registered"
 
-    # Pre-validate the customer claim so we never send an OTP for a
-    # doomed registration (bad ID, wrong email, already linked, no email).
     if customer_id is not None:
         _cust, err = _check_customer_ownership(customer_id, email, current_user_id=None)
         if err:
@@ -126,10 +105,6 @@ def register(email, password, full_name, customer_id=None):
 
 
 def verify_email(email, code, customer_id=None):
-    """
-    Verify a user's email with an OTP. If customer_id is supplied, link the
-    customer to the user *after* OTP validation succeeds.
-    """
     email = normalize_email(email)
     code = (code or "").strip()
     customer_id = (customer_id or "").strip().upper() or None
@@ -156,13 +131,11 @@ def verify_email(email, code, customer_id=None):
         db.session.commit()
         remaining = max_attempts - user.verification_attempts
         return None, f"Invalid code ({remaining} attempts remaining)"
-
-    # OTP is correct. Now perform the ownership check + link if requested.
+    
     if customer_id is not None:
         cust, err = _check_customer_ownership(customer_id, email, current_user_id=user.id)
         if err:
-            # OTP was correct, but the claim is invalid. Mark verified,
-            # do NOT link, and tell the caller what went wrong.
+
             user.is_verified = True
             user.verification_token_hash = None
             user.verification_expires_at = None

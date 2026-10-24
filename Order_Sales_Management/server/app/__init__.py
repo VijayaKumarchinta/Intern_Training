@@ -1,6 +1,12 @@
 from flask import Flask, jsonify
 from .config import Config, configure_logging
 from .extensions import db, jwt, mail
+from .routes.auth import auth_bp
+from .routes.orders import orders_bp
+from .routes.reports import reports_bp
+from .routes.products import products_bp
+from .routes.customers import customers_bp
+from .routes.users import users_bp
 
 def create_app():
     app = Flask(__name__)
@@ -23,13 +29,6 @@ def create_app():
     @jwt.expired_token_loader
     def expired_token(jwt_header, jwt_payload):
         return jsonify(error="Token expired"), 401
-
-    from .routes.auth import auth_bp
-    from .routes.orders import orders_bp
-    from .routes.reports import reports_bp
-    from .routes.products import products_bp
-    from .routes.customers import customers_bp
-    from .routes.users import users_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(orders_bp)

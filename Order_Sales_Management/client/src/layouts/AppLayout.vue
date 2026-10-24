@@ -27,8 +27,23 @@ const handleLogout = () => {
   router.replace('/login')
 }
 
-onMounted(() => {
-  auth.fetchMe()
+const enforceRoleForCurrentRoute = () => {
+  if (route.meta.requiresAdmin && !auth.isAdmin) {
+    router.replace('/app/orders')
+    return
+  }
+  if (route.name === 'Orders' && !auth.isAdmin) {
+    router.replace('/app/my-orders')
+    return
+  }
+  if (route.name === 'MyOrders' && auth.isAdmin) {
+    router.replace('/app/orders')
+  }
+}
+
+onMounted(async () => {
+  await auth.fetchMe(true)  
+  enforceRoleForCurrentRoute()
 })
 </script>
 
@@ -40,7 +55,7 @@ onMounted(() => {
           <span class="brand-mark"><Icon name="layers" :size="20" :stroke-width="2.5" /></span>
           <span class="brand-name">OrderSync</span>
         </router-link>
-        
+
         <nav class="nav-links" aria-label="Main navigation">
           <router-link
             v-for="link in visibleLinks()"
@@ -59,14 +74,13 @@ onMounted(() => {
           <span class="role-badge">{{ auth.user?.role || 'Admin' }}</span>
           <div class="avatar">{{ (auth.user?.full_name || 'A').charAt(0).toUpperCase() }}</div>
         </div>
-        
+
         <button class="logout-btn" title="Log out" @click="handleLogout">
           <Icon name="logout" :size="18" />
         </button>
       </div>
     </header>
 
-    <!-- Main Content -->
     <main class="app-main">
       <router-view />
     </main>

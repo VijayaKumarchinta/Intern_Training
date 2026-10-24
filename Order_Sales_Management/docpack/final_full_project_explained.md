@@ -40,7 +40,7 @@ The app supports:
 
 ## 3. Architecture
 
-```
+```text
 Browser
   -> Vue SPA
     -> Pinia stores
@@ -93,10 +93,11 @@ The app connects to this schema at startup. The app does **not** create or drop 
 - `users.email` is unique case-insensitively (`LOWER(email)`).
 - Passwords, verification tokens, and reset tokens are stored only as hashes.
 - `order_items.unit_price` preserves the price charged at purchase time.
-- `products.current_price` is optional catalog data; it is **not** used to rewrite history.
+- `products.current_price` is optional catalog data; it is the server-side price used for new orders.
 - New-order prices come from the server (`products.current_price`), never from the browser.
 - `orders.order_status` is restricted to a fixed set; the app enforces legal transitions.
 - Sales reports count only `Shipped` + `Delivered` orders for revenue.
+- Reports use `order_items.unit_price` (historic price), not `products.current_price`.
 
 ---
 
@@ -113,16 +114,16 @@ The app connects to this schema at startup. The app does **not** create or drop 
   - Requires an existing customer ID.
   - Creates a `User` with `role='customer'`, `is_verified=FALSE`, `token_version=0`, and a hashed 6-digit OTP.
   - Sends the OTP via the dev email log.
+- Response: `201` with `{ message: "Verification code sent", user_id, email, is_verified: false }`.
 
 #### 2. Verify email (public)
 
-- Submit the 6-digit OTP.
+- Submit the 6-digit OTP and optional `customer_id`.
 - Server checks:
-  - Unknown email → `"Invalid code"`
-  - Already verified
-  - Missing or expired token
+  - Unknown email → `\"Invalid code\"`
+  - Missing/expired token
   - Attempt limits (returns remaining attempts on failure)
-- On success sets `is_verified=True` and clears OTP state.
+- On success sets `is_verified=True`, clears OTP state, and links the customer if supplied.
 
 #### 3. Login (public)
 
@@ -139,10 +140,9 @@ The app connects to this schema at startup. The app does **not** create or drop 
 - Request a reset link via email.
 - Submit token + new password.
 - Server:
-  - Finds user by hashed token.
-  - Rejects unknown/expired/inactive tokens.
+  - Finds user by hashed token; rejects unknown/expired/inactive tokens.
   - Validates the new password.
-  - Replaces password hash and increments `token_version`, invalidating old tokens.
+  - On success: replaces password hash, clears reset/verification state, and increments `token_version`, invalidating old JWTs.
 
 ### Role and ownership
 
@@ -191,7 +191,7 @@ Server rules:
 - Product must exist and have a price.
 - No duplicate product within the same order.
 - `order_status` optional; default `Pending`.
-- Server uses `products.current_price` for all line items. Client prices are ignored.
+- Server uses `products.current_price` for all line items. Client `unit_price` is ignored.
 
 Result: order created as `Pending`, with line items and a server-side calculated total.
 
@@ -241,6 +241,7 @@ Response:
 
 - Admin-only endpoint.
 - UI lets the admin cancel one copy (moves it to `Cancelled`) while keeping the other record.
+- Matching rows do not prove a duplicate; a customer may legitimately buy the same product twice.
 
 ---
 
@@ -249,7 +250,6 @@ Response:
 - Revenue counts orders with `order_status` `Shipped` + `Delivered` only.
 - Report totals use `order_items.unit_price` (historic price), not `products.current_price`.
 - `GET /api/reports/summary` returns:
-
   - KPIs: `revenue`, `sales_orders`, `units_sold`, `awaiting_action`, `total_orders`
   - `status_breakdown`
   - `latest_orders`
@@ -257,8 +257,16 @@ Response:
   - `product_breakdown`
   - `monthly_breakdown`
 
-- `GET /api/reports/product-wise` (`format=csv`) → CSV.
-- `GET /api/reports/date-wise` (`group=day|month`, `format=csv`) → CSV.
+### Endpoints
+
+| Endpoint | Auth | Query / format |
+|---|---|---|
+| `GET /api/reports/summary` | Admin | JSON |
+| `GET /api/reports/product-wise?format=csv` | Admin | JSON or CSV |
+| `GET /api/reports/date-wise?group=day|month&format=csv` | Admin | JSON or CSV |
+
+- CSV headers: `Product, Items Sold, Units Sold, Revenue (INR)` and `Period (<group>), Orders, Units Sold, Revenue (INR)`.
+- Revenue is formatted with two decimals.
 
 ---
 
@@ -310,6 +318,7 @@ Response:
   - `money(value)` → ₹ formatting
   - `number(value)`
   - `percent(part, whole)`
+  - `percentLabel(part, whole)`
   - `formatDate(iso)`
   - `initials(name)`
 
@@ -460,11 +469,10 @@ Response:
 Run from `Order_Sales_Management/server`:
 
 ```powershell
-. ../../.venv/Scripts/activate
-python -m pytest tests/ -v
+python -m pytest tests/ -q
 ```
 
-Result verified: **82 passed**
+Result verified: **84 passed**
 
 Test areas:
 
@@ -480,11 +488,12 @@ Test areas:
 ## 13. Verification performed
 
 - Backend dependency resolution: passed.
-- Test suite: **82 passed** (auth, permissions, pricing, reports, order workflow, smoke).
+- Test suite: **84 passed** (auth, permissions, pricing, reports, order workflow, smoke).
 - Source files for this documentation were read from all `server/app/**/*.py` and all `client/src/**/*` Vue/JS/CSS files.
+- No client-side build or live API ran in this environment (no local database process and no browser), so frontend runtime behavior and DB integration are not covered by an automated check here.
 
 ---
 
 # Final one-paragraph summary
 
-**OrderSalesManagement** is a Vue 3 + Flask + PostgreSQL order and sales management app with a clean three-layer architecture (Vue SPA → Flask REST API → PostgreSQL `order_sales` schema). The frontend handles public auth (`Landing`, `Login`, `Register`, `ForgotPassword`, `ResetPassword`), customer views (`MyOrders`), and admin panels (`Orders`, `CreateOrder`, `OrderDetail`, `Products`, `Customers`, `Users`, `Reports`, `Duplicates`, `Totals`) through Pinia stores, Vue Router with role guards, and an Axios client that attaches JWTs. The backend enforces JWT and role checks, customer ownership rules (customers only see their own orders), strict state-machine status transitions, server-side pricing, validation, and duplicate detection, then serves JSON plus CSV reports and a dashboard summary. Email verification and password reset work through hashed OTP/reset tokens, with dev-only email sim that writes to `server/logs/dev_emails.log`. The whole backend is covered by a passing pytest suite (`82 passed`), and the documented files in `docpack/` explain every frontend file, every endpoint, and every backend layer.
+**OrderSalesManagement** is a Vue 3 + Flask + PostgreSQL order and sales management app with a clean three-layer architecture (Vue SPA → Flask REST API → PostgreSQL `order_sales` schema). The frontend handles public auth (`Landing`, `Login`, `Register`, `ForgotPassword`, `ResetPassword`), customer views (`MyOrders`), and admin panels (`Orders`, `CreateOrder`, `OrderDetail`, `Products`, `Customers`, `Users`, `Reports`, `Duplicates`, `Totals`) through Pinia stores, Vue Router with role guards, and an Axios client that attaches JWTs. The backend enforces JWT and role checks, customer ownership rules (customers only see their own orders), strict state-machine status transitions, server-side pricing, validation, and duplicate detection, then serves JSON plus CSV reports and a dashboard summary. Email verification and password reset work through hashed OTP/reset tokens, with dev-only email sim that writes to `server/logs/dev_emails.log`. The whole backend is covered by a passing pytest suite (**84 passed**), and the documented files in `docpack/` explain every frontend file, every endpoint, and every backend layer.
