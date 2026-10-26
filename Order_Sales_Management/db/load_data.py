@@ -1,4 +1,3 @@
-"""db/load_data.py - Import CSV into machine_sensor_db (per-row commit)."""
 import csv
 import sys
 from datetime import date
@@ -21,10 +20,7 @@ from app.extensions import db
 from app.models import Customer, Order, OrderItem, Product
 from app.services.order_service import VALID_STATUSES
 
-
-
 DATE_OPTIONAL_FOR = {"Cancelled", "Returned"}
-
 
 def _to_decimal(s):
     try:
@@ -32,13 +28,11 @@ def _to_decimal(s):
     except (InvalidOperation, TypeError, ValueError):
         return None
 
-
 def _to_date(s):
     try:
         return date.fromisoformat(str(s).strip())
     except (TypeError, ValueError):
         return None
-
 
 def _first(row, *keys):
     for k in keys:
@@ -46,7 +40,6 @@ def _first(row, *keys):
         if v is not None and str(v).strip() != "":
             return str(v).strip()
     return ""
-
 
 def import_csv():
     if not CSV_PATH.exists():

@@ -103,7 +103,6 @@ def register(email, password, full_name, customer_id=None):
     log.info("Register: user=%s customer=%s", user.id, customer_id)
     return user, None
 
-
 def verify_email(email, code, customer_id=None):
     email = normalize_email(email)
     code = (code or "").strip()

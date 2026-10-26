@@ -1,6 +1,6 @@
 DO $$
 BEGIN
-  IF current_database() NOT IN ('order_sales', 'machine_sensor_db') THEN
+  IF current_database() NOT IN ('intern_training_db') THEN
   RAISE EXCEPTION 'Wrong database: %', current_database();
 END IF;
 END $$;
