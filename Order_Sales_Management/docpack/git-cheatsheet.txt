@@ -1,0 +1,18 @@
+:: "Is my .env tracked?"
+git ls-files "*.env*"
+
+:: "Did I accidentally commit a secret?"
+git log --all --oneline -S "some_secret_string"
+
+:: "What's in my working tree?"
+git status
+
+:: "What did I just commit?"
+git show --stat HEAD
+
+:: "Undo the last commit (keep changes)"
+git reset --soft HEAD~1
+
+:: "Undo the last commi
+t (discard changes)"
+git reset --hard HEAD~1
