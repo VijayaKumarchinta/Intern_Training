@@ -7,7 +7,7 @@
   - Python with 3.11+ version helps us to run the backend
   - Node.js with 18+ version helps us to run/build the frontend
 
-## Phase-1 ## - DB configuration(db/init.sql)
+## Phase-1 - DB configuration(db/init.sql)
 
 - Now first make sure you setup the db setup with proper db credentials,schema, tables
   - According to my setup design:
@@ -26,31 +26,24 @@
         - Constraints w.r.t the order_status
   - After designing all this Run and setup the db using this this cmd
 
-  ```
-  psql -U postgres -f db/init.sql
-  ```
+  ```psql -U postgres -f db/init.sql```
 
-## Phase-2 ## - Backend Configuration(server/.env)
+## Phase-2 - Backend Configuration(server/.env)
 
 - the config class which is in app will read this file via dotenv module so we able to connect to the correct db
 - File path:server/app/config
 
-## Phase-3 ## - First admin bootstrap(server/manage.py)
+## Phase-3 - First admin bootstrap(server/manage.py)
 
 - To set up the admin we can directly run
 
-    ```
-    flask --app manage create-admin
-    ```
+    ```flask --app manage create-admin```
 
 This will insert a user with role admin while being is_verified as true and token_version=0
 
-## Phase-4 ## - importing of the data(db/load_data.py)
+## Phase-4 - importing of the data(db/load_data.py)
 
-```
-python "db/load_data.py" --csv data/Online_Store_Orders.csv --dry-run
-we can drop --dry-run later 
-```
+```python "db/load_data.py" --csv data/Online_Store_Orders.csv --dry-run```
 
 - The Pipeline is:
   - reads the csv file that contain columns
@@ -59,7 +52,7 @@ we can drop --dry-run later
   - can create customers and products later on if we need anything to add
   - can insert items and orders through frontend later on
 
-## Phase-5 ## - Backend process starts(server/run.py)
+## Phase-5 - Backend process starts(server/run.py)
 
 ``` python server/run.py → create_app() → Load credentials & validate environment → Configure logging (logs/app.log) → Initialize extensions (DB, JWT, Email, Password Hashing) → Register JWT error handlers (Invalid, Missing, Expired Token → 401) → Register Blueprints (Auth, Orders, Customers, Products, Users, Reports) → Register health-check routes (/ and /health) → Application Ready ```
 
@@ -73,7 +66,7 @@ we can drop --dry-run later
     - Finally will register the health checks ("/","/health")
     - Flask will listen on port number 5000 while enable the debug state as true which allows us to reload on file changes
 
-## Phase-6 ## - Frontend process starts(client/)
+## Phase-6 - Frontend process starts(client/)
 
 - ``` cd client && npm run dev → Vite reads vite.config.js and configures the /api → http://127.0.0.1:5000 proxy → Starts frontend at http://localhost:5173 → client/index.html loads /src/main.js → Creates Vue app (App.vue) → Initializes Pinia stores (auth.js, summary.js) from localStorage (token, user) → Registers Vue Router (router/index.js) → Mounts app to #app → Frontend Ready ```
 
@@ -81,9 +74,9 @@ we can drop --dry-run later
   - vite reads it's config file(vite.config.js) and check the proxy(backend api)
   - usually frontend runs on port 5173 with localhost
   - then "client/index.html" loads the main.js("/src/main.js")
-  - here we use pinia to intilize from the locastorage then initalize the repective routes
+  - here we use pinia to initialize from the localstorage then initialize the respective routes
 
-## Phase-7 ## - when visitor opens the link in broswer
+## Phase-7 - when visitor opens the link in browser
 
 - `Landing(/ -> Landing.vue)`:
 
@@ -127,22 +120,22 @@ we can drop --dry-run later
         - admin(/app/reports)
         - customer(/app/my-orders)
 
-- `Password reset(/forgetpassword,/resetpassword)`
-  - ``ForgetPassword(/forgetpassword -> ForgetPassword.vue)``:
+- `Password reset(/forget_password,/reset_password)`
+  - ``ForgetPassword(/forget_password -> ForgetPassword.vue)``:
 
     -```Open Forgot Password Page → Submit Email → ForgotPassword.vue::handleSubmit() → POST /api/auth/forgot-password → auth_service.forgot_password() → Return Generic 200 (Prevent Email Enumeration) → User Exists? → Yes: Generate Reset Token → Hash with SHA-256 → Store Hash & 1-Hour TTL → send_password_reset() → Log Reset Link to Development Logs | No: No Reset Token Created → Display Generic Success Response```
 
-    - from frontend click on forgetpassword button ```ForgotPassword.vue::handleSubmit sends to → POST /api/auth/forgot-password```
+    - from frontend click on forget_password button ```ForgotPassword.vue::handleSubmit sends to → POST /api/auth/forgot-password```
     - if the user exists `auth_service.forgot_password` with create a token and let the dev-logs give that link via `send_password_reset`
   
-  - ``ResetPassword(/resetpassword -> ResetPassword.Vue)``:
+  - ``ResetPassword(/reset_password -> ResetPassword.Vue)``:
 
     - ```Open Reset Link → Extract Token from URL Query → Submit New Password → ResetPassword.vue::handleSubmit() → POST /api/auth/reset-password?token=... → auth_service.reset_password() → Verify Token Hash & Expiry → Invalid/Expired? → Return Error | Valid? → Hash New Password (bcrypt) → Update Password Hash → Clear Reset Token → Increment token_version → Return Success → Older JWTs Rejected by token_version Validation on Subsequent Requests → Redirect to Login```
 
       - from frontend when user click on reset button ```ResetPassword.vue::handleSubmit → POST /api/auth/reset-password?token=...```
-      - `reset_password` verifies the hash and time limit then gives a new token tothe user and the old jwt tokens are being rejected
+      - `reset_password` verifies the hash and time limit then gives a new token to the user and the old jwt tokens are being rejected
 
-## Phase-8 ## - the first page load(client/src/layouts/AppLayout.Vue)
+## Phase-8 - the first page load(client/src/layouts/AppLayout.Vue)
 
 - ```Open /app/* → Mount AppLayout.vue → onMounted() → auth.fetchMe(true) → Force Refresh GET /api/auth/me (Bypass 30-Second Cache) → Update Current User & Role → enforceRoleForCurrentRoute() → Check Role Against Current Route → Admin on /app/my-orders? → Redirect to /app/orders | Customer on /app/orders? → Redirect to /app/my-orders | Customer on Admin-Only Route (meta.requiresAdmin)? → Redirect to /app/orders | Otherwise: Stay on Current Route → visibleLinks() → Render Role-Appropriate Navigation Links → User Clicks Logout → handleLogout() → Clear Authentication State & localStorage → Redirect to /login```
 
@@ -156,10 +149,10 @@ we can drop --dry-run later
     - if and only if the role is admin directly redirects -> `/app/orders`
   - visible  Links():
     - it is based on the role use appropriate nav links
-  - handlelogout():
+  - handle_logout():
     - Who ever login in the application using either admin/customer when that user press the button logout just redirects -> `/login`
 
-## Phase-9 ## - Authorization on every request
+## Phase-9 - Authorization on every request
 
 - ```Every API Request → FRONTEND GATES → Request Interceptor (services/api.js) → Attach JWT as Bearer Token → Send Request to Backend → BACKEND GATES → _load_user (Read JWT sub & Load User) → _resolve_request_user (Compare JWT tv with users.token_version) → auth_required (Validate Authentication & Set g.current_user) → role_required (Check Admin Role if Required) → Endpoint Permission Checks (is_admin / owns_customer / can_view_order) → order_service.visible_orders_for(user) → Admin: Return All Orders | Customer: Return Only Own Orders → Return API Response → FRONTEND RESPONSE INTERCEPTOR → 401: forceLogout('session_expired') → Clear Storage & Redirect to /login | 403 on Role-Guarded Endpoint: forceLogout('role_changed') → Clear Storage & Redirect to /login | Other Errors: Propagate to Caller```
 
@@ -188,7 +181,7 @@ we can drop --dry-run later
       - admin -> can view all the order
       - customer -> can view the orders related to that user
 
-## Phase-10 ## userflow w.r.t the roles
+## Phase-10 user_flow w.r.t the roles
 
 - Customer flow(`client/src/views/MyOrders.Vue`):
 
@@ -205,14 +198,14 @@ we can drop --dry-run later
 - Admin Flow:
   - Orders(`client/src/views/Orders.vue`):
   
-    - ```Open /app/orders → Load Orders.vue → fetchOrders() → GET /api/orders (status filter + debounced search q + pagination) → Backend list_orders() → Eager-Load Order Items & Customer (joinedload) → _order_response() (Serialize Order + Computed Total) → Return Orders → Render Orders List → Admin Changes Status → Cancelled/Returned? → Yes: Browser confirm() → Confirmed? → PATCH /api/orders/:id/status → order_service.change_status() → can_transition(ALLOWED_TRANSITIONS) → Valid Transition? → No: Return 400 Error | Yes: Update Status in Database → Return Success → Refresh Orders → summaryStore.fetch(true) (Bypass Cache) → Dashboard Summary Updated```
+    - ```Open /app/orders → Load Orders.vue → fetchOrders() → GET /api/orders (status filter + debounced search q + pagination) → Backend list_orders() → Eager-Load Order Items & Customer (joined_load) → _order_response() (Serialize Order + Computed Total) → Return Orders → Render Orders List → Admin Changes Status → Cancelled/Returned? → Yes: Browser confirm() → Confirmed? → PATCH /api/orders/:id/status → order_service.change_status() → can_transition(ALLOWED_TRANSITIONS) → Valid Transition? → No: Return 400 Error | Yes: Update Status in Database → Return Success → Refresh Orders → summaryStore.fetch(true) (Bypass Cache) → Dashboard Summary Updated```
 
     - `fetch_Orders()` this function will fetch orders w.r.t the status filters
-    - `lisr_orders` this helps to load the users w.r.t the order responses
+    - `list_orders` this helps to load the users w.r.t the order responses
     - changeStatus `PATCH /api/orders/:id/status` can change the status and it won't revert once we change the status
-    - frontend always refreshes when ther eis changes in status throughout the application
+    - frontend always refreshes when there is changes in status throughout the application
 
-  - Createorder(`client/src/views/CreateOrder.vue`):
+  - Create_order(`client/src/views/CreateOrder.vue`):
   
     - ```Open /app/orders/new → Mount CreateOrder.vue → onMounted() → GET /api/products (Any Authenticated User) + GET /api/customers (Admin Only) → Load Products & Customers into Form → Admin Submits Order → handleSubmit() → POST /api/orders (One Item) → Backend create_order() → Check Admin Role → order_service.validate_order_payload() → Validate Order ID, Date, Customer, Items, Duplicate Products, Quantity (1–1000) & Product Existence → Fetch Current Product Price from Database (Ignore Client-Sent unit_price) → Validation Passed? → No: Return Validation Error → Yes: Begin Database Transaction → Insert Order Header (Pending) + Order Items → Duplicate order_id? → Yes: Rollback & Return 409 Conflict → Other Failure? → Rollback All Changes → Success? → Commit Transaction → Return 201 Created → Redirect to /app/orders/:id```
 
@@ -234,7 +227,7 @@ we can drop --dry-run later
     - savePrice():
       - `PATCH /api/products/:id` - can update the price only who authorized to that particular patch
     - createProduct():
-      - `POST /api/products` - same with the saveprice but here it is for creationg products
+      - `POST /api/products` - same with the save price but here it is for creating products
     - deleteProduct():
       - `DELETE /api/products/:id` - same with the create product but for deleting the products with 409 status if the deleted product is used
 
@@ -246,9 +239,9 @@ we can drop --dry-run later
       - `GET /api/users` - here the authorized user can fetch the users
     - createUser()
       - `POST /api/users` - here we can create users
-      - UserRolupdate()
+      - UserRol_update()
         - `PATCH /api/users/role` - can update the role
-      - Deleteuser()
+      - Delete_user()
         - `DELETE /api/users` - can delete the user
   
 - Duplicates(/duplicates -> Duplicates.vue):
@@ -266,7 +259,7 @@ we can drop --dry-run later
   - order_service.get_dashboard_summary():
     - it helps to join all the orders,items,products and filters w.r.t the status and returns the respective values
   - and will format via `utils/format.js::money,number,percentage,date`
-  - and can view the product-wise and date-wise reports in the dahsboard
+  - and can view the product-wise and date-wise reports in the dashboard
 
 
 
@@ -277,8 +270,28 @@ app = Flask(__name__):
     - app config
     - handle errors
     - loads the templates
-    - register the extensions themseleves
+    - register the extensions themselves
   - and name will be imports
 
 
 - in simple words that line creates a flask app and hands it the modules from the which the flask derives
+
+  Practice more and try to remember
+  Aggregation function use_cases
+  window functions 
+  check the proper use_cases like when we use particular keyword
+
+  live dashboard streaming check it!
+  like how it done and what will be used
+  make sure to identify and get to know proper terminologies and proper naming
+  practice more
+  f - is used for dynamic data
+  - make sure to know why we using particular keywords,functions when you write instead of blind implementation and always keep it simple
+
+- Traceback know why,what and how we do it
+  - python
+- Git - documentation
+- make sure to document everything what you have built
+- MQTT use_cases throughout the internet
+- D
+- eployment 
