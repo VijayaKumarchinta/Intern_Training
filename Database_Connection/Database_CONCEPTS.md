@@ -16,6 +16,7 @@
 - `fetch_all_employees()`.
 
 **Concepts learned:**
+
 - `CREATE DATABASE` cannot run inside a transaction → connect to the built-in `postgres` DB first and set `autocommit = True`.
 - Parameterized queries (`%s` placeholders) for every value; f-strings only for identifiers like table names, never data.
 - Transactions: `commit()` on success, `rollback()` on failure.
@@ -23,25 +24,30 @@
 - Credentials now load from a `.env` file — same pattern the later Machine Sensor API uses. Originally the password was hard-coded in `setup.py`; moved to environment variables before the repo was pushed to GitHub.
 
 **Pros:**
+
 - Single class covers the full bootstrap + CRUD cleanly.
 - Parameterized queries prevent SQL injection.
 - Transaction control gives atomicity.
 - `rowcount` to confirm UPDATE/DELETE actually matched a row.
 
 **Cons/drawbacks:**
+
 - Early versions swallowed "database already exists" into a generic `except` + print; `DuplicateDatabase` is now handled explicitly.
 - Reuse without pooling does not survive traffic; the capstone moves to a connection pool.
 - Connection-state checks (`conn.closed`, `conn.info.dbname`) add complexity.
 
 **Errors encountered & causes:**
+
 - `CREATE DATABASE` failing inside a transaction → Postgres disallows it → connect to `postgres` DB + `autocommit = True`.
 - Duplicate-email insert rejected by `UNIQUE` → expected; surfaced as a clean 400 with validation first.
 
 **Use cases:**
+
 - Any Python+Flask app needing a relational store, especially REST APIs with simple CRUD.
 - Bootstrap scripts that create the database, schema, and tables once.
 
 **Usage:**
+
 ```python
 pg = Postgremanager()
 pg.create_db()
@@ -72,23 +78,28 @@ DELETE  /employees/<email>    delete
 - Every answer uses the same JSON shape (`status` / `message` / `data`).
 
 **Pros:**
+
 - Clean separation of routes vs. database.
 - Consistent JSON envelope across all endpoints.
 - One endpoint can insert a single record or a batch.
 
 **Cons/drawbacks:**
+
 - No connection pooling — fine for learning, not for traffic.
 - Validation and DB logic share the route; the capstone splits this into layers.
 - No auth by design (learning setup).
 
 **Errors encountered & causes:**
+
 - Duplicate-email insert rejected by `UNIQUE` → handled cleanly with validation first.
 
 **Use cases:**
+
 - Learning RESTful CRUD with Flask + PostgreSQL.
 - Template for a small API.
 
 **Usage:**
+
 - Run `main.py`, use Postman/curl/fetch for POST/PUT/DELETE (browsers only speak GET).
 
 ---
@@ -104,8 +115,9 @@ DELETE  /employees/<email>    delete
 ---
 
 **Quick reference — all database files**
+
 | File | Role |
-|---|---|
+| --- | --- |
 | setup.py | `Postgremanager` class: bootstrap + CRUD |
 | main.py | Flask `MethodView` REST API |
 | README.md | Per-folder documentation |

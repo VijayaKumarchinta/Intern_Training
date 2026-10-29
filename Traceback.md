@@ -115,3 +115,11 @@ in one line:
 - `extract_tb(e.__traceback__)` - frame data for json logs, hiding library frames
 - `TracebackException` - capture an error now, format it later
 - never show tracebacks to end users, and filter local variables before logging
+
+- ```Traceback - when we want to extract and format the exception information```(Exception analysis - helps to inspect what went wrong)
+  - we use this after an exception occurs
+  - primary use cases are generating the error reports,stack inspection  
+
+- ```Trace - when we want  to monitor and record program execution```(Execution monitoring - helps to inspect what our program does)
+  - we use before/during execution
+  - primary use cases are debugging, execution tracing

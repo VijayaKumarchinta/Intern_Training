@@ -1,4 +1,5 @@
-# cron jobs 
+# cron jobs
+
 - A scheduled task where an os runs automatically at a specified time interval
 - we can run programs accordingly w.r.t to the requirement
 
@@ -11,9 +12,11 @@ Cron job = one task you told it to do at a specific time.
 ### This is a linux concept where we commonly use crontab
 
 ## the famous 5 field cron expression
+
  ```
     * * * * *
 ```
+
 minutes
 hours
 day of month
@@ -27,11 +30,13 @@ but when we deal with implementation in python we usually use a long running pyt
 cron schedules the cmds
 
 we can execute in three ways
+
 - with linux server using crontab -e with that 5 field expression
 - in python we usually don't run with the help of python instead we use that interpreter
 - in windows we usually use task scheduler to trigger the scripts using python exe
 
 in production use cases the cron files usually revolve around
+
 - entry point
 - error handling
 - logging
@@ -39,8 +44,9 @@ in production use cases the cron files usually revolve around
 - database clean up
 - clear exit behavior
 
-cron jobs can be run using 
--   bash,python,perl,php and any binary scripts.
+cron jobs can be run using
+
+- bash,python,perl,php and any binary scripts.
 
 in python we usually do/assign cronjobs through schedule module where it helps us to use those built-in function so it can know when to assign/schedule a task w.r.t time (an in-process scheduler, while real cron on linux runs the scripts through crontab)
 
@@ -50,20 +56,21 @@ in python we usually do/assign cronjobs through schedule module where it helps u
 
 # Apscheduler
 
--   A light weight advanced python in-process task scheduling where we can use cron like capabilities
+- A light weight advanced python in-process task scheduling where we can use cron like capabilities
 - It supports mainly three triggers
-    - Datetrigger -/review one-time interval execution triggers
-    - IntervalTrigger - fixed time interval triggers
-    - CronTrigger - complex scheduling based on cron expressions
+  - Datetrigger -/review one-time interval execution triggers
+  - IntervalTrigger - fixed time interval triggers
+  - CronTrigger - complex scheduling based on cron expressions
 - Two types of schedulers
-    - BackgroundScheduler - runs in the background and allows the main application to continue execution ideal for long running applications
-    - BlockingScheduler - Blocks the main thread until the scheduler is shut down; best for standalone scripts where the scheduler is the primary process.
-    
+  - BackgroundScheduler - runs in the background and allows the main application to continue execution ideal for long running applications
+  - BlockingScheduler - Blocks the main thread until the scheduler is shut down; best for standalone scripts where the scheduler is the primary process.
+
 ### Create table with below columns: ID, Unix_ts
+
 """Create a program with two cron jobs
+
 1. To insert data current unix timestamp into table every 1 minute.
 2. To create a partition for values in the last 10 minutes and it should run every 10 mins."""
-
 
 cron_jobs  ---- root directory
 
@@ -104,8 +111,8 @@ cron_jobs  ---- root directory
 
     - main() - an entry point for initialize_database
 
-
 ### keep built-in functions that are being used
+
 - Primary Key is being used for look up purpose either w.r.t the id/unix_ts
 
 - load_dotenv() - loading of db credentials with the help of dotenv import
@@ -136,7 +143,6 @@ cron_jobs  ---- root directory
         minute="*/1", - fires every minute
         id="insert_timestamp", - inserting unique identifier for this job
     )
-
 
 | **Features** | APScheduler | Schedule
 | **Complexity** | Feature-rich, production-grade | Lightweight, simple API |

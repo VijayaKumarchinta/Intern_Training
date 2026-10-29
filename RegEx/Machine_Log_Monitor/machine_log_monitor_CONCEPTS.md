@@ -15,12 +15,14 @@
 `scheduler.py` wires everything together using **APScheduler's `BlockingScheduler`**. It schedules one recurring job that runs once per minute and stops the scheduler when the log has been fully consumed.
 
 `main()`:
+
 1. Calls `configure_logging()` — written at module import time in `logging_config.py`, so logging is configured **before** the scheduler starts.
 2. Calls `create_scheduler()`, which returns a configured but **not yet running** `BlockingScheduler`.
 3. Logs `"Machine log monitoring started (interval: 1 minute)"`.
 4. Calls `scheduler.start()` — blocks the process and starts the event loop.
 
 `create_scheduler()`:
+
 1. Creates a `BlockingScheduler`.
 2. Defines `run_monitoring()`, the job function:
    - Calls `monitor_machine_logs()` and captures the boolean it returns.
@@ -64,7 +66,7 @@
 `MachineLogReader` is the low-level line reader.
 
 | Method | What it does |
-|---|---|
+| --- | --- |
 | `__init__(file_path=MACHINE_LOG_FILE)` | defaults to `logs/machine.log` from config.py |
 | `open()` | opens the file with UTF-8 encoding if not open yet |
 | `read_next_line()` | the core: `tell()` → read line → peek ahead with a second `readline()` → `seek()` to restore position → returns `(line_number, line_without_newline, is_last_line)` |
@@ -141,6 +143,7 @@ Run **once** before `scheduler.py`:
    - If last line, reader closes and returns False; job logs `"Machine log processing complete."` and shuts scheduler down.
 
 Example console output:
+
 ```
 INFO  | 2026-10-09 12:00:00 | Machine log monitoring started (interval: 1 minute)
 INFO  | 2026-10-09 12:00:00 | Saved ERROR log entries: 1; duplicates skipped: 0
@@ -173,7 +176,7 @@ python scheduler.py
 **Project file table:**
 
 | File | Role |
-|---|---|
+| --- | --- |
 | scheduler.py | APScheduler entry; schedules & stops the job |
 | jobs.py | One-line-per-run processing; owns the shared reader |
 | log_reader.py | Low-level `tell()`/`seek()` line reader |
@@ -202,7 +205,7 @@ The current design assumes **static, bounded sample data**. If you later switch 
 ### 3. Also consider for live/bursty data
 
 | Concern | Fix |
-|---|---|
+| --- | --- |
 | Many small DB writes | Batch INSERT with `executemany()` per tick |
 | High volume + low latency | Keep a shared DB connection across ticks, or use a connection pool |
 | Persistent restart safety | Save reader's `last_line_position` to a state file |
@@ -223,22 +226,26 @@ Apply these changes only when the requirement changes from static sample data to
 - The project file table now includes `app.py` — Flask API (`/live/*`) + serves the `client/` dashboard.
 
 **Key v3 improvements over v1:**
+
 - Batch insert in one transaction (v1 called it per-element).
 - `.env` + fail-fast `config.py` for credentials.
 - PowerShell-style setup commands.
 - `app.py` added for Flask API + dashboard serving.
 
 **Pros:**
+
 - One transaction for many errors → far fewer round-trips.
 - Fail-fast config → obvious to debug missing settings.
 - Git-ignores secrets → no credentials in source.
 
 **Cons/drawbacks:**
+
 - Still optimised for static, bounded data.
 - No persistent reader-state file.
 - Duplicate `alternatives.md` exists (v1 canonical, v3 exact duplicate — the v3 file was not carried into the consolidation).
 
 **Use cases:**
+
 - When batch inserts are needed and credentials should not be in source.
 - When a PowerShell-based setup is preferred on Windows.
 
@@ -249,7 +256,7 @@ Apply these changes only when the requirement changes from static sample data to
 ## 5. Summary — v1 vs v3
 
 | Aspect | v1 | v3 |
-|---|---|---|
+| --- | --- | --- |
 | store_errors | One dict per run | List of dicts, one transaction |
 | Setup | Shell commands | PowerShell-style |
 | Secrets | Not git-ignored | `.env` git-ignored + fail-fast config |
@@ -258,8 +265,9 @@ Apply these changes only when the requirement changes from static sample data to
 ---
 
 **Quick reference — all machine-log-monitor files**
+
 | File | Role |
-|---|---|
+| --- | --- |
 | scheduler.py | APScheduler entry; schedules & stops the job |
 | jobs.py | One-line-per-run processing; owns the shared reader |
 | log_reader.py | Low-level `tell()`/`seek()` line reader |
