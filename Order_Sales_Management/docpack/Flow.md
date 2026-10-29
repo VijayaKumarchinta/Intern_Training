@@ -261,24 +261,21 @@ This will insert a user with role admin while being is_verified as true and toke
   - and will format via `utils/format.js::money,number,percentage,date`
   - and can view the product-wise and date-wise reports in the dashboard
 
-
-
-
 app = Flask(__name__):
-  - this line creates the centralized application object and holds
-    - the url mapping
-    - app config
-    - handle errors
-    - loads the templates
-    - register the extensions themselves
-  - and name will be imports
 
+- this line creates the centralized application object and holds
+  - the url mapping
+  - app config
+  - handle errors
+  - loads the templates
+  - register the extensions themselves
+- and name will be imports
 
 - in simple words that line creates a flask app and hands it the modules from the which the flask derives
 
   Practice more and try to remember
   Aggregation function use_cases
-  window functions 
+  window functions
   check the proper use_cases like when we use particular keyword
 
   live dashboard streaming check it!
@@ -294,4 +291,4 @@ app = Flask(__name__):
 - make sure to document everything what you have built
 - MQTT use_cases throughout the internet
 - D
-- eployment 
+- eployment
