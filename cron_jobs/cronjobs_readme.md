@@ -9,13 +9,11 @@ Cron = the service that's always running in the background, checking "is it time
 
 Cron job = one task you told it to do at a specific time.
 
-### This is a linux concept where we commonly use crontab
+## This is a linux concept where we commonly use crontab
 
 ## the famous 5 field cron expression
 
- ```
-    * * * * *
-```
+ ```* * * * *```
 
 minutes
 hours
@@ -50,15 +48,15 @@ cron jobs can be run using
 
 in python we usually do/assign cronjobs through schedule module where it helps us to use those built-in function so it can know when to assign/schedule a task w.r.t time (an in-process scheduler, while real cron on linux runs the scripts through crontab)
 
-# schedule
+### schedule
 
 - it's an event where we can run the task automatically in time intervals where it is more like the python being implement the cron jobs
 
-# Apscheduler
+### Apscheduler
 
 - A light weight advanced python in-process task scheduling where we can use cron like capabilities
 - It supports mainly three triggers
-  - Datetrigger -/review one-time interval execution triggers
+  - Datatrigger -/review one-time interval execution triggers
   - IntervalTrigger - fixed time interval triggers
   - CronTrigger - complex scheduling based on cron expressions
 - Two types of schedulers
@@ -84,32 +82,32 @@ cron_jobs  ---- root directory
 
 \scheduler.py --- this is the actual cron jobs process where it happens while importing connection from db, (schema name, table name and ten minutes gap) from config, importing logging_config, schedule module to set the automatic schedule with time intervals
 
-    -   setting of loggers
+- setting of loggers
 
-    - insert_current_timestamp() - where it actually 
+  - insert_current_timestamp() - where it actually
     happens the insertion of timestamp with 1 minute difference, and it calls create_partition() with that same timestamp just before inserting so the partition always exists when the timestamp is created
 
-    - create_partition() - where it creates the partition for the timestamp passed to it (unix_ts) on the basis of 10 minutes gap, named timestamp_data_<window_start> so that IF NOT EXISTS makes re-runs idempotent
+  - create_partition() - where it creates the partition for the timestamp passed to it (unix_ts) on the basis of 10 minutes gap, named timestamp_data_<window_start> so that IF NOT EXISTS makes re-runs idempotent
 
-    - run_timestamp_job() - entry point of the insert_current_timestamp()
+  - run_timestamp_job() - entry point of the insert_current_timestamp()
 
-    - run_partition_job() - an entry point of the create_partition()
+  - run_partition_job() - an entry point of the create_partition()
 
-    - run_scheduler() - where the actual cron jobs done with the help of schedule module so that it can directly implement the cron job for every 1 minute
+  - run_scheduler() - where the actual cron jobs done with the help of schedule module so that it can directly implement the cron job for every 1 minute
 
-    - main entry point - running scheduler.py directly calls run_scheduler() so to execute all the code snippets properly!
+  - main entry point - running scheduler.py directly calls run_scheduler() so to execute all the code snippets properly!
 
 \setup.py - setting up database with the imports from config, db for db name,schema and connection respectively
 
-    - create_database() - create a db with autocommit while connecting to the default db
+- create_database() - create a db with autocommit while connecting to the default db
 
-    - create_schema() - creating a schema and being verified
+- create_schema() - creating a schema and being verified
 
-    - create_table() - creating a table with id and unix_ts and do partitions based on timestamp and being verified, plus a _default partition as the safety net that catches rows with no matching partition
+- create_table() - creating a table with id and unix_ts and do partitions based on timestamp and being verified, plus a _default partition as the safety net that catches rows with no matching partition
 
-    - initialize_database() - an entry point for those three functions
+- initialize_database() - an entry point for those three functions
 
-    - main() - an entry point for initialize_database
+- main() - an entry point for initialize_database
 
 ### keep built-in functions that are being used
 

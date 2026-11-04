@@ -1,11 +1,10 @@
-python -c "import secrets; print(secrets.token_hex(32))" - a secret key used by your Flask application to sign and verify JSON Web Tokens
+```python -c "import secrets; print(secrets.token_hex(32))" - a secret key used by your Flask application to sign and verify JSON Web Tokens```
+SMTP(Simple Mail Transfer Protocol) - a protocol, where our application used to send an ongoing email to the server and it runs on port number 587
 
-SMTP(Simple Mail Transfer Protocol) - a protocal, where our application used to send an ongoing email to the server and it runs on port number 587
+# Vue.js
 
-# Vue.js 
 - A framework used to build interactive user interfaces
-- it runs primarily in the frontend, it manages what users can see how a interface responds 
-
+- it runs primarily in the frontend, it manages what users can see how a interface responds
 
 - Most commonly used functions when we deal with frontend
   - ref():----
@@ -15,7 +14,7 @@ SMTP(Simple Mail Transfer Protocol) - a protocal, where our application used to 
   - computed():-----
     - it helps us to derive the values and helps to filter rows
   - watch():-----
-      - Helps to react to a particular state changes and reloads the data when filter changes
+    - Helps to react to a particular state changes and reloads the data when filter changes
   - watcheffect():-----
     - Automatically tracks the dependencies which helps us to synchronize with the reactive side effects
   - onmounted():-----
@@ -29,8 +28,8 @@ SMTP(Simple Mail Transfer Protocol) - a protocal, where our application used to 
   - provide()/inject():----
     - helps to share services
 
-
 Template directives where we use normally:
+
 - v-if/v-else :- where it work with conditions and helps us to render in the browser
 - v-show :- where it helps us to show the visibility
 - v-for :- helps to render the list
@@ -39,9 +38,8 @@ Template directives where we use normally:
 - @click/@submit :- it helps to handle the events gracefully
 - v-html :- helps to avoid untrusted inputs
 
+Vue connects to data with the help of
 
-
-Vue connects to data with the help of 
 - traditional database+backend process - when we need private database
   - vue -> flask -> postgreSQL
 - Backend-as-a-service - useful for database functionality without building our own application
@@ -49,7 +47,6 @@ Vue connects to data with the help of
 - Browser storage - useful for offline features where it is not shared
   - vue -> localstorage
   
-
 frontend - vue.js
 backend - flask
 database - postgresql
@@ -57,12 +54,10 @@ have to be delivered - a order & sales management application
 
 the do's
 
-  - should manage
-    - customer orders
-    - have to valid the details
-    - calculate order 
-
-
+- should manage
+  - customer orders
+  - have to valid the details
+  - calculate order
 
 TECH STACK:
 
@@ -70,12 +65,11 @@ TECH STACK:
 
 - Vue.js -----> (HTTP reqs and json resp)Flask API layer ----->(Route-validate-services-repositories) ------> PostgreSQL(tables,schema)
 
-  - route -> make sure it receives a proper https reqs and returns a proper responses 
+  - route -> make sure it receives a proper https reqs and returns a proper responses
   - Validate -> Helps to check the basic rules and input format
   - service -> Excutes the main business logics
-  - Repositry -> It makes sure to insert an order by retriving it's ID 
-
-
+  - Repositry -> It makes sure to insert an order by retriving it's ID
 
 ###### The main flow ######
+
   Vue collects the data -> then frontend send an http req in json format -> flask receives the req through route parse -> verify with validation requirments -> then the respective service applies the business rule/logic -> Repository writes to PostgreSQL w.r.t the constraints and save the order -> then the flask returns a response -> then the frontend will reflect accordingly

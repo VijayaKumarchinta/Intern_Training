@@ -64,13 +64,11 @@ pg.delete_employee(...)
 
 **What:** A Flask `MethodView` on top of `Postgremanager`:
 
-```
-GET     /employees            list all
+```GET     /employees            list all
 GET     /employees/<email>    one employee
 POST    /employees            insert one or a whole batch
 PUT     /employees/<email>    update
-DELETE  /employees/<email>    delete
-```
+DELETE  /employees/<email>    delete```
 
 - POST accepts a single object **or** a list — one endpoint, batch-capable.
 - Validation lives in the route; SQL lives in the manager class. That separation grew into the full routes/services/database layering.
