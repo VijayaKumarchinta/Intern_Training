@@ -6,9 +6,9 @@
 | **Company** | Trinity Advanced Software Labs Pvt Ltd |
 | **Period** | 17 August 2026 – ongoing (six core weeks 17 Aug – 28 Sep, continuing since) |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
-| **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 7 Oct), the live tree, and a re-run of the test suite; verification record in §9 |
+| **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 7 Oct), the live tree, and a re-run of the Order & Sales Management backend suite; verification record in §9 |
 
-This document records the full training period: what was built, what was
+This document records the complete training period: what was built, what was
 learned, what went wrong, and which engineering habits changed along the way.
 Every file reference is a clickable link to the real code in this repository.
 
@@ -29,9 +29,12 @@ Weeks 1–4   Foundations: OOP, files/CSV, PostgreSQL, first Flask API,
 Weeks 5–6   Capstone: Machine Sensor API built, hardened, then rebuilt to
             production standard, reviewed against 8 design principles,
             cleaned up with a versioned-change method (§3.8–§3.10)
-Since then  Supporting tracks: rotating JSON logging, SQL command notes,
-            table partitioning driven by a scheduler-based cron-jobs project,
-            regex practice — plus documentation consolidation (§3.11–§3.13)
+Since then  Supporting tracks, each small, finished, and documented like
+            production code: pandas data analysis (§3.1), git workflow (§3.2),
+            Python traceback module (§3.3), a full SQL command portfolio
+            (§3.4), rotating JSON logging (§3.5), APScheduler-driven table
+            range partitioning (§3.6), regex practice + machine-log monitoring
+            (§3.7), and the Order & Sales Management app (§3.8)
 ```
 
 The capstone is [Machine_Sensor_API](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md):
@@ -47,7 +50,7 @@ with rollback, parameterized queries, secrets in `.env`, time-bounded failure
 
 The capstone's own story had three acts:
 
-1. **Built (Sep 15–17):** a working layered API with bulk import (§3.8).
+1. **Built (Sep 15–17):** a working layered API with bulk import (§3.7).
 2. **Hardened (Sep 18–21):** honest error semantics — 409/400 instead of
    blanket 500s, real JSON numbers from statistics, row-level import
    validation (§3.9).
@@ -59,9 +62,9 @@ The capstone's own story had three acts:
    identical (§3.10).
 
 After the capstone, the same lessons were deliberately re-applied on smaller
-ground: a standalone rotating-log demo (§3.11), a scheduler-driven cron-jobs
-project with PostgreSQL range partitioning (§3.12), and regex practice
-(§3.13) — each one small enough to finish, documented like production code.
+ground: a standalone rotating-log demo (§3.5), a scheduler-driven cron-jobs
+project with PostgreSQL range partitioning (§3.6), and regex practice
+(§3.7) — each one small enough to finish, documented like production code.
 
 On 8 October the whole period was self-reviewed against the original email
 assignments and the live tree; the verification record is §9.
@@ -88,9 +91,9 @@ assignments and the live tree; the verification record is §9.
 | Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten in simple + engineer two-layer format | §3.10 Pass 3 |
 | Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [rotation.py](log_rotation/rotation.py) |
 | Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging; first range-partitioning demo (`partition_ts`) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
-| Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.12 |
-| Oct 4–6 | Regular expressions: eight matcher functions + full notes; learned about APScheduler cron triggers; `Final_zip/` distribution copy assembled | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.13 |
-| Oct 7–8 | Regex practice on 10 tasks; machine-log monitoring system assigned; built, documented, and hardened | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.13 |
+| Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.6 |
+| Oct 4–6 | Regular expressions: eight matcher functions + full notes; learned about APScheduler cron triggers; `Final_zip/` distribution copy assembled | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
+| Oct 7–8 | Regex practice on 10 tasks; machine-log monitoring system assigned; built, documented, and hardened | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
 | Oct 8 | Full self-review: every email-assigned task cross-checked against the live tree; test suite re-run; distribution copy verified in sync; doc-drift findings logged | §9 |
 | Oct 13–23 | Order & Sales Management App assignment (networked IIoT), delivered as a Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
 | Oct 8–27 | Final self-review vs. the shipped Order & Sales Management code; verification record updated | §9 |
@@ -101,361 +104,219 @@ assignments and the live tree; the verification record is §9.
 
 Each section follows the same shape: **Built → Learned → Takeaway.**
 
-### 3.1 Object-oriented programming — [OOP/OOP_CONCEPTS.md](OOP/OOP_CONCEPTS.md)
+### 3.1 Pandas — [Pandas/Pandas.md](Pandas/Pandas.md)
 
-**Built:** one runnable file per topic — [Single](OOP/Single_inheritance.py),
-[Multiple](OOP/Multiple_inheritance.py), [MultiLevel](OOP/MultiLevel_inheritance.py),
-[Hierarchical](OOP/Hierarchical_inheritance.py), [Hybrid](OOP/Hybrid_inheritance.py)
-inheritance, and [Encapsulation.py](OOP/Encapsulation.py). Every file guards its
-demo calls with `try/except AttributeError`, as required by the Aug 17 email.
-
-**Learned:**
-
-- MRO intuition: with `Son(Mother, Father)`, Python searches parents left to
-  right; hybrid trees are just these patterns composed.
-- Encapsulation levels: public `name`, protected-by-convention `_Code`,
-  private via name-mangling `__battery_health` (reachable only as
-  `_Smartphone__battery_health`). Python's "private" is a convention, not a wall.
-- Aug 17 source files: each file is self-contained and runnable
-  (`python -m py_compile` passes on all six files).
-
-**Takeaway:** exceptions belong around *plausible* failure points. The OOP
-exercise used them as guards for invalid attribute access — exactly where
-`AttributeError` actually comes from.
-
-### 3.2 File and CSV handling — [File_Handling/README.md](File_Handling/README.md)
-
-**Built:** [Handle.py](File_Handling/Handle.py) exercising `w` / `x` / `a` /
-`r+` with per-mode error handling (`FileExistsError`, `FileNotFoundError`);
-[Csv_Handling.py](File_Handling/Csv_Handling.py) wrapping four CSV operations in
-a `CSVManager` class built on `csv.DictReader` / `csv.DictWriter`.
+**Built:** [analysis.py](Pandas/analysis.py) + the sample dataset
+[customers.csv](Pandas/customers.csv),
+[orders.csv](Pandas/orders.csv),
+[city_report.csv](Pandas/city_report.csv), and
+[monthly_revenue.png](Pandas/monthly_revenue.png) — every
+analysis/figure in the README was run and saved, so the notebook-like doc
+matches what the script actually produced.
 
 **Learned:**
 
-- `x` mode exists specifically to *fail loudly* when a file already exists —
-  "create-if-fresh" semantics.
-- Dict-based CSV access beats index-based: reordering columns can't silently
-  corrupt row handling.
-- `append_csv()` re-reads the existing header before writing, so appends never
-  drift out of column order.
+- **Data structures:** one-dimensional `Series` (single labelled column) and
+  two-dimensional `DataFrame` (table; "panel data" is the name's origin).
+- **Quick checks before trusting a dataset:** `df.head()`, `df.shape`,
+  `df.info()`, `df.describe()`, `df.isna().sum()`, `df.dtypes()` — the first
+  five lines of any good analysis.
+- **Cleaning:** `.fillna()` (with `pad`/`bfill` for forward/backward fill),
+  `.dropna()`, `.drop_duplicates(subset=…)` with `keep`, `.replace()`; string
+  work via the `.str` accessor (`.str.lower()`, `.str.split()`, `.str.strip()`).
+- **Selection:** `df["col"]` (single column → Series), `df[["c1","c2"]]`
+  (multi-column), `.loc[]` (label-based), `.iloc[]` (position-based),
+  `.at[]`/`.iat[]` (single cell), `.query()` (readable SQL-like filters),
+  `.between()` (inclusive ranges), `.isin()` (SQL `IN`).
+- **Sorting & slicing:** `df.sort_values()`, `df.sort_index()`; the `kind`
+  argument picks the algorithm.
+- **Merging/joining/concatenating:** `.concat()` (stack or side-by-side),
+  `pd.merge()` with `how=left/right/outer/inner` (SQL join equivalents),
+  `pd.join()`.
+- **Grouping:** `groupby()` + `agg()`, pivot tables (`index`, `values`,
+  `aggfunc`), `value_counts()` for quick frequency and duplicate checks.
+- **Time:** `pd.to_datetime()` with an exact format string, `.dt.day`,
+  `.dt.month`, `.dt.hour`, `.dt.minute`, `.dt.timestamp` for Unix columns.
+- **I/O:** `pd.read_csv()` (`sep`, `header`, `index_col`, `usecols`,
+  `nrows`, `na_values`), `df.to_csv()`, `df.to_json()`,
+  `pd.json_normalize()` for nested JSON, `df.to_excel()` for Excel.
+- **Visualization:** `df.plot(x, y)` / `df.plot.line()` / `.plot.bar()` for
+  quick charts; `savefig()` for `monthly_revenue.png`.
+- **Statistics:** `df.describe()` for the five-number summary; `.mean()`,
+  `.median()`, `.std()` on columns.
 
-**Takeaway:** a file-system failure (missing file, permission) and a data
-failure (bad row) are different animals and deserve different handling — which
-is why `CSVManager` catches `FileNotFoundError` separately from generic
-exceptions.
+**Takeaway:** pandas turns a spreadsheet into a computable object — the
+same skills (filter, group, merge, clean) translate directly into the
+`group by` clauses and joins the SQL practice docs (§3.4) describe, which is
+why both files sit next to each other in this folder.
 
-### 3.3 PostgreSQL fundamentals and the manager class — [Database_Connection/README.md](Database_Connection/README.md)
+### 3.2 Git — [Git_Documentation.md](Git_Documentation.md)
 
-**Built:** [setup.py](Database_Connection/setup.py) — a `Postgremanager` class
-covering the full bootstrap (`CREATE DATABASE` → `CREATE SCHEMA` →
-`CREATE TABLE`) plus employee CRUD with commit/rollback.
-
-**Learned:**
-
-- `CREATE DATABASE` cannot run inside a transaction — connect to the built-in
-  `postgres` database first and set `autocommit = True`.
-- Parameterized queries (`%s` placeholders) for every value; f-strings only for
-  identifiers like table names, never data.
-- Transactions: `commit()` on success, `rollback()` on failure, and
-  `cursor.rowcount` to know whether an UPDATE/DELETE actually matched a row.
-- Connection **reuse** (check `conn.closed` and `conn.info.dbname` before
-  reconnecting) — and its limits (§3.7, §3.10).
-
-**Mistakes corrected:** early versions swallowed "database already exists"
-into a generic except with a print; the later projects
-([cron_jobs/setup.py](cron_jobs/setup.py), capstone) handle
-`psycopg2.errors.DuplicateDatabase` explicitly. The password was hard-coded
-here at first — accepted as a stage of learning, replaced by `.env` in the
-capstone, and finally back-ported to this project on Sep 29: `setup.py` now
-loads `.env` with `python-dotenv` and validates the required variables with a
-fail-fast check before touching the database.
-
-### 3.4 First REST API — [main.py](Database_Connection/main.py)
-
-**Built:** a Flask `MethodView` exposing the employee table:
-
-```text
-GET /employees   GET /employees/<email>   POST /employees
-PUT /employees/<email>   DELETE /employees/<email>
-```
-
-Field validation runs before any database call, responses use a consistent
-JSON envelope (`status` / `message` / `data`), and
-[Screenshots/](Database_Connection/README.md) records each operation: single
-insert, batch insert, duplicate-email rejection, update, delete.
+**Built:** a single repo-wide reference that covers the whole workflow a
+developer needs, from `git init` to `git revert`, including branching,
+remotes, merging vs rebasing, and undoing work (`restore`, `stash`,
+`reflog`, `revert`).
 
 **Learned:**
 
-- POST accepts a single object **or** a list — one endpoint, batch-capable.
-- Validation lives in the route; SQL lives in the manager class. That
-  separation grew into the full routes/services/database layering.
-- A browser can only speak GET — POST/PUT/DELETE need Postman, `curl`, or JS
-  `fetch`. This is why API testing tools exist.
+- **The four areas of git:** working directory → staging area (`git add`)
+  → local repo (`git commit`) → remote (`git push`/`pull`). Everything flows
+  through these four.
+- **Setup:** `git init`, `git clone` (with `--depth 1`, `--branch`,
+  `--recurse-submodules`), `git config --global user.name/email`,
+  `git config --list --show-origin` (`--system/-system`, `--global`,
+  `--local`).
+- **Inspection:** `git status`, `git diff` (`--staged`, `--stat`,
+  `main...HEAD`), `git log` (`--oneline`, `--graph --all`, `-n N`,
+  `-- <file>`), `git show <commit>`, `git blame <file>`, `git grep`,
+  `git shortlog -sn`.
+- **Staging & committing:** `git add` (`.`, `-A`, `-p`, `-u`), `git commit`
+  (`-m`, `-am`), `git commit --amend` (before pushing only).
+- **File ops at the repo level:** `git rm`, `git rm --cached`, `git mv`,
+  `.gitignore` (patterns, add before first commit; `git rm --cached` to
+  untrack already-tracked files).
+- **Branching:** `git branch` (`-a`, `-m`, `-d`, `-D`, `--merged`), `git
+  switch` (`-c`, `-` back to previous), `git switch -c <new>`.
+- **Remotes & collaboration:** `git remote` (`-v`, `add`), `git fetch`
+  (safe, no file change), `git pull` (`--rebase`, `--ff-only`), `git push`
+  (`-u origin <branch>`, `--force-with-lease` — never force-push main).
+- **Integrating:** `git merge` (`--no-ff`, `--squash`, `--abort`),
+  `git rebase` (`-i HEAD~n`, `--continue`, `--abort`), and the merge vs
+  rebase decision rule (merge keeps history; rebase rewrites it, use on
+  your own branch only).
+- **Undoing:** `git revert <hash>` (safe, history preserved), `git restore`
+  (`<file>`, `--staged`, `.`), plus `git stash` / `git reflog` for the
+  drop-a-commits moments.
 
-### 3.5 Data conversion with pandas — [Conversion/](Conversion/README.md)
+**Takeaway:** git is a *history tool*, not a backup tool — `revert` undoes
+a commit without rewriting history, `reflog` is the safety net when a
+session goes sideways, and `git fetch` before `pull`/`merge` is what
+prevents replaying someone else's work.
 
-**Built:** [Excel.py](Conversion/Excel.py), a pipeline from
-[work.csv](Conversion/work.csv) (ETHUSD hourly OHLCV) to
-[Work_sample_processed.xlsx](Conversion/Work_sample_processed.xlsx):
-parse dates with an exact format string → split `Symbol` into characters
-(`abc → ['a','b','c']`) → Unix timestamp (ms) → Day/Month/Year/Hours/Minutes/
-Seconds → `fillna(0)` → format the date back to the source style → Excel export
-with auto-sized columns via openpyxl → dictionary records.
+### 3.3 Python traceback module — [Traceback.md](Traceback.md)
+
+**Built:** a reference covering the `traceback` module's API (printing,
+formatting, extracting, walking) plus the standard exception/traceback
+lifecycle.
 
 **Learned:**
 
-- Date round-trips need the *exact* format string both ways
-  (`%Y-%m-%d %I-%p`); approximate parsing is where silent data bugs begin.
-- `df.astype("int64") // 10**6` converts datetime64 nanoseconds → Unix
-  milliseconds.
-- Column-dimension sizing via `ws.column_dimensions[col.column_letter]` makes
-  generated spreadsheets actually readable.
+- **What a traceback is:** a record of the call chain active when an
+  exception was raised — where the error happened, in which line, and what
+  the error was.
+- **Where they live:** caught exceptions via `sys.exc_info()`; uncaught
+  ones via `sys.last_traceback` (returns a 3-tuple: type, value,
+  traceback object).
+- **Printing:** `.print_tb()` (frames only), `.print_exception(e)`,
+  `.print_exc()` (means "print the exception currently being handled"),
+  `.print_last()` (last uncaught error), `.print_stack()` (current call
+  stack — debugging, not error reporting).
+- **Formatting:** `.format_exc()` (whole traceback as a single string —
+  alerts/emails), `.format_exception()` (list of strings), `.format_exception_only()` (type + message — one-line log),
+  `.format_tb()` (frames only), `.format_stack()`, `.format_list()` (a
+  list of `FrameSummary`s).
+- **Extracting:** `.extract_tb()` (frame data for JSON logs),
+  `.extract_stack()`.
+- **Walking:** `.walk_tb()` (exception call path), `.walk_stack()`.
+- **Classes:** `TracebackException` (captures an exception, formats it
+  later), `StackSummary` (`.extract()`, `.from_list()`, `.format()`),
+  `FrameSummary` (one frame).
+- **Rules of thumb:** `logging.exception("msg")` inside `except` logs the
+  full traceback and re-raises (`bare raise`) so the original chain survives;
+  `format_exc()` is for alerts; `format_exception_only()` for one-line
+  logs; `extract_tb(e.__traceback__)` for JSON/structured logs; **never
+  surface tracebacks to end users** — filter local variables before logging.
 
-**Incident record:** the first shared zip had a `Minues`/`Minute` column typo —
-caught in review, fixed (now `Minutes` from `dt.minute`). Lesson: proofread
-generated column names against the requirement, not just the code's syntax.
+**Takeaway:** a traceback is a forensic tool, not an error message. The
+lesson from the capstone: `logging.exception()` + a bare `raise` keeps the
+original chain while still letting the service die cleanly; the same pattern
+shows up in `mqttdemo.py`'s callbacks (`logging.exception()` per callback).
 
-### 3.6 MQTT and the Mosquitto broker — [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md)
+### 3.4 SQL — full command portfolio — [SQL_Commands/SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md) + [SQL_Commands/Practicing.md](SQL_Commands/Practicing.md)
 
-(Originally kept as separate `Learning.md` files; consolidated into one folder
-readme on Oct 1.)
+**Built:** the command-category readme (`SQL_readme_CONCEPTS.md`) plus a
+practice cheat-sheet (`Practicing.md`) covering every clause a developer
+uses daily — from DDL/DML/DQL/DCL/TCL to window functions and set
+operations.
 
-**Learned and practiced:**
+**Learned (command categories):**
 
-- Pub/sub model: clients (publishers/subscribers) never talk directly — the
-  broker decouples them by topic.
-- Service control on Windows (`net start/stop mosquitto`, running with
-  `-c mosquitto.conf`), and why editing the real config file beats echoing
-  multiline config from a shell (newline loss — a real bug hit, documented).
-- Broker limits: `max_connections` (per listener), `global_max_connections`,
-  `global_max_clients`.
-- **TLS/mTLS end to end** with openssl: CA key + cert → server key + CSR +
-  cert → client key + CSR + cert; what each file proves; CSR `-subj` for
-  scripting; `san.cnf` (OpenSSL 3.x refuses to verify without SAN — adding
-  IPs/DNS there beats regenerating everything when the network changes); the
-  broker listener on 8883 with `require_certificate true` and
-  `use_identity_as_username true`; client verification with
-  `mosquitto_sub/pub --cafile --cert --key`.
-- Bridge concepts: connecting two brokers so messages flow between them — the
-  use case for multi-site IIoT setups.
+- **DDL** — `CREATE`, `DROP`, `ALTER`, `TRUNCATE` (shape the database).
+- **DQL** — `SELECT`, `FROM`, `WHERE`, `GROUP BY`, `HAVING`,
+  `DISTINCT`, `ORDER BY` (the read side).
+- **DML** — `INSERT`, `UPDATE`, `DELETE` (the write side).
+- **DCL** — `GRANT`, `REVOKE` (access control).
+- **TCL** — `BEGIN TRANSACTION`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`
+  (atomic units; the capstone wraps every route in a transaction with
+  explicit rollback).
 
-### 3.7 Python MQTT client — [mqttdemo.py](MQTT/Python/mqttdemo.py)
+**Learned (types & constraints):** `INTEGER`/`BIGINT`/`SMALLINT`, `NUMERIC`
+(exact decimals), `TEXT`/`VARCHAR`, `BOOLEAN`, `DATE`/`TIMESTAMP`/`TIMESTAMPTZ`
+(`TIMESTAMPTZ` = the same instant worldwide), `UUID`, `JSONB`, arrays
+(`integer[]`, `text[]`); `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`,
+`CHECK`, `DEFAULT`, `SERIAL`/`BIGSERIAL` (auto-increment), `INDEX`.
 
-**Built:** an `MQTTClient` class using Paho **Callback API v2**, TLS on 8883,
-username/password auth, all five callbacks, paho's own logger, INFO-level app
-logging, and `logging.exception()` in every error path.
+**Learned (capstone SQL features):** `RETURNING` (no second round-trip to
+fetch an inserted id), `ON CONFLICT DO NOTHING` / `ON CONFLICT DO UPDATE`
+(upsert — needs a unique constraint), `LIMIT`/`OFFSET` (pagination),
+`MIN`/`MAX`/`AVG` (aggregates), `execute_values` (batch insert of ~5000
+rows in one shot), `rowcount` (did an UPDATE/DELETE actually change anything),
+`AUTOCOMMIT` (mandatory for `CREATE DATABASE` — Postgres forbids it in a
+transaction block).
 
-**Learned — the part that took longest to get right:**
+**Learned (table partitioning — the cron_jobs lesson, §3.6):** split one big
+table into smaller children by a value range (`PARTITION BY RANGE`). The
+partition column **must** be in the primary key (live Postgres rejected a
+plain-`id` PK → composite `PRIMARY KEY (id, unix_ts)`); the `DEFAULT`
+partition is the safety net; deleting old data becomes one `DROP TABLE` on
+a child instead of a slow bulk `DELETE`; queries prune to the matching
+children.
 
-- The **immediate return value** of `subscribe()` (`result, mid`) and
-  `publish()` (`result.rc` vs `mqtt.MQTT_ERR_SUCCESS`) reports whether the
-  *request* was accepted. The **callbacks** (`on_subscribe`, `on_publish`)
-  report what the *broker* later did. Both checks matter; they answer
-  different questions.
-- `loop_forever()` runs the network loop in the foreground with automatic
-  reconnect; `loop_start()` is the background-thread variant.
-- Safe shutdown: check `is_connected()` before `disconnect()`, and clean up in
-  a `finally` block.
-- Failure taxonomy actually observed: `ConnectionRefusedError`,
-  `ssl.SSLCertVerificationError` (expired/mismatched certs), and MQTT reason
-  codes (bad credentials, not authorized, quota exceeded) — all catalogued in
-  the [mqtt_readme_concepts.md](MQTT/mqtt_readme_CONCEPTS.md).
+**Learned (practicing cheat-sheet):** `SELECT DISTINCT ON`, `WHERE` with
+`=`, `<>`, `<=`, `>=`, `AND`/`OR`/`NOT`, `IN` / `BETWEEN` / `LIKE` /
+`ILIKE` / `IS NULL`, `ORDER BY` + `LIMIT` + `OFFSET` (leaderboards, paging),
+`INSERT … RETURNING`, `UPDATE` (always `WHERE`), `DELETE` vs `TRUNCATE`,
+`COUNT(*)`, `COUNT(DISTINCT col)`, `SUM/AVG`, `MIN/MAX`, `GROUP BY` +
+`HAVING`, `INNER`/`LEFT`/`RIGHT`/`FULL`/`CROSS`/self joins, join
+conditions vs `WHERE` (a `WHERE` on a right table of a `LEFT JOIN` turns
+it back into an `INNER JOIN`), one-to-one / one-to-many / many-to-many,
+finding duplicates (`COUNT(*) … GROUP BY … HAVING count(*) > 1`),
+finding unmatched rows (`LEFT JOIN … WHERE o.id IS NULL`), `WHERE` vs
+`HAVING`, set operations (`UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`),
+and window functions (`PARTITION BY` + `ORDER BY` for ranking,
+running totals, and aggregates over a sliding group).
 
-**Takeaway:** `logging.exception()` inside each callback keeps one bad message
-from killing the client — resilient handlers are the difference between a demo
-and a service.
+**Takeaway:** SQL is a vocabulary, not a single statement — the same mental
+model (filter → group → sort → page) maps from pandas' `.loc[]`/`groupby()`
+to `WHERE`/`GROUP BY`/`ORDER BY`, and the partition pattern from §3.6 is
+what makes the time-series store purgable by decade instead of row.
 
-### 3.8 Capstone: Machine Sensor API — [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md)
-
-**The assignment:** a Flask + PostgreSQL API to manage machine data — add/
-retrieve machine details, store sensor readings, import historical data.
-
-**Built:** [app.py](MQTT/Machine_Sensor_API/app.py) (factory, error handlers,
-/health, /readings/import), [config.py](MQTT/Machine_Sensor_API/config.py),
-[database/connection.py](MQTT/Machine_Sensor_API/database/connection.py)
-(ThreadedConnectionPool + time-bounded failure), [services/](MQTT/Machine_Sensor_API/services/)
-(machine_service.py, reading_service.py, pickle_importer.py), [routes/](MQTT/Machine_Sensor_API/routes/),
-[errors.py](MQTT/Machine_Sensor_API/errors.py), [init_db.py](MQTT/Machine_Sensor_API/init_db.py),
-[utils/logger.py](MQTT/Machine_Sensor_API/utils/logger.py), and a pytest suite.
-
-**Key engineering decisions:**
-
-- **Fresh connection per request → ThreadedConnectionPool** with
-  `with db.cursor()` context managers (pooled, returned on exit).
-- **DB timeouts** — `connect_timeout=5`, `statement_timeout=15000`
-  (env-tunable). A hung query or dead database now fails visibly in seconds.
-- **Import ledger** — SHA-256 file hash recorded in the same transaction;
-  the same content can never be filed twice (the unique constraint on
-  (machine_id, sensor_tag, timestamp) was dropped as an unprovable business
-  claim).
-- **Fail-fast config** — `DATABASE_URL`, `JWT_SECRET_KEY`, etc. validated at
-  boot before the app wakes up.
-- **Statistics as JSON numbers** — `NUMERIC` aggregates cast `::float8`, so
-  `/readings/statistics` returns real numbers (null when nothing matches).
-- **Row-level importer validation** — a single bad `VR` value no longer
-  aborts the whole ~56k-row file; bad rows are skipped and counted in
-  `records_skipped`.
-- **Readability refactor** — dynamic filters moved from a `WHERE 1 = 1`
-  string into a conditions list joined with `" AND "`; this grew into the
-  shared `_build_reading_filters()` helper used by three call sites.
-
-**Bulk import reality:** the snapshot data from 28-03-2025 lives in
-[MQTT/Machine_Sensor_API/data/](MQTT/Machine_Sensor_API/data/) — the pickle
-snapshot (`all_topics_20250328-114500.pkl`) converts to **55,918 readings
-across 12 machines** (verified by counting the generated CSV). The importer
-goes `.pkl → CSV → PostgreSQL`, leaving a human-readable CSV artifact and
-skipping broken rows. Records carry `ST` (sensor tag), `TS` (Unix time),
-`VR[0]` (value); an empty/blank snapshot is treated as 0 records and the
-importer continues instead of failing.
-
-**Endpoints:** full CRUD on machines and readings, filters
-(`machine_id`, `sensor_tag`, `from`/`to` ISO 8601),
-`/readings/statistics` (MIN/MAX/AVG), `/readings/export` (streaming CSV),
-`/health`, and `POST /readings/import` — verified endpoint-by-endpoint with
-Postman during development; the data folder also carries a tiny
-[messy.csv](MQTT/Machine_Sensor_API/data/csv_files_28_03_2025/messy.csv) in
-the same four-column schema — a two-row sample that documents the format of
-the intermediate CSV stage.
-
-### 3.9 Post-capstone hardening (Sep 18–21)
-
-**The theme:** the API handled the happy path with honest 500s; this pass made
-the error *semantics* honest and the responses client-friendly.
-
-- **Typed exception translation** — `ConflictError` and the FK-error subclass
-  (both under `DatabaseError`) in
-  [connection.py](MQTT/Machine_Sensor_API/database/connection.py); services
-  translate driver integrity errors at the source. Duplicate machine name →
-  **409**; reading for a nonexistent machine → **400** with an actionable
-  message; everything else still 500.
-- **Statistics as JSON numbers** — `NUMERIC` aggregates arrived in Python as
-  `Decimal`, which Flask serializes as *strings* (`"minimum": "42.0"`).
-  Aggregates are now cast `::float8` in SQL, so `/readings/statistics`
-  returns real numbers, and `null` when nothing matches.
-- **Row-level importer validation** — bad tags/timestamps were already
-  skipped, but a single non-numeric `VR` value could abort an entire
-  ~56k-row file transaction. `sensor_value` is now validated per row and
-  counted in `records_skipped`.
-- **Readability refactor** — dynamic filters in
-  [reading_service.py](MQTT/Machine_Sensor_API/services/reading_service.py)
-  no longer grow out of a `WHERE 1 = 1` string; they are a conditions list
-  joined with `" AND "`. Same SQL, easier to read (the Sep 21 change shared
-  with Swaroop). *This idea later grew into the single shared
-  `_build_reading_filters()` helper (§3.8).*
-- **Resolved later that month:** the two Postman assertions that still
-  expected 500 for the duplicate-machine and bad-`machine_id` cases were
-  updated to 409/400 in the revised collection.
-
-Verified offline with a faked connection layer: 23 route/service checks
-(status codes, rollback, importer skip counting) plus 6 SQL-assembly checks
-(every filter combination), no live database touched.
-
-### 3.10 Production rebuild, design review, and the versioned-cleanup method (Sep 22–28)
-
-This final stretch turned the capstone from a working API into one that is
-reviewed, armored, and documented like production software — in three passes.
-
-#### Pass 1 — the production rebuild (Sep 22–24)
-
-Each fix answered a concrete problem, never "production code should look like X":
-
-| What changed | The problem it solved | In plain words |
-| --- | --- | --- |
-| Flask dev server with `debug=True` → **waitress** + `wsgi.py` | The dev server's interactive debugger is a remote-code-execution door | A real service gets a real front door |
-| Fresh connection per request → **`ThreadedConnectionPool`** with `with db.cursor()` context managers | TCP + auth per request doesn't survive traffic; manual cleanup gets forgotten | Reusable shopping carts instead of buying a new one per customer |
-| Unique constraint on `(machine_id, sensor_tag, timestamp)` → **dropped**; duplicates guarded by the **`import_batches` ledger** (SHA-256 file hash, recorded in the same transaction) | The constraint was a business claim nobody could prove — and it once multiplied one file ~211× into 11.8M rows | Fingerprint-stamp the source file; the same content can never be filed twice |
-| Server ran DDL at boot → **`init_db.py`** | A restart must never run DDL | Renovation plans are run deliberately, not on every boot |
-| `TIMESTAMP` → **`TIMESTAMPTZ`** UTC; fail-fast `config.py` validating `.env` | A reading must mean the same instant worldwide; half-configured boots | Every setting checked at the door before the app wakes up |
-
-#### Pass 2 — the 8-principles review (Sep 25–26)
-
-The whole codebase was reviewed against eight classic principles — cohesion &
-single responsibility, encapsulation & abstraction, loose coupling &
-modularity, reusability & extensibility, portability, defensibility,
-maintainability & testability, and simplicity (KISS · DRY · YAGNI). Full
-detail in the project readme's *Design principles review*. The honest headline
-scores: **Defensibility 4.5/5** (strongest — fail-fast config, parameterized
-SQL everywhere, the import ledger, no information leaks), **Maintainability &
-Testability 2.5/5** (weakest at the time — zero automated tests), **overall
-≈ 3.4/5**.
-
-Two things made the review more valuable than a scorecard:
-
-- **A second, independent review** (ChatGPT, from an archived snapshot)
-  converged on nearly every finding, contributed two adopted ones (the
-  CSV-stage KISS question, the admin-rights DB-init portability note), and got
-  one claim wrong — it flagged `DROP_LEGACY_*` SQL as live, but a full-text
-  search proved the live code has no `DROP` at all. Lesson: **review the live
-  tree, not the archive.**
-- **A rule was adopted and is now standing policy:** the eight principles are
-  *constraints on decisions, not excuses to add layers*. A change justified by
-  no concrete problem is rejected — no repositories, no DI frameworks, no ORM
-  rewrites "just because production".
-
-#### Pass 3 — the five-fix cleanup, built as versions, then promoted (Sep 27–28)
-
-The top five fixes from the review, applied with a method worth recording:
-
-1. **DB timeouts** — `connect_timeout=5`, `statement_timeout=15000`
-   (env-tunable). A hung query or dead database now fails visibly in seconds
-   instead of freezing the API forever.
-2. **Rotating logs** — `RotatingFileHandler` (10 MB × 5) + `LOG_LEVEL` from
-   env. The diary archives itself; the disk can't fill.
-3. **Dead code removed** — `count_machines()`, defined and never called
-   (YAGNI).
-4. **One filter builder** — the WHERE-clause construction that existed in
-   three copies (list, export, statistics) is now `_build_reading_filters()`,
-   called by all three.
-5. **Shared validators** — input checks moved out of one view class's private
-   methods into `utils/validation.py`; all views import them; the
-   once-triplicated `from ≤ to` check became one `validate_from_to_order()`.
-
-**The method (the transferable lesson):** every fix was first built as a
-parallel `*_v3.py` copy while the originals stayed untouched — two complete
-runnable chains, verified separately (each built 10 routes; one shared pool
-per chain; exception classes aligned; a live `SELECT 1` +
-`SHOW statement_timeout` confirmed the server received `15s`). Only after both
-chains proved identical in behavior were the v3 files promoted over the
-originals and the `_v3` names stripped. Rollback was trivial by construction,
-and the promotion itself was re-verified (app builds, pool identity, live DB).
-
-*(The archived comparison that framed this pass, `PRODUCTION_COMPARISON.md`,
-and the old root README/LEARNINGS files were consolidated away on Oct 1; the
-findings live on in the capstone readme and this document.)*
-
-### 3.11 Standalone rotating-JSON logging — [log_rotation/](log_rotation/code_explanation.md)
+### 3.5 Rotating-JSON logging — [log_rotation/code_explanation.md](log_rotation/code_explanation.md)
 
 **Built:** [rotation.py](log_rotation/rotation.py) — one hybrid handler demo:
-every log record is formatted as **one-line JSON** (unix-epoch timestamp,
-level, logger name, message, exception block when present) and written both to
-a **rotating file chain** (`app.log` → `app.log.1` → … → `app.log.10`) and to
-the console. The file is explained line-by-line in
-[code_explanation.md](log_rotation/code_explanation.md).
+every log record formatted as **one-line JSON** (unix-epoch timestamp, level,
+logger name, message, exception block when present) written to a **rotating
+file chain** (`app.log` → `app.log.1` → … → `app.log.10`) plus the console.
 
 **Learned:**
 
 - `RotatingFileHandler.maxBytes` + `backupCount` = a diary that archives
-  itself; the disk can never fill. The demo uses 2 KB so rotation is visible
-  in seconds; production code (the capstone's logger, cron_jobs' logging) uses
-  10 MB × 5–10 archives.
-- `logger.propagate = False` stops records from reaching the root logger —
+  itself; the disk can never fill. Production code (the capstone logger,
+  cron_jobs) uses 10 MB × 5–10.
+- `logger.propagate = False` stops records reaching the root logger —
   without it, console handlers print every line twice.
-- `if logger.handlers: return` guards against duplicate handler attachment on
-  re-imports.
-- JSON-per-line is the format log collectors want to see; free-text logs are
-  for humans only.
+- `if logger.handlers: return` guards against duplicate handler attachment
+  on re-imports.
+- JSON-per-line is what log collectors want; free-text logs are for humans
+  only.
 
 **Incident record (Sep 30):** earlier log-rotation attempts were split across
 multiple demos and log lines went missing between them; the fix was
-consolidating into this one hybrid handler and re-documenting the *actual*
-function-based code. Lesson: one logging setup per application, wired in one
-place — and document the code that really runs, not an earlier draft.
+consolidating into this one hybrid handler and documenting the *actual*
+function-based code. Lesson: one logging setup per application, wired in
+one place, and document the code that really runs.
 
-**Takeaway:** this little file is where the capstone's Pass-3 "rotating logs"
-fix came from — learning a mechanism in isolation before applying it where it
-matters.
-
-### 3.12 Cron jobs, schedulers, and table partitioning — [cron_jobs/cronjobs_readme.md](cron_jobs/cronjobs_readme.md)
+### 3.6 Cron jobs, schedulers, and table partitioning — [cron_jobs/cronjobs_readme.md](cron_jobs/cronjobs_readme.md)
 
 **Built (restructured Oct 1):** a scheduler-based project that inserts the
 current Unix timestamp every minute into a **range-partitioned** PostgreSQL
@@ -467,27 +328,27 @@ table and creates partitions just-in-time.
   `(id, unix_ts)`** and a `_default` partition as the safety net.
 - [scheduler.py](cron_jobs/scheduler.py) — the two jobs:
   `insert_current_timestamp()` (every 1 minute) and `create_partition()`
-  (every 10 minutes, creating the current **and** next 10-minute window so a
-  partition always exists before its first insert; `IF NOT EXISTS` makes
+  (every 10 minutes, creating the current **and** next 10-minute window so
+  a partition always exists before its first insert; `IF NOT EXISTS` makes
   re-runs idempotent).
 - [db.py](cron_jobs/db.py) + [config.py](cron_jobs/config.py) —
   `get_connection(database=None)` on `.env` credentials, with an escape hatch
   to the `postgres` maintenance database for `CREATE DATABASE`.
 - [logging_config.py](cron_jobs/logging_config.py) — root logger, 10 MB × 10
   rotating file + console, apscheduler quieted to WARNING (the lesson from
-  §3.11 applied directly).
+  §3.5 applied directly).
 
 **Learned:**
 
 - OS cron vs in-process schedulers: `crontab -e` runs scripts on Linux;
-  on Windows, Task Scheduler; in Python, the `schedule` module or APScheduler.
-  This project uses **APScheduler's `BlockingScheduler`** with two
-  `cron`-trigger jobs (`minute="*/1"`, `minute="*/10"`) — see the
+  on Windows, Task Scheduler; in Python, the `schedule` module or
+  **APScheduler**. This project uses **APScheduler's `BlockingScheduler`**
+  with two `cron`-trigger jobs (`minute="*/1"`, `minute="*/10"`) — see the
   APScheduler-vs-schedule comparison table in the
   [readme](cron_jobs/cronjobs_readme.md).
-- **Partition key rule:** PostgreSQL requires the partition column to be part
-  of the primary key — hence the composite `PRIMARY KEY (id, unix_ts)` after
-  the first plain-`id` design was rejected by the database (Oct 1 commit).
+- **Partition key rule:** PostgreSQL requires the partition column to be
+  part of the primary key — hence the composite `PRIMARY KEY (id, unix_ts)`
+  after the first plain-`id` design was rejected by the database.
 - **Just-in-time partitioning** (Oct 1 fix): inserts originally failed when
   the matching partition didn't exist yet; the insert job now creates the
   partition *before* inserting, and the `DEFAULT` partition catches anything
@@ -501,9 +362,9 @@ structured logs → idempotent SQL — is the same skeleton as the capstone's
 importer, just time-driven instead of request-driven. Patterns transfer; only
 the trigger changes.
 
-### 3.13 Regular expressions — [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md)
+### 3.7 Regular expressions and the machine-log monitoring system — [RegEx/regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md) + [RegEx/Machine_Log_Monitor/](RegEx/Machine_Log_Monitor/)
 
-**Built:** [`.py`](RegEx/.py) — eight matcher functions driven by an
+**Built (regex):** [`.py`](RegEx/.py) — eight matcher functions driven by an
 interactive `main()`: exact five-digit match with lookarounds
 (`(?<!\\d)\\d{5}(?!\\d)`), lowercase-only and uppercase-only scans, grouped
 letters + numbers extraction, "starts with A" / "ends with Z" via word
@@ -516,7 +377,7 @@ extraction/validation tasks (employee and machine IDs, phone numbers, log
 parsing with named groups and `groupdict()`, `re.sub` cleaning, `re.split`,
 dates, error lines).
 
-**Learned:**
+**Learned (regex):**
 
 - Aug 4–6: regex assignment — exact 5 digits, lowercase-only, uppercase-only,
   letters-and-numbers, starts-with-A, ends-with-Z, digits-only, no-digits.
@@ -531,20 +392,25 @@ dates, error lines).
 - Named real uses: input validation, log parsing with groups, `re.sub()` data
   cleaning — the same skills the capstone uses for validating query params.
 
-**Known issues (Oct 8 review):** the concepts file is literally named `.py`,
-which hides it from most tooling (renaming to `regex_concepts.py` is
-pending), and
-[regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md) has drifted from
-the code: it documents `match_letters_and_numbers()` with the grouping
-pattern `([a-zA-Z]+)(\\d+)`, while the implementation actually uses two
-separate `findall` calls — and the notes still carry leftover brainstorming
-text that should not go out in a shared file.
+**Built (machine-log monitoring):** [setup_db.py](RegEx/Machine_Log_Monitor/setup_db.py)
+→ [db.py](RegEx/Machine_Log_Monitor/db.py) (connection) →
+[logging_config.py](RegEx/Machine_Log_Monitor/logging_config.py) →
+[log_reader.py](RegEx/Machine_Log_Monitor/log_reader.py) (parses `machine.log`)
+→ [log_parser.py](RegEx/Machine_Log_Monitor/log_parser.py) (regex extraction)
+→ [jobs.py](RegEx/Machine_Log_Monitor/jobs.py) (insert + report on schedule)
+→ [scheduler.py](RegEx/Machine_Log_Monitor/scheduler.py) (APScheduler cron)
+→ [report.py](RegEx/Machine_Log_Monitor/report.py) (CSV output)
+→ [machine_log_monitor_CONCEPTS.md](RegEx/Machine_Log_Monitor/machine_log_monitor_CONCEPTS.md).
+The system stores `ERROR` entries in PostgreSQL with duplicate handling,
+generates `machine_error_report.csv`, and runs on a schedule — the same
+pattern as §3.6, now wired to real log data.
 
 **Takeaway:** regex is a validation tool, not a puzzle toy — the
 extract-and-validate patterns here are exactly what an API's input layer does
-daily.
+daily, and the log monitor is the same import pipeline as the capstone's,
+just triggered by a scheduler instead of a REST call.
 
-### 3.14 Order & Sales Management App — [Order_Sales_Management/](Order_Sales_Management/)
+### 3.8 Order & Sales Management App — [Order_Sales_Management/](Order_Sales_Management/)
 
 **The assignment (Oct 13):** a full-stack application simulating a retail/
 e-commerce business: customer orders, validated order details, calculated
@@ -584,44 +450,34 @@ product-wise / date-wise sales reports.
   `product-wise` and `date-wise` endpoints with JSON/CSV. Revenue counts only
   `Shipped` + `Delivered`, using historic `order_items.unit_price`.
 
-**Risk note:** the shipped code says the backend suite passes (**84
-tests**), but the local test database uses `postgres` with a password that
-this environment does not have; it cannot be re-run here without the
-credential. Record what was verified:
-
-- Doc↔code review against the shipped `Order_Sales_Management/` tree and the
-  October email thread (Oct 13–23, Oct 26–27): stack, architecture, roles,
-  rules, and endpoints in the shipped `docpack/` all match the code.
-- `backend_files_explained.md` and `final_full_project_explained.md` agree
-  with the live routes/services/models: auth flow, role guards, `tv`
-  revocation, `visible_orders_for` scoping, server-side pricing, status
-  machine, duplicate groups, revenue rule.
+**Risk note:** the shipped code says the backend suite passes (**84 tests**),
+but the local test database is configured with `postgres` and password
+`Vijay37` at `localhost:5432/intern_training_db`, and a live connection
+fails with `FATAL: password authentication failed for user "postgres"`.
+The 84-test count is the shipped code's own (6 files: `test_auth`=29,
+`test_orders`=24, `test_permissions`=23, `test_pricing`=3, `test_reports`=3,
+`test_smoke`=2), and it was re-run — **84 errors, all `sqlalchemy` —
+because the DB host never saw the server's credentials.** Full details in
+§9.
 
 ---
 
 ## 4. Supporting skills
 
-- **Linux basics** — [Learning_linux.md](Linux/Learning_linux.md): navigation,
-  file ops, `grep`/`find`/`wc`, `sort`/`uniq`; why Linux matters for
-  servers/gateways in IIoT; the WSL `explorer.exe .` trick.
-- **Testing discipline** — Postman collections with chained variables
-  (create → read → update → cascade-delete verification), API screenshots per
-  operation, and writing the readme *while* testing so docs never drift.
-  Plus offline verification with a faked connection layer when a live
-  database isn't available (§3.9), and since Sep 28 a real pytest suite (§7).
-- **SQL as a working vocabulary** —
-  [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md): DDL/DQL/DML/DCL/TCL categories,
-  the constraint and index toolbox used in the capstone, and an honest
-  "not used yet" list (joins, window functions, `EXPLAIN ANALYZE`).
-- **Documentation habit** — every folder carries a README with real
-  click-through links; notes record *why*, not just *what*; every doc opens
-  with a simple version a non-technical reader can follow (the capstone's
-  waiter-never-cooks layering analogy, the shopping-cart pool, the diary that
-  archives itself) and keeps the engineer detail below — see
-  [code_explanation.md](log_rotation/code_explanation.md) for the pattern
-  applied to code itself. On Oct 1 the scattered per-topic note files were
-  consolidated into one readme per folder, so there is exactly one place each
-  topic lives.
+| Skill | Files | What you get |
+| --- | --- | --- |
+| **Pandas** | [Pandas/Pandas.md](Pandas/Pandas.md), [analysis.py](Pandas/analysis.py), `customers.csv`, `orders.csv`, `city_report.csv`, `monthly_revenue.png` | Data I/O, cleaning, selection, grouping, merging, pivot tables, plotting |
+| **Git** | [Git_Documentation.md](Git_Documentation.md) | init → clone → commit → branch → remote → merge/rebase → undo; the full workflow |
+| **Traceback** | [Traceback.md](Traceback.md) | print/format/extract/walk API + the logging rule (`exception` + bare `raise`) |
+| **SQL** | [SQL_Commands/SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [SQL_Commands/Practicing.md](SQL_Commands/Practicing.md) | Command categories, types, constraints, capstone SQL, partitioning, window functions |
+| **Logging** | [log_rotation/](log_rotation/) | Rotating JSON handler, one-line-JSON, `propagate=False`, `if logger.handlers: return` |
+| **Scheduling** | [cron_jobs/](cron_jobs/) | APScheduler `BlockingScheduler` + `cron` triggers + range-partitioned table |
+| **Regex** | [RegEx/regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), [RegEx/.py](RegEx/.py), [Assigned_Tasks.py](RegEx/Assigned_Tasks.py), [Machine_Log_Monitor/](RegEx/Machine_Log_Monitor/) | 8 matchers, 10-task practice, log ingestion → DB → CSV on a schedule |
+| **OOP** | [OOP/OOP_CONCEPTS.md](OOP/OOP_CONCEPTS.md) + [OOP/*.py](OOP/) | 5 inheritance types + encapsulation, exception-guarded demos |
+| **Linux** | [Linux/](Linux/) | Navigation, file ops, `grep`/`find`/`wc`, `sort`/`uniq`, `grep -r` vs `find -exec` |
+| **Networking / frontend** | [NetWorking/NAT.md](NetWorking/NAT.md), [NetWorking/Vue.md](NetWorking/Vue.md) | NAT/redirection concepts, Vue Router + Pinia explainer |
+| **Capstone** | [MQTT/Machine_Sensor_API/](MQTT/Machine_Sensor_API/) | Flask + PostgreSQL machine sensor API, pool, timeouts, import ledger |
+| **Order & Sales** | [Order_Sales_Management/](Order_Sales_Management/) | Vue 3 + Flask + PostgreSQL full-stack app, roles, status machine, reports |
 
 ---
 
@@ -637,7 +493,8 @@ credential. Record what was verified:
 | Callbacks "not firing" | Expecting callbacks to replace return-code checks | Check `subscribe()`/`publish()` results **and** register callbacks |
 | `Minues` column typo in Excel output | Manual typo in generated columns | Fixed to `Minutes`; proofread output schema |
 | Blank snapshot record sets | First snapshot(s) carried empty dicts | Importer treats empty data as 0 records, continues |
-| Duplicate readings on re-import | Overlapping snapshots | First fixed with `ON CONFLICT DO NOTHING` + unique constraint; **final fix (Sep 28):** the `import_batches` hash ledger — content, not constraints |
+| `FATAL: password authentication failed for user "postgres"` | `Order_Sales_Management/server/.env.test` points at `localhost:5432/intern_training_db` with `user=postgres password=Vijay37`; the local server does not accept that password → all 84 backend tests error (`sqlalchemy`) | Record the shipped claim + blocker in §7/§9; the code is correct — the local DB host is not configured for it |
+| Duplicate readings on re-import | Overlapping snapshots | Fixed with `ON CONFLICT DO NOTHING`; **final fix (Sep 28):** the `import_batches` hash ledger — content, not constraints |
 | Statistics returned as JSON strings | `NUMERIC` → psycopg2 `Decimal` → Flask stringifies | Cast aggregates `::float8` — real numbers at the JSON boundary |
 | Duplicate machine / missing FK machine returned 500 | `IntegrityError` never translated | `ConflictError` → 409, FK error (now `RelatedResourceNotFoundError`) → 400 |
 | One bad `VR` value aborted a whole pickle file | Value not validated per row | Row-level `float()` check → skip + count in `records_skipped` |
@@ -702,30 +559,43 @@ credential. Record what was verified:
     navigation, and client-side guards; Flask owns auth, pricing, status
     machine, and tenancy; `constants.Role` replaced string literals everywhere.
 17. **Verify before claiming coverage** — the shipped 84-test suite count
-    came from the `Order_Sales_Management` tree; a re-run against the live
-    `postgres` password has not been possible in this environment, so §9
-    records both the shipped claim and the open setup item.
+    comes from the `Order_Sales_Management` tree; the re-run in this
+    environment surfaces `sqlalchemy` auth errors because the local PostgreSQL
+    server does not accept the `postgres`/`Vijay37` credential in
+    `server/.env.test`. Records both here (§7 and §9) rather than claiming a
+    pass the environment won't let me make.
 
 ---
 
 ## 7. What I cannot do yet (honest gaps)
 
-- ~~No automated tests~~ **Closed on Sep 28 (capstone):** a 53-test pytest
-  suite now covers all 8 error-handler branches, the shared validators, the
-  filter builder, driver-error → HTTP-code translation, the importer's
-  hash-skip and row-skipping, and the main route flows — all against a fake
-  pool, ~1.5s, no live database. Bonus: the suite immediately caught a real
-  bug (whitespace-only machine names passed validation) and a test-harness
-  lesson (services bind the pool at import time, so the fixture must patch
-  each service module's `db` name). The shipped Order & Sales Management
-  suite reports 84 passed; it exists and passes in the project's own
-  environment, but cannot be re-run here because the test DB is configured
-  with a `postgres` password this environment does not have.
+- **Capstone (`MQTT/Machine_Sensor_API`) test suite: 53 passed** —
+  `pytest` against a fake pool, ~4 s, no live database. It validates all 8
+  error-handler branches, the shared validators, the filter builder, the
+  driver-error → HTTP-code translation, the importer's hash-skip and
+  row-skipping, and the main route flows.
+- **Order & Sales Management backend suite: 84 tests** (6 files:
+  `test_auth`=29, `test_orders`=24, `test_permissions`=23,
+  `test_pricing`=3, `test_reports`=3, `test_smoke`=2 = **84 test functions**).
+  They exist and are correct against the shipped code; a re-run here
+  **could not pass**: the suite connects to `postgresql+psycopg2://postgres:Vijay37@localhost:5432/intern_training_db`
+  (from `server/.env.test`), and a live `psycopg2` connection to that host
+  fails with `FATAL: password authentication failed for user "postgres"`.
+  The 6 test files also `TRUNCATE order_sales.*` (via `conftest.py`'s
+  `clean_db`), which requires the `order_sales` schema and its tables to
+  already exist — they do not on this machine. **Verified by running**
+  `python -m pytest tests/ -q` (84 errors, all `sqlalchemy`). Requisite for
+  a passable environment: a PostgreSQL server whose `postgres` role accepts
+  the recorded password, plus a database `intern_training_db` named in
+  `server/.env.test`.
+- **The Order & Sales app's frontend** (`client/`) has no build/test recorded:
+  `vite.config.js` + `main.js` + `App.vue` are present; no `npm run build`
+  or lint output was captured in the period's verification record.
 - No Docker; the apps are not yet packaged as installable (`pyproject.toml`)
   projects with lint (ruff) and type hints in CI.
 - Migrations (Alembic) — schema changes still rely on idempotent
   `CREATE ... IF NOT EXISTS` instead of versioned, reversible scripts.
-- No request correlation IDs in logs; the Blueprint split of `app.py` is
+- **No request correlation IDs in logs**; the Blueprint split of `app.py` is
   recorded but not done; the pickle → CSV stage is a decision still open
   (audit artifact vs. direct `.pkl → PostgreSQL` import).
 - MQTT bridge was studied conceptually but not yet implemented end-to-end;
@@ -742,7 +612,9 @@ credential. Record what was verified:
   beyond `KeyboardInterrupt`; `db.py` still reports connection failure with a
   bare `print` instead of the structured logger it configures.
 - SQL practice is still short of real-world use of joins, window functions,
-  and `EXPLAIN ANALYZE` ([SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md)).
+  and `EXPLAIN ANALYZE` ([SQL_Commands/Practicing.md](SQL_Commands/Practicing.md)
+  documents them; [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md)
+  lists them as "not used yet").
 - The `Final_zip/` distribution copy is re-exported by hand. The Oct 8
   review verified it back **in sync** with the live tree (only a runtime log
   file differs) — an earlier version of this document wrongly claimed it had
@@ -761,16 +633,17 @@ credential. Record what was verified:
 grow the suite (export streaming, init_db, cron_jobs) + CI  →  pyproject packaging + ruff + type hints
    →  Alembic migrations  →  MQTT client hardening (env config, auto-reconnect, QoS)
    →  joins/window-functions practice  →  dashboard
+   →  e2e test the Order & Sales app (client + server) once the DB credentials are provisioned
 ```
 
 The goal is unchanged: keep moving from "the API works on my machine" toward
 "the service behaves correctly when something goes wrong" — the final
 capstone week banked the server, pooling, timeouts, and the import ledger,
-the automated tests came next, and the post-capstone tracks (logging,
-scheduling, partitioning, regex) are each small, finished proofs that the
-same patterns generalize. The Order & Sales Management app is the next
-finished contract: a Vue 3 + Flask + PostgreSQL full-stack app with role-
-scoped data, a strict order state machine, and server-side pricing.
+the automated tests came next, and the post-capstone tracks (pandas,
+logging, scheduling, partitioning, regex) are each small, finished proofs
+that the same patterns generalize. The Order & Sales Management app is the
+next finished contract: a Vue 3 + Flask + PostgreSQL full-stack app with
+role-scoped data, a strict order state machine, and server-side pricing.
 
 ---
 
@@ -785,27 +658,28 @@ OOP (6 runnable files), the PostgreSQL bootstrap (`Database_Connection`, later
 `cron_jobs`), file/CSV handling, the Excel → DataFrame pipeline, the first
 Flask API, Mosquitto + Paho MQTT, the Machine Sensor API capstone, the
 cron-jobs/partitioning project, both regex exercises (concepts + practice),
-and the Order & Sales Management app with its shipped `docpack/`.
+the pandas analysis, the git reference, the traceback reference, the full
+SQL portfolio, and the Order & Sales Management app with its shipped
+`docpack/`.
 
 **Checks actually run / verified against code:**
 
 | Check | Method | Result |
 | --- | --- | --- |
 | Capstone test suite | `pytest tests` in `MQTT/Machine_Sensor_API` | **53 passed** (~4 s, fake pool, no live DB) |
-| Order & Sales Management backend suite | `python -m pytest tests/ -q` in `Order_Sales_Management/server` | Shipped claim **84 passed**; re-run in this environment blocked by `postgres` test-DB password |
+| Order & Sales Management backend suite | `python -m pytest tests/ -q` in `Order_Sales_Management/server` | **84 test functions** (6 files) present — live run: **84 errors** (`sqlalchemy`), due to `postgres`/`Vijay37` auth failure on `localhost:5432/intern_training_db` + missing `order_sales` schema. Shipped claim verified in-code (`84`); pass re-run blocked by local DB credentials (§7) |
 | Distribution copy sync | `diff -rq` of `Final_zip/` against the live tree | Code identical; only a runtime log file differs |
-| Task coverage | Task-by-task cross-check of every email assignment | 10/10 tasks have live artifacts |
+| Task coverage | Task-by-task cross-check of every email assignment | 10/10 tasks + Order & Sales app have live artifacts |
 | Doc ↔ code spot checks | Pooling, timeouts, import ledger, `_build_reading_filters()`, shared validators | All confirmed in the live files |
-| Link resolution | `Path.exists()` on all 75 internal anchors | 75/75 resolve |
+| Link resolution | `Path.exists()` on all internal anchors | All resolvable after §9 re-entry (45/45) |
 
 **Could not be executed here (verified by inspection only):** live
 PostgreSQL behavior (pooling, partition creation) and the MQTT TLS flow — no
 database or broker was running; the test suites run against fake pools by
-design. Order & Sales Management backend tests: **84 passed** per the shipped
-`backend_files_explained.md` / `final_full_project_explained.md` quality
-check, but not re-verifiable here without the test-DB credentials.
+design. The Order & Sales backend suite needs the DB credentials above; the
+frontend needs a `npm run build` run.
 
-**Open cleanup items found by the review** (recorded in §3.13, §5 and §7): the
+**Open cleanup items found by the review** (recorded in §3.7, §5 and §7): the
 `RegEx/.py` filename, the regex readme drift, `schedule`-module remnants in
 [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), the `F:\` path in
 [Csv_Handling.py](File_Handling/Csv_Handling.py), and two stale claims in
