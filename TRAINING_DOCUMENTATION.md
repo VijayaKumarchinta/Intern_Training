@@ -74,11 +74,56 @@ assignments and the live tree; the verification record is §9.
 ## 2. Timeline of assigned work
 
 | Date | Task | Output |
-| --- | --- | --- |
 | Aug 17 | OOP: 5 inheritance types + encapsulation, exception in every example | [OOP/OOP_CONCEPTS.md](OOP/OOP_CONCEPTS.md) — 6 runnable files |
 | Aug 17 | PostgreSQL: create database, schema, table | [setup.py](Database_Connection/setup.py) |
 | Aug 18 | File handling: read/write/append + errors | [Handle.py](File_Handling/Handle.py), [Csv_Handling.py](File_Handling/Csv_Handling.py) |
 | Aug 20 | `Postgremanager` class with CRUD + transactions | [setup.py](Database_Connection/setup.py) |
+| Aug 20–21 | Excel generation → pandas DataFrame → split strings | [Excel.py](Conversion/Excel.py) |
+| Aug 24–26 | Flask API over the employee table + Mosquitto broker introduced | [main.py](Database_Connection/main.py), [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
+| Aug 25 | Mentor check-in: learned `__init__()` init best practice, f-strings for inline substitution, `%s` placeholder | (note) |
+| Aug 26 | Mentor sent two Flask APIs over the employee table + mosquitto broker learning task | (email) |
+| Aug 21 | Regex practice introduction | [Assigned_Tasks.py](RegEx/Assigned_Tasks.py) | (started) |
+| Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
+| Sep 8–10 | Paho client: 5 callbacks, paho logging, return-code checks | [mqttdemo.py](MQTT/Python/mqttdemo.py) |
+| Sep 15–17 | Machine Sensor API + bulk pickle import | [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md) |
+| Sep 18–21 | Capstone hardening: 409/400 exception mapping, JSON-number statistics, row-level import validation, conditions-list refactor | §3.9 |
+| Sep 22–24 | Production rebuild: waitress, connection pooling, import ledger, `init_db.py`, TIMESTAMPTZ | §3.10 Pass 1 |
+| Sep 25–26 | 8-principles design review + independent cross-check | §3.10 Pass 2 |
+| Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten simple+engineer | §3.10 Pass 3 |
+| Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved to `.env` | [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [rotation.py](log_rotation/rotation.py) |
+| Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating handler; range-partitioning demo (partition_ts) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
+| Oct 1 | Documentation consolidation (one readme per topic); cron-jobs on a real scheduler; table partitioning with just-in-time partitions + composite PK | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.6 |
+| Oct 4–6 | Regular expressions: 8 matcher functions + notes; APScheduler cron triggers; `Final_zip/` copy assembled | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
+| Oct 7–8 | Regex practice on 10 tasks; machine-log monitoring assigned, built, documented, hardened | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
+| Oct 8 | Full self-review: cross-checked every email-assigned task against the live tree; test suite re-run; distribution sync; doc-drift findings | §9 |
+| Oct 13–23 | Order & Sales Management App assignment, delivered as Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
+| Oct 14 | Mentor clarified user-authentication requirements (registration, OTP, password reset, roles, tenant scoping) | (email) |
+| Oct 18 | Mentor sent the endpoints for the Order & Sales app | (email) |
+| Oct 26 | Follow-up on next task assignment | (email) |
+| Oct 27 | Traceback module documentation prepared and shared | [Traceback.md](Traceback.md) |
+| Nov 2 | Pandas documentation prepared + sample-dataset practice completed | [Pandas/Pandas.md](Pandas/Pandas.md) |
+| Sep 15–17 | Machine Sensor API + bulk pickle import | [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md) |
+| Sep 18–21 | Capstone hardening: 409/400 exception mapping, JSON-number statistics, row-level import validation, conditions-list refactor | §3.9 |
+| Sep 22–24 | Production rebuild: waitress, connection pooling, import ledger, `init_db.py`, TIMESTAMPTZ | §3.10 Pass 1 |
+| Sep 25–26 | 8-principles design review + independent cross-check | §3.10 Pass 2 |
+| Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten in simple + engineer two-layer format | §3.10 Pass 3 |
+| Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [rotation.py](log_rotation/rotation.py) |
+| Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging; first range-partitioning demo (`partition_ts`) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
+| Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
+| Sep 8–10 | Paho client: 5 callbacks, paho logging, return-code checks | [mqttdemo.py](MQTT/Python/mqttdemo.py) |
+| Aug 17 | OOP: 5 inheritance types + encapsulation, exception in every example | [OOP/OOP_CONCEPTS.md](OOP/OOP_CONCEPTS.md) — 6 runnable files |
+| Aug 17 | PostgreSQL: create database, schema, table | [setup.py](Database_Connection/setup.py) |
+| Aug 18 | File handling: read/write/append + errors | [Handle.py](File_Handling/Handle.py), [Csv_Handling.py](File_Handling/Csv_Handling.py) |
+| Aug 20 | `Postgremanager` class with CRUD + transactions | [setup.py](Database_Connection/setup.py) |
+| Nov 2 | Pandas documentation prepared + sample dataset practice completed | [Pandas/Pandas.md](Pandas/Pandas.md) |
+| Oct 27 | Traceback module documentation prepared and shared | [Traceback.md](Traceback.md) |
+| Oct 26 | Follow-up on next task assignment | (email) |
+| Oct 18 | Endpoints for the Order & Sales app sent by mentor | (email) |
+| Oct 14 | Mentor clarified user-authentication requirements (registration, OTP, password reset, roles, tenant scoping) | (email) |
+| Aug 26 | Mentor send two Flask APIs over the employee table + mosquitto broker learning task | (email) |
+| Aug 25 | Mentor check-in + learned `__init__()` init best practice, format strings (f) for inline substitution, `%s` as universal placeholder | (note) |
+| Aug 24–26 | Flask API over the employee table + Mosquitto broker introduced | [main.py](Database_Connection/main.py), [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
+| Aug 21 | Regex practice introduction | [Assigned_Tasks.py](RegEx/Assigned_Tasks.py) | (started) |
 | Aug 20–21 | Excel generation → pandas DataFrame → split strings | [Excel.py](Conversion/Excel.py) |
 | Aug 24–26 | Flask API over the employee table | [main.py](Database_Connection/main.py) |
 | Aug 26–31 | Mosquitto broker: service control, limits, bridge concepts | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
@@ -465,7 +510,6 @@ because the DB host never saw the server's credentials.** Full details in
 ## 4. Supporting skills
 
 | Skill | Files | What you get |
-| --- | --- | --- |
 | **Pandas** | [Pandas/Pandas.md](Pandas/Pandas.md), [analysis.py](Pandas/analysis.py), `customers.csv`, `orders.csv`, `city_report.csv`, `monthly_revenue.png` | Data I/O, cleaning, selection, grouping, merging, pivot tables, plotting |
 | **Git** | [Git_Documentation.md](Git_Documentation.md) | init → clone → commit → branch → remote → merge/rebase → undo; the full workflow |
 | **Traceback** | [Traceback.md](Traceback.md) | print/format/extract/walk API + the logging rule (`exception` + bare `raise`) |
@@ -484,7 +528,6 @@ because the DB host never saw the server's credentials.** Full details in
 ## 5. Error log (encountered → resolved)
 
 | Error | Root cause | Fix / lesson |
-| --- | --- | --- |
 | `FileExistsError` while practicing | `"x"` mode on existing file | Intended behavior — guard with try/except |
 | `CREATE DATABASE` failing inside transaction block | Postgres disallows it | Connect to `postgres` db + `autocommit = True` |
 | Duplicate-email insert rejected | `UNIQUE` constraint | Expected; surfaced as a clean 400 with validation first |
@@ -665,7 +708,6 @@ SQL portfolio, and the Order & Sales Management app with its shipped
 **Checks actually run / verified against code:**
 
 | Check | Method | Result |
-| --- | --- | --- |
 | Capstone test suite | `pytest tests` in `MQTT/Machine_Sensor_API` | **53 passed** (~4 s, fake pool, no live DB) |
 | Order & Sales Management backend suite | `python -m pytest tests/ -q` in `Order_Sales_Management/server` | **84 test functions** (6 files) present — live run: **84 errors** (`sqlalchemy`), due to `postgres`/`Vijay37` auth failure on `localhost:5432/intern_training_db` + missing `order_sales` schema. Shipped claim verified in-code (`84`); pass re-run blocked by local DB credentials (§7) |
 | Distribution copy sync | `diff -rq` of `Final_zip/` against the live tree | Code identical; only a runtime log file differs |
