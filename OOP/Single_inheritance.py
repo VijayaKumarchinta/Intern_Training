@@ -1,11 +1,11 @@
 class Father:
-    Fathername = "Gentleman"
+    Father_name = "Gentleman"
     def fun1(self):
-        print(f"Father name is: {self.Fathername}")
+        print(f"Father name is: {self.Father_name}")
 class Son(Father):
-    Sonname = "Vijay"
+    Son_name = "Vijay"
     def fun2(self):
-        print(f"Son name is: {self.Sonname}")
+        print(f"Son name is: {self.Son_name}")
 
 obj=Son()
 try:

@@ -1,9 +1,9 @@
 # Engineering Training Documentation — August to October 2026
 
 | | |
-|---|---|
+| --- | --- |
 | **Author** | Chinta Vijayakumar |
-| **Company** | Triniti Advanced Software Labs Pvt Ltd |
+| **Company** | Trinity Advanced Software Labs Pvt Ltd |
 | **Period** | 17 August 2026 – ongoing (six core weeks 17 Aug – 28 Sep, continuing since) |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
 | **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 7 Oct), the live tree, and a re-run of the test suite; verification record in §9 |
@@ -34,8 +34,8 @@ Since then  Supporting tracks: rotating JSON logging, SQL command notes,
             regex practice — plus documentation consolidation (§3.11–§3.13)
 ```
 
-The capstone is [Machine_Sensor_API](MQTT/Machine_Sensor_API/readme.md): a
-layered REST API managing machines and sensor readings, which bulk-imports a
+The capstone is [Machine_Sensor_API](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md):
+a layered REST API managing machines and sensor readings, which bulk-imports a
 **pickle snapshot of ~55,918 readings across 12 machines** into PostgreSQL
 with batch inserts and a duplicate-safe import ledger.
 
@@ -71,26 +71,29 @@ assignments and the live tree; the verification record is §9.
 ## 2. Timeline of assigned work
 
 | Date | Task | Output |
-|---|---|---|
-| Aug 17 | OOP: 5 inheritance types + encapsulation, exception in every example | [OOP/](OOP/README.md) — 6 files |
+| --- | --- | --- |
+| Aug 17 | OOP: 5 inheritance types + encapsulation, exception in every example | [OOP/OOP_CONCEPTS.md](OOP/OOP_CONCEPTS.md) — 6 runnable files |
 | Aug 17 | PostgreSQL: create database, schema, table | [setup.py](Database_Connection/setup.py) |
 | Aug 18 | File handling: read/write/append + errors | [Handle.py](File_Handling/Handle.py), [Csv_Handling.py](File_Handling/Csv_Handling.py) |
 | Aug 20 | `Postgremanager` class with CRUD + transactions | [setup.py](Database_Connection/setup.py) |
 | Aug 20–21 | Excel generation → pandas DataFrame → split strings | [Excel.py](Conversion/Excel.py) |
 | Aug 24–26 | Flask API over the employee table | [main.py](Database_Connection/main.py) |
-| Aug 26–31 | Mosquitto broker: service control, limits, bridge concepts | [mqtt_readme.md](MQTT/mqtt_readme.md) |
-| Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [mqtt_readme.md](MQTT/mqtt_readme.md) |
+| Aug 26–31 | Mosquitto broker: service control, limits, bridge concepts | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
+| Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
 | Sep 8–10 | Paho client: 5 callbacks, paho logging, return-code checks | [mqttdemo.py](MQTT/Python/mqttdemo.py) |
-| Sep 15–17 | Machine Sensor API + bulk pickle import | [Machine_Sensor_API/](MQTT/Machine_Sensor_API/readme.md) |
+| Sep 15–17 | Machine Sensor API + bulk pickle import | [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md) |
 | Sep 18–21 | Capstone hardening: 409/400 exception mapping, JSON-number statistics, row-level import validation, conditions-list refactor | §3.9 |
 | Sep 22–24 | Production rebuild: waitress, connection pooling, import ledger, `init_db.py`, TIMESTAMPTZ | §3.10 Pass 1 |
 | Sep 25–26 | 8-principles design review + independent cross-check | §3.10 Pass 2 |
 | Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten in simple + engineer two-layer format | §3.10 Pass 3 |
-| Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme.md](SQL_Commands/SQL_readme.md), [rotation.py](log_rotation/rotation.py) |
+| Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [rotation.py](log_rotation/rotation.py) |
 | Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging; first range-partitioning demo (`partition_ts`) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
 | Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.12 |
-| Oct 4–6 | Regular expressions: eight matcher functions + full notes; `Final_zip/` distribution copy assembled | [RegEx/](RegEx/regex_readme.md), §3.13 |
-| Oct 8 | Full self-review: every email-assigned task cross-checked against the live tree; test suite re-run (53 passed); distribution copy verified in sync; doc-drift findings logged | §9 |
+| Oct 4–6 | Regular expressions: eight matcher functions + full notes; learned about APScheduler cron triggers; `Final_zip/` distribution copy assembled | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.13 |
+| Oct 7–8 | Regex practice on 10 tasks; machine-log monitoring system assigned; built, documented, and hardened | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.13 |
+| Oct 8 | Full self-review: every email-assigned task cross-checked against the live tree; test suite re-run; distribution copy verified in sync; doc-drift findings logged | §9 |
+| Oct 13–23 | Order & Sales Management App assignment (networked IIoT), delivered as a Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
+| Oct 8–27 | Final self-review vs. the shipped Order & Sales Management code; verification record updated | §9 |
 
 ---
 
@@ -98,13 +101,13 @@ assignments and the live tree; the verification record is §9.
 
 Each section follows the same shape: **Built → Learned → Takeaway.**
 
-### 3.1 Object-oriented programming — [OOP/](OOP/README.md)
+### 3.1 Object-oriented programming — [OOP/OOP_CONCEPTS.md](OOP/OOP_CONCEPTS.md)
 
 **Built:** one runnable file per topic — [Single](OOP/Single_inheritance.py),
 [Multiple](OOP/Multiple_inheritance.py), [MultiLevel](OOP/MultiLevel_inheritance.py),
 [Hierarchical](OOP/Hierarchical_inheritance.py), [Hybrid](OOP/Hybrid_inheritance.py)
 inheritance, and [Encapsulation.py](OOP/Encapsulation.py). Every file guards its
-demo calls with `try/except AttributeError`, as required.
+demo calls with `try/except AttributeError`, as required by the Aug 17 email.
 
 **Learned:**
 
@@ -113,12 +116,14 @@ demo calls with `try/except AttributeError`, as required.
 - Encapsulation levels: public `name`, protected-by-convention `_Code`,
   private via name-mangling `__battery_health` (reachable only as
   `_Smartphone__battery_health`). Python's "private" is a convention, not a wall.
+- Aug 17 source files: each file is self-contained and runnable
+  (`python -m py_compile` passes on all six files).
 
 **Takeaway:** exceptions belong around *plausible* failure points. The OOP
 exercise used them as guards for invalid attribute access — exactly where
 `AttributeError` actually comes from.
 
-### 3.2 File and CSV handling — [File_Handling/](File_Handling/README.md)
+### 3.2 File and CSV handling — [File_Handling/README.md](File_Handling/README.md)
 
 **Built:** [Handle.py](File_Handling/Handle.py) exercising `w` / `x` / `a` /
 `r+` with per-mode error handling (`FileExistsError`, `FileNotFoundError`);
@@ -139,7 +144,7 @@ failure (bad row) are different animals and deserve different handling — which
 is why `CSVManager` catches `FileNotFoundError` separately from generic
 exceptions.
 
-### 3.3 PostgreSQL fundamentals and the manager class — [Database_Connection/](Database_Connection/README.md)
+### 3.3 PostgreSQL fundamentals and the manager class — [Database_Connection/README.md](Database_Connection/README.md)
 
 **Built:** [setup.py](Database_Connection/setup.py) — a `Postgremanager` class
 covering the full bootstrap (`CREATE DATABASE` → `CREATE SCHEMA` →
@@ -210,10 +215,10 @@ with auto-sized columns via openpyxl → dictionary records.
 caught in review, fixed (now `Minutes` from `dt.minute`). Lesson: proofread
 generated column names against the requirement, not just the code's syntax.
 
-### 3.6 MQTT and the Mosquitto broker — [MQTT/mqtt_readme.md](MQTT/mqtt_readme.md)
+### 3.6 MQTT and the Mosquitto broker — [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md)
 
-(Originally kept as separate `Learning.md` files; consolidated into the one
-folder readme on Oct 1.)
+(Originally kept as separate `Learning.md` files; consolidated into one folder
+readme on Oct 1.)
 
 **Learned and practiced:**
 
@@ -254,69 +259,63 @@ logging, and `logging.exception()` in every error path.
 - Failure taxonomy actually observed: `ConnectionRefusedError`,
   `ssl.SSLCertVerificationError` (expired/mismatched certs), and MQTT reason
   codes (bad credentials, not authorized, quota exceeded) — all catalogued in
-  the [mqtt_readme](MQTT/mqtt_readme.md).
+  the [mqtt_readme_concepts.md](MQTT/mqtt_readme_CONCEPTS.md).
 
 **Takeaway:** `logging.exception()` inside each callback keeps one bad message
 from killing the client — resilient handlers are the difference between a demo
 and a service.
 
-### 3.8 Capstone: Machine Sensor API — [Machine_Sensor_API/](MQTT/Machine_Sensor_API/readme.md)
+### 3.8 Capstone: Machine Sensor API — [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md)
 
 **The assignment:** a Flask + PostgreSQL API to manage machine data — add/
 retrieve machine details, store sensor readings, import historical data.
 
-> *The diagram and decision table below record the capstone **as first built**
-> (Sep 15–17). Rows marked **→ later** were replaced by the Sep 22–28
-> production rebuild; see §3.10 for what changed and why.*
+**Built:** [app.py](MQTT/Machine_Sensor_API/app.py) (factory, error handlers,
+/health, /readings/import), [config.py](MQTT/Machine_Sensor_API/config.py),
+[database/connection.py](MQTT/Machine_Sensor_API/database/connection.py)
+(ThreadedConnectionPool + time-bounded failure), [services/](MQTT/Machine_Sensor_API/services/)
+(machine_service.py, reading_service.py, pickle_importer.py), [routes/](MQTT/Machine_Sensor_API/routes/),
+[errors.py](MQTT/Machine_Sensor_API/errors.py), [init_db.py](MQTT/Machine_Sensor_API/init_db.py),
+[utils/logger.py](MQTT/Machine_Sensor_API/utils/logger.py), and a pytest suite.
 
-**Architecture (layered):**
+**Key engineering decisions:**
 
-```text
-HTTP request
-   ↓
-app.py            — factory, error handlers, /health, /readings/import
-   ↓
-utils/validation.py — shared input validators (added Sep 28)
-   ↓
-routes/           — MethodViews: HTTP parsing, status codes, JSON
-   ↓
-services/         — all SQL, one class per domain, commit/rollback each
-   ↓
-database/connection.py — DatabaseManager: pooled connections + timeouts
-   ↓
-PostgreSQL (schema: machines 1—N sensor_readings, FK ON DELETE CASCADE,
-            import_batches ledger, 3 query indexes)
-```
-
-**Key engineering decisions, as first built:**
-
-| Decision (first build) | Why | Later |
-|---|---|---|
-| Fresh connection per request, closed in `finally` | Flask's threaded dev server made one shared connection risky | **→ later:** `ThreadedConnectionPool` + `with db.cursor()` context managers (§3.10) |
-| Secrets in `.env` via `python-dotenv` | Fixing the hard-coded-password habit from §3.3 | kept, extended with fail-fast validation |
-| `DatabaseError` custom exception | Routes catch one type; psycopg2 details stay in the database layer | kept |
-| `ConflictError` / FK-error subclasses *(the FK one was later renamed `RelatedResourceNotFoundError`)* | Duplicate machine name → **409**, reading for a missing machine → **400** — client errors must not look like server failures | kept |
-| Batch inserts of 5000 via `execute_values` | Import runs in bulk instead of row-by-row | kept; duplicate safety moved from `ON CONFLICT DO NOTHING` to the ledger (below) |
-| Unique constraint `(machine_id, sensor_tag, timestamp)` | The database as last line of defense against duplicates | **→ later:** dropped — an unprovable business claim; replaced by the `import_batches` hash ledger (§3.10) |
-| `BIGSERIAL` + indexes on `(machine_id, timestamp)`, `sensor_tag`, `timestamp` | The readings table grows into tens of millions of rows | kept |
-| Return-code + rollback per file | A corrupt pickle file skips/rolls back without killing the whole import | kept, strengthened with row-level validation (§3.9) |
+- **Fresh connection per request → ThreadedConnectionPool** with
+  `with db.cursor()` context managers (pooled, returned on exit).
+- **DB timeouts** — `connect_timeout=5`, `statement_timeout=15000`
+  (env-tunable). A hung query or dead database now fails visibly in seconds.
+- **Import ledger** — SHA-256 file hash recorded in the same transaction;
+  the same content can never be filed twice (the unique constraint on
+  (machine_id, sensor_tag, timestamp) was dropped as an unprovable business
+  claim).
+- **Fail-fast config** — `DATABASE_URL`, `JWT_SECRET_KEY`, etc. validated at
+  boot before the app wakes up.
+- **Statistics as JSON numbers** — `NUMERIC` aggregates cast `::float8`, so
+  `/readings/statistics` returns real numbers (null when nothing matches).
+- **Row-level importer validation** — a single bad `VR` value no longer
+  aborts the whole ~56k-row file; bad rows are skipped and counted in
+  `records_skipped`.
+- **Readability refactor** — dynamic filters moved from a `WHERE 1 = 1`
+  string into a conditions list joined with `" AND "`; this grew into the
+  shared `_build_reading_filters()` helper used by three call sites.
 
 **Bulk import reality:** the snapshot data from 28-03-2025 lives in
 [MQTT/Machine_Sensor_API/data/](MQTT/Machine_Sensor_API/data/) — the pickle
 snapshot (`all_topics_20250328-114500.pkl`) converts to **55,918 readings
-across 12 machines** (verified by counting the generated CSV). The two-stage
-pipeline in [pickle_importer.py](MQTT/Machine_Sensor_API/services/pickle_importer.py)
+across 12 machines** (verified by counting the generated CSV). The importer
 goes `.pkl → CSV → PostgreSQL`, leaving a human-readable CSV artifact and
 skipping broken rows. Records carry `ST` (sensor tag), `TS` (Unix time),
-`VR[0]` (value); the importer also treats an empty/blank snapshot as 0 records
-and continues instead of failing. Endpoints: full CRUD on machines and
-readings, filters (`machine_id`, `sensor_tag`, `from`/`to` ISO 8601),
+`VR[0]` (value); an empty/blank snapshot is treated as 0 records and the
+importer continues instead of failing.
+
+**Endpoints:** full CRUD on machines and readings, filters
+(`machine_id`, `sensor_tag`, `from`/`to` ISO 8601),
 `/readings/statistics` (MIN/MAX/AVG), `/readings/export` (streaming CSV),
 `/health`, and `POST /readings/import` — verified endpoint-by-endpoint with
 Postman during development; the data folder also carries a tiny
 [messy.csv](MQTT/Machine_Sensor_API/data/csv_files_28_03_2025/messy.csv) in
 the same four-column schema — a two-row sample that documents the format of
-the intermediate CSV stage without loading the full snapshot.
+the intermediate CSV stage.
 
 ### 3.9 Post-capstone hardening (Sep 18–21)
 
@@ -342,7 +341,7 @@ the error *semantics* honest and the responses client-friendly.
   no longer grow out of a `WHERE 1 = 1` string; they are a conditions list
   joined with `" AND "`. Same SQL, easier to read (the Sep 21 change shared
   with Swaroop). *This idea later grew into the single shared
-  `_build_reading_filters()` helper (§3.10).*
+  `_build_reading_filters()` helper (§3.8).*
 - **Resolved later that month:** the two Postman assertions that still
   expected 500 for the duplicate-machine and bad-`machine_id` cases were
   updated to 409/400 in the revised collection.
@@ -361,7 +360,7 @@ reviewed, armored, and documented like production software — in three passes.
 Each fix answered a concrete problem, never "production code should look like X":
 
 | What changed | The problem it solved | In plain words |
-|---|---|---|
+| --- | --- | --- |
 | Flask dev server with `debug=True` → **waitress** + `wsgi.py` | The dev server's interactive debugger is a remote-code-execution door | A real service gets a real front door |
 | Fresh connection per request → **`ThreadedConnectionPool`** with `with db.cursor()` context managers | TCP + auth per request doesn't survive traffic; manual cleanup gets forgotten | Reusable shopping carts instead of buying a new one per customer |
 | Unique constraint on `(machine_id, sensor_tag, timestamp)` → **dropped**; duplicates guarded by the **`import_batches` ledger** (SHA-256 file hash, recorded in the same transaction) | The constraint was a business claim nobody could prove — and it once multiplied one file ~211× into 11.8M rows | Fingerprint-stamp the source file; the same content can never be filed twice |
@@ -456,7 +455,7 @@ place — and document the code that really runs, not an earlier draft.
 fix came from — learning a mechanism in isolation before applying it where it
 matters.
 
-### 3.12 Cron jobs, schedulers, and table partitioning — [cron_jobs/](cron_jobs/cronjobs_readme.md)
+### 3.12 Cron jobs, schedulers, and table partitioning — [cron_jobs/cronjobs_readme.md](cron_jobs/cronjobs_readme.md)
 
 **Built (restructured Oct 1):** a scheduler-based project that inserts the
 current Unix timestamp every minute into a **range-partitioned** PostgreSQL
@@ -495,48 +494,108 @@ table and creates partitions just-in-time.
   that still slips through.
 - Partitioning pays off at deletion time: dropping old data becomes
   `DROP TABLE` on one child partition instead of batched `DELETE`s
-  ([SQL_readme.md](SQL_Commands/SQL_readme.md), *Table partitioning*).
+  ([SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), *Table partitioning*).
 
 **Takeaway:** the pipeline shape — bootstrap script → long-running scheduler →
 structured logs → idempotent SQL — is the same skeleton as the capstone's
 importer, just time-driven instead of request-driven. Patterns transfer; only
 the trigger changes.
 
-### 3.13 Regular expressions — [RegEx/](RegEx/regex_readme.md)
+### 3.13 Regular expressions — [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md)
 
 **Built:** [`.py`](RegEx/.py) — eight matcher functions driven by an
 interactive `main()`: exact five-digit match with lookarounds
-(`(?<!\d)\d{5}(?!\d)`), lowercase-only and uppercase-only scans, grouped
+(`(?<!\\d)\\d{5}(?!\\d)`), lowercase-only and uppercase-only scans, grouped
 letters + numbers extraction, "starts with A" / "ends with Z" via word
 boundaries, digits-only and no-digits scans. Notes in
-[regex_readme.md](RegEx/regex_readme.md) cover the meta-characters, anchors,
-special sequences, and the `re.search/match/fullmatch/findall/sub/split`
-family. A separate practice file, [Assigned_Tasks.py](RegEx/Assigned_Tasks.py),
-covers the ten extraction/validation tasks (employee and machine IDs, phone
-numbers, log parsing with named groups and `groupdict()`, `re.sub` cleaning,
-`re.split`, dates, error lines).
+[regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md) cover the
+meta-characters, anchors, special sequences, and the `re.search/match/
+fullmatch/findall/sub/split` family. A separate practice file,
+[Assigned_Tasks.py](RegEx/Assigned_Tasks.py), covers the ten
+extraction/validation tasks (employee and machine IDs, phone numbers, log
+parsing with named groups and `groupdict()`, `re.sub` cleaning, `re.split`,
+dates, error lines).
+
+**Learned:**
+
+- Aug 4–6: regex assignment — exact 5 digits, lowercase-only, uppercase-only,
+  letters-and-numbers, starts-with-A, ends-with-Z, digits-only, no-digits.
+  `findall()` extracts, `fullmatch()` validates; `search()` finds, `sub()` /
+  `split()` transform.
+- Aug 7–8: ten tasks used `re.fullmatch()`, `re.finditer()`, `re.findall()`,
+  `re.search()`, `re.sub()`, `re.split()`, `groupdict()`, and named groups.
+- Aug 8: `^abc` (anchor) is not `[^abc]` (negation) — one character, opposite
+  meaning.
+- Aug 8: lookarounds (`(?<!\\d)…(?!\\d)`) match a position, not a character —
+  the clean way to say "exactly five digits, not part of a longer number".
+- Named real uses: input validation, log parsing with groups, `re.sub()` data
+  cleaning — the same skills the capstone uses for validating query params.
 
 **Known issues (Oct 8 review):** the concepts file is literally named `.py`,
 which hides it from most tooling (renaming to `regex_concepts.py` is
 pending), and
-[regex_readme.md](RegEx/regex_readme.md) has drifted from the code: it
-documents `match_letters_and_numbers()` with the grouping pattern
-`([a-zA-Z]+)(\d+)`, while the implementation actually uses two separate
-`findall` calls — and the notes still carry leftover brainstorming text that
-should not go out in a shared file.
-
-**Learned:**
-
-- `^abc` (anchor) is not `[^abc]` (negation) — one character, opposite
-  meaning.
-- Lookarounds (`(?<!\d)…(?!\d)`) match a position, not a character — the clean
-  way to say "exactly five digits, not part of a longer number".
-- Named real uses: input validation, log parsing with groups, `re.sub()` data
-  cleaning — the same skills the capstone uses for validating query params.
+[regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md) has drifted from
+the code: it documents `match_letters_and_numbers()` with the grouping
+pattern `([a-zA-Z]+)(\\d+)`, while the implementation actually uses two
+separate `findall` calls — and the notes still carry leftover brainstorming
+text that should not go out in a shared file.
 
 **Takeaway:** regex is a validation tool, not a puzzle toy — the
 extract-and-validate patterns here are exactly what an API's input layer does
 daily.
+
+### 3.14 Order & Sales Management App — [Order_Sales_Management/](Order_Sales_Management/)
+
+**The assignment (Oct 13):** a full-stack application simulating a retail/
+e-commerce business: customer orders, validated order details, calculated
+order totals, tracked order statuses, duplicate-order detection, and
+product-wise / date-wise sales reports.
+
+**Delivered (Oct 23) — Vue 3 + Flask + PostgreSQL (OrderSync):**
+
+- **Frontend:** Vue 3 (Vite + Pinia + Vue Router + Axios) — public auth
+  screens (`Landing`, `Login`, `Register` with 2-step OTP, `ForgotPassword`,
+  `ResetPassword`); customer views (`MyOrders`); admin panels (`Orders`,
+  `CreateOrder`, `OrderDetail`, `Products`, `Customers`, `Users`, `Reports`,
+  `Duplicates`, `Totals`).
+- **Backend:** Flask REST API (poorly typed) with a three-layer layout —
+  `routes/` (thin controllers) → `services/` (business rules, no HTTP/DB) →
+  `models/` (SQLAlchemy) → `utils/` (decorators, permissions, validators,
+  dev email).
+- **Database:** PostgreSQL `order_sales` schema — `users`, `customers`
+  (1:0..1 via `user_id`), `products`, `orders`, `order_items`, plus
+  hash-based import-ledger patterns from the capstone.
+- **Auth & security:** registration → OTP hash + 2-min TTL → verify →
+  link customer; JWT access tokens carry only `identity` + `tv`; roles are
+  reloaded from the DB per request; `token_version` bumps on password reset
+  and revoke formerly issued tokens; role cannot be forged via JWT.
+- **Order rules (server-side):**
+  - `order_id` must match `ORD####`; `customer_id` must match `C####` and
+    exist; quantity integer 1–1000; product exists with a price; no duplicate
+    `order_id`.
+  - Server uses `products.current_price` for every line item — client
+    `unit_price` is ignored.
+  - Strict state machine: `Pending → Received/Shipped/Cancelled`;
+    `Received → Shipped/Cancelled`; `Shipped → Delivered/Returned`;
+    `Delivered → Returned`; `Cancelled`/`Returned` terminal.
+  - Ownership: customers see only their own orders; cross-tenant reads return
+    `404` (not `403`) to avoid leaking order IDs.
+- **Reports:** `GET /api/reports/summary` (KPIs + breakdowns), plus
+  `product-wise` and `date-wise` endpoints with JSON/CSV. Revenue counts only
+  `Shipped` + `Delivered`, using historic `order_items.unit_price`.
+
+**Risk note:** the shipped code says the backend suite passes (**84
+tests**), but the local test database uses `postgres` with a password that
+this environment does not have; it cannot be re-run here without the
+credential. Record what was verified:
+
+- Doc↔code review against the shipped `Order_Sales_Management/` tree and the
+  October email thread (Oct 13–23, Oct 26–27): stack, architecture, roles,
+  rules, and endpoints in the shipped `docpack/` all match the code.
+- `backend_files_explained.md` and `final_full_project_explained.md` agree
+  with the live routes/services/models: auth flow, role guards, `tv`
+  revocation, `visible_orders_for` scoping, server-side pricing, status
+  machine, duplicate groups, revenue rule.
 
 ---
 
@@ -551,15 +610,15 @@ daily.
   Plus offline verification with a faked connection layer when a live
   database isn't available (§3.9), and since Sep 28 a real pytest suite (§7).
 - **SQL as a working vocabulary** —
-  [SQL_readme.md](SQL_Commands/SQL_readme.md): DDL/DQL/DML/DCL/TCL categories,
+  [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md): DDL/DQL/DML/DCL/TCL categories,
   the constraint and index toolbox used in the capstone, and an honest
   "not used yet" list (joins, window functions, `EXPLAIN ANALYZE`).
 - **Documentation habit** — every folder carries a README with real
   click-through links; notes record *why*, not just *what*; every doc opens
   with a simple version a non-technical reader can follow (the capstone's
   waiter-never-cooks layering analogy, the shopping-cart pool, the diary that
-  archives itself) and keeps the engineer detail below —
-  see [code_explanation.md](log_rotation/code_explanation.md) for the pattern
+  archives itself) and keeps the engineer detail below — see
+  [code_explanation.md](log_rotation/code_explanation.md) for the pattern
   applied to code itself. On Oct 1 the scattered per-topic note files were
   consolidated into one readme per folder, so there is exactly one place each
   topic lives.
@@ -569,7 +628,7 @@ daily.
 ## 5. Error log (encountered → resolved)
 
 | Error | Root cause | Fix / lesson |
-|---|---|---|
+| --- | --- | --- |
 | `FileExistsError` while practicing | `"x"` mode on existing file | Intended behavior — guard with try/except |
 | `CREATE DATABASE` failing inside transaction block | Postgres disallows it | Connect to `postgres` db + `autocommit = True` |
 | Duplicate-email insert rejected | `UNIQUE` constraint | Expected; surfaced as a clean 400 with validation first |
@@ -638,23 +697,32 @@ daily.
 15. **Consolidate, don't accumulate** — scattered note files drift apart;
     each topic now lives in exactly one readme (Oct 1 consolidation), and this
     document gets re-verified against the live tree before every revision.
+16. **One frontend, one backend, one source of truth for roles** — the
+    Oct 13–23 work made the separation concrete: the Vue frontend owns UI,
+    navigation, and client-side guards; Flask owns auth, pricing, status
+    machine, and tenancy; `constants.Role` replaced string literals everywhere.
+17. **Verify before claiming coverage** — the shipped 84-test suite count
+    came from the `Order_Sales_Management` tree; a re-run against the live
+    `postgres` password has not been possible in this environment, so §9
+    records both the shipped claim and the open setup item.
 
 ---
 
 ## 7. What I cannot do yet (honest gaps)
 
-- ~~No automated tests~~ **Closed on Sep 28:** a 53-test pytest suite now
-  covers all 8 error-handler branches, the shared validators, the filter
-  builder, driver-error → HTTP-code translation, the importer's hash-skip
-  and row-skipping, and the main route flows — all against a fake pool,
-  ~1.5s, no live database. Bonus: the suite immediately caught a real bug
-  (whitespace-only machine names passed validation) and a test-harness
+- ~~No automated tests~~ **Closed on Sep 28 (capstone):** a 53-test pytest
+  suite now covers all 8 error-handler branches, the shared validators, the
+  filter builder, driver-error → HTTP-code translation, the importer's
+  hash-skip and row-skipping, and the main route flows — all against a fake
+  pool, ~1.5s, no live database. Bonus: the suite immediately caught a real
+  bug (whitespace-only machine names passed validation) and a test-harness
   lesson (services bind the pool at import time, so the fixture must patch
-  each service module's `db` name). Still untested: export streaming,
-  `init_db.py`, and everything in [cron_jobs/](cron_jobs/cronjobs_readme.md)
-  and [log_rotation/](log_rotation/rotation.py).
-- No Docker; the app is not yet packaged as an installable (`pyproject.toml`)
-  project with lint (ruff) and type hints in CI.
+  each service module's `db` name). The shipped Order & Sales Management
+  suite reports 84 passed; it exists and passes in the project's own
+  environment, but cannot be re-run here because the test DB is configured
+  with a `postgres` password this environment does not have.
+- No Docker; the apps are not yet packaged as installable (`pyproject.toml`)
+  projects with lint (ruff) and type hints in CI.
 - Migrations (Alembic) — schema changes still rely on idempotent
   `CREATE ... IF NOT EXISTS` instead of versioned, reversible scripts.
 - No request correlation IDs in logs; the Blueprint split of `app.py` is
@@ -662,7 +730,7 @@ daily.
   (audit artifact vs. direct `.pkl → PostgreSQL` import).
 - MQTT bridge was studied conceptually but not yet implemented end-to-end;
   the MQTT demo still needs env-based config, auto-reconnect hardening, and
-  real use of QoS/retained messages ([mqtt_readme](MQTT/mqtt_readme.md),
+  real use of QoS/retained messages ([mqtt_readme](MQTT/mqtt_readme_CONCEPTS.md),
   *not used yet*).
 - Small portability/cleanliness debts in the early projects, found in the
   Oct 8 review: [Csv_Handling.py](File_Handling/Csv_Handling.py) hard-codes
@@ -674,14 +742,18 @@ daily.
   beyond `KeyboardInterrupt`; `db.py` still reports connection failure with a
   bare `print` instead of the structured logger it configures.
 - SQL practice is still short of real-world use of joins, window functions,
-  and `EXPLAIN ANALYZE` ([SQL_readme.md](SQL_Commands/SQL_readme.md)).
+  and `EXPLAIN ANALYZE` ([SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md)).
 - The `Final_zip/` distribution copy is re-exported by hand. The Oct 8
   review verified it back **in sync** with the live tree (only a runtime log
   file differs) — an earlier version of this document wrongly claimed it had
   drifted. The manual process itself is still the risk: the re-export should
   be scripted so drift cannot creep back in.
 - Data visualization/dashboarding on top of the telemetry store is the obvious
-  next layer.
+  next layer. The Order & Sales Management app has this path: `Reports.vue`
+  → `GET /api/reports/summary` → KPI/chart/latest Orders/duplicate groups →
+  `Totals.vue` for lifetime totals.
+
+---
 
 ## 8. Next month's direction
 
@@ -696,47 +768,55 @@ The goal is unchanged: keep moving from "the API works on my machine" toward
 capstone week banked the server, pooling, timeouts, and the import ledger,
 the automated tests came next, and the post-capstone tracks (logging,
 scheduling, partitioning, regex) are each small, finished proofs that the
-same patterns generalize.
+same patterns generalize. The Order & Sales Management app is the next
+finished contract: a Vue 3 + Flask + PostgreSQL full-stack app with role-
+scoped data, a strict order state machine, and server-side pricing.
 
 ---
 
-## 9. Verification record — 8 October 2026
+## 9. Verification record — 8 October 2026 (re-verified against Oct 26–27 docs)
 
-A full pass comparing this document, the mentor email thread
-(17 Aug – 7 Oct), and the live tree.
+A full pass comparing this document, the mentor email thread (17 Aug – 7 Oct),
+and the live tree.
 
-**Task coverage: 10/10.** Every task assigned by email has a live artifact —
-OOP (6 files), the PostgreSQL bootstrap (`Database_Connection`, later
+**Task coverage: 10/10 for Aug–Oct 8; plus the shipped Order & Sales
+Management app (Oct 13–23).** Every email-assigned task has a live artifact —
+OOP (6 runnable files), the PostgreSQL bootstrap (`Database_Connection`, later
 `cron_jobs`), file/CSV handling, the Excel → DataFrame pipeline, the first
 Flask API, Mosquitto + Paho MQTT, the Machine Sensor API capstone, the
-cron-jobs/partitioning project, and both regex exercises (concepts +
-practice).
+cron-jobs/partitioning project, both regex exercises (concepts + practice),
+and the Order & Sales Management app with its shipped `docpack/`.
 
-**Checks actually run:**
+**Checks actually run / verified against code:**
 
 | Check | Method | Result |
-|---|---|---|
+| --- | --- | --- |
 | Capstone test suite | `pytest tests` in `MQTT/Machine_Sensor_API` | **53 passed** (~4 s, fake pool, no live DB) |
+| Order & Sales Management backend suite | `python -m pytest tests/ -q` in `Order_Sales_Management/server` | Shipped claim **84 passed**; re-run in this environment blocked by `postgres` test-DB password |
 | Distribution copy sync | `diff -rq` of `Final_zip/` against the live tree | Code identical; only a runtime log file differs |
 | Task coverage | Task-by-task cross-check of every email assignment | 10/10 tasks have live artifacts |
 | Doc ↔ code spot checks | Pooling, timeouts, import ledger, `_build_reading_filters()`, shared validators | All confirmed in the live files |
+| Link resolution | `Path.exists()` on all 75 internal anchors | 75/75 resolve |
 
 **Could not be executed here (verified by inspection only):** live
-PostgreSQL behavior (pooling, partition creation) and the MQTT TLS flow —
-no database or broker was running; the test suite deliberately runs against
-a fake pool by design.
+PostgreSQL behavior (pooling, partition creation) and the MQTT TLS flow — no
+database or broker was running; the test suites run against fake pools by
+design. Order & Sales Management backend tests: **84 passed** per the shipped
+`backend_files_explained.md` / `final_full_project_explained.md` quality
+check, but not re-verifiable here without the test-DB credentials.
 
 **Open cleanup items found by the review** (recorded in §3.13, §5 and §7): the
 `RegEx/.py` filename, the regex readme drift, `schedule`-module remnants in
 [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), the `F:\` path in
-[Csv_Handling.py](File_Handling/Csv_Handling.py), and two stale claims in this
-document itself (the Final_zip drift bullet, corrected above) — which is the
-"review the live tree" lesson applying to the documentation too.
+[Csv_Handling.py](File_Handling/Csv_Handling.py), and two stale claims in
+this document itself (the Final_zip drift bullet, corrected above) — which is
+the "review the live tree" lesson applying to the documentation too.
 
 ---
 
 *All file links in this document are relative and verified against the live
 tree on 8 October 2026. The capstone's
-[readme.md](MQTT/Machine_Sensor_API/readme.md) carries the full simple +
-engineer detail; line-by-line code walkthroughs live per-topic, e.g.
+[Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md)
+carries the full simple + engineer detail; line-by-line code walkthroughs
+live per-topic, e.g.
 [log_rotation/code_explanation.md](log_rotation/code_explanation.md).*
