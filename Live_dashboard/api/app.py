@@ -1,7 +1,6 @@
 import logging
 
 from flask import Flask, jsonify
-from flask.logging import default_handler
 
 from .config import config_by_name
 from .db import db
