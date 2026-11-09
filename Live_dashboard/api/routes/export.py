@@ -1,5 +1,4 @@
 from flask import Blueprint,request, jsonify, send_file
-from api import db
 from api.models import Reading
 import csv
 import io
