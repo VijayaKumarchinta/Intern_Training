@@ -1,0 +1,1 @@
+# App.vue — Application composition root coordinating layout and page-level state

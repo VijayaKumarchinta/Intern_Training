@@ -1,0 +1,1 @@
+# WebSocket reconnect test - client disconnect and reconnection with state sync

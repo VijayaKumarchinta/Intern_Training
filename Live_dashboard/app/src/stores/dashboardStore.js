@@ -1,0 +1,1 @@
+'Pinia dashboardStore - selected chart and historical window'

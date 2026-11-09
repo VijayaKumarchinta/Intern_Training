@@ -1,0 +1,1 @@
+'Pinia alarmStore - active alarms and acknowledgement state'

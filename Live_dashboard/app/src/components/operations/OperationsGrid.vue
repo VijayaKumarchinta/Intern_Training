@@ -1,0 +1,1 @@
+# OperationsGrid.vue — Two-column operations panel containing alarms and event history

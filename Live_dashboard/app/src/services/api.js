@@ -1,0 +1,1 @@
+# Frontend API service - HTTP calls to /api/v1 endpoints (history, stats, manifest, alarms)

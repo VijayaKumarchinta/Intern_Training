@@ -1,0 +1,1 @@
+# Vue composable: useTelemetrySocket - WebSocket telemetry connection

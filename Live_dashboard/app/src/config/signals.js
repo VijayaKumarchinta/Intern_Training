@@ -1,0 +1,1 @@
+# Signal definitions configuration - signal codes, display names, units, decimal precision

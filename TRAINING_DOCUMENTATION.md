@@ -85,7 +85,6 @@ assignments and the live tree; the verification record is §9.
 | Aug 25 | Mentor check-in: learned `__init__()` init best practice, f-strings for inline substitution, `%s` placeholder | (note) |
 | Aug 25 | Mentor check-in + learned `__init__()` init best practice, format strings (f) for inline substitution, `%s` as universal placeholder | (note) |
 | Aug 26 | Mentor sent two Flask APIs over the employee table + mosquitto broker learning task | (email) |
-| Aug 26 | Mentor send two Flask APIs over the employee table + mosquitto broker learning task | (email) |
 | Aug 26–31 | Mosquitto broker: service control, limits, bridge concepts | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
 | Sep 3–7 | TLS/SSL certificate chain, SAN, 8883 listener | [mqtt_readme_CONCEPTS.md](MQTT/mqtt_readme_CONCEPTS.md) |
 | Sep 8–10 | Paho client: 5 callbacks, paho logging, return-code checks | [mqttdemo.py](MQTT/Python/mqttdemo.py) |
@@ -94,30 +93,17 @@ assignments and the live tree; the verification record is §9.
 | Sep 22–24 | Production rebuild: waitress, connection pooling, import ledger, `init_db.py`, TIMESTAMPTZ | §3.10 Pass 1 |
 | Sep 25–26 | 8-principles design review + independent cross-check | §3.10 Pass 2 |
 | Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten simple+engineer | §3.10 Pass 3 |
-| Sep 27–28 | Five-fix cleanup built as parallel versions, verified, promoted; docs rewritten in simple + engineer two-layer format | §3.10 Pass 3 |
 | Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved to `.env` | [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [rotation.py](log_rotation/rotation.py) |
-| Sep 29 | SQL command notes; log-rotation learning progression; `Database_Connection` moved from hard-coded credentials to `.env` | [SQL_readme_CONCEPTS.md](SQL_Commands/SQL_readme_CONCEPTS.md), [rotation.py](log_rotation/rotation.py) |
-| Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating handler; range-partitioning demo (partition_ts) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
 | Sep 30 | Log-rotation demos consolidated into one hybrid JSON + rotating-file handler after lost-log debugging; first range-partitioning demo (`partition_ts`) | [rotation.py](log_rotation/rotation.py), [code_explanation.md](log_rotation/code_explanation.md) |
 | Oct 1 | Documentation consolidation (one readme per topic); cron-jobs on a real scheduler; table partitioning with just-in-time partitions + composite PK | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.6 |
-| Oct 1 | Documentation consolidation (one readme per topic); cron-jobs project rebuilt on a real scheduler; table partitioning with just-in-time partitions and a composite primary key | [cronjobs_readme.md](cron_jobs/cronjobs_readme.md), §3.6 |
 | Oct 4–6 | Regular expressions: 8 matcher functions + notes; APScheduler cron triggers; `Final_zip/` copy assembled | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
-| Oct 4–6 | Regular expressions: eight matcher functions + full notes; learned about APScheduler cron triggers; `Final_zip/` distribution copy assembled | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
 | Oct 7–8 | Regex practice on 10 tasks; machine-log monitoring assigned, built, documented, hardened | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
-| Oct 7–8 | Regex practice on 10 tasks; machine-log monitoring system assigned; built, documented, and hardened | [regex_readme_CONCEPTS.md](RegEx/regex_readme_CONCEPTS.md), §3.7 |
 | Oct 8 | Full self-review: cross-checked every email-assigned task against the live tree; test suite re-run; distribution sync; doc-drift findings | §9 |
-| Oct 8 | Full self-review: every email-assigned task cross-checked against the live tree; test suite re-run; distribution copy verified in sync; doc-drift findings logged | §9 |
-| Oct 8–27 | Final self-review vs. the shipped Order & Sales Management code; verification record updated | §9 |
-| Oct 13–23 | Order & Sales Management App assignment, delivered as Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
-| Oct 13–23 | Order & Sales Management App assignment (networked IIoT), delivered as a Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
-| Oct 14 | Mentor clarified user-authentication requirements (registration, OTP, password reset, roles, tenant scoping) | (email) |
-| Oct 18 | Mentor sent the endpoints for the Order & Sales app | (email) |
-| Oct 18 | Endpoints for the Order & Sales app sent by mentor | (email) |
-| Oct 26 | Follow-up on next task assignment | (email) |
+| Oct 8–27 | Final self-review vs. the shipped Order & Sales Management code; verification record updated | §9 Order & Sales Management App assignment, delivered as Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
 | Oct 27 | Traceback module documentation prepared and shared | [Traceback.md](Traceback.md) |
 | Nov 2 | Pandas documentation prepared + sample-dataset practice completed | [Pandas/Pandas.md](Pandas/Pandas.md) |
-| Nov 2 | Pandas documentation prepared + sample dataset practice completed | [Pandas/Pandas.md](Pandas/Pandas.md) |
 ---
+
 ---
 ---
 ---

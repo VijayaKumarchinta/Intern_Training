@@ -1,0 +1,1 @@
+# MQTT subscriber integration test - Paho on_message processing sequence

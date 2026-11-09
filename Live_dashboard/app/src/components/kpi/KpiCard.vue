@@ -1,0 +1,1 @@
+# KpiCard component - Individual KPI with value, unit, sparkline, alarm status

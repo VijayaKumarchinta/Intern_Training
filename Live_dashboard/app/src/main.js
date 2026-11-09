@@ -1,0 +1,1 @@
+# Vue 3 main.js - Application entry with Pinia store setup

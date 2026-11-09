@@ -1,0 +1,1 @@
+# ChartNav component - Five chart view selector items

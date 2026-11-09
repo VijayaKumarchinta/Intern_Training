@@ -1,0 +1,1 @@
+# Structured JSON logging with UTC timestamps and correlation IDs

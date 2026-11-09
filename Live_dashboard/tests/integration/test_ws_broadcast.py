@@ -1,0 +1,1 @@
+# WebSocket broadcast test - committed telemetry frames after DB commit

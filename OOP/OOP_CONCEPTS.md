@@ -314,7 +314,7 @@ class Daughter(Father):
 | Multiple_inheritance.py | `Son(Mother, Father)` |
 | MultiLevel_inheritance.py | GrandFather → Father → Son |
 | Hierarchical_inheritance.py | One `Father`, two children |
-| Hybrid_inheritance.py | Mix of multiple + multilevel |
+| Hybrid_inheritance.py | Mix of multiple + multilevel 
 | Encapsulation.py | Public, `_protected`, `__private` name-mangling |
 
 **Status:** 6 runnable files, one per topic.

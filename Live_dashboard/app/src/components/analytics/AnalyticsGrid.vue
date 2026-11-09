@@ -1,0 +1,1 @@
+# AnalyticsGrid.vue — Container for historical readings and statistics panels

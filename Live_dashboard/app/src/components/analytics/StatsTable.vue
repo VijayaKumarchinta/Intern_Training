@@ -1,0 +1,1 @@
+# StatsTable.vue - Signal statistics (min/max/avg/out-of-limit count)

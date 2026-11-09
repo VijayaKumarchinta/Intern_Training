@@ -1,0 +1,1 @@
+# Repository test suite - ON CONFLICT DO NOTHING duplicate protection, CRUD operations

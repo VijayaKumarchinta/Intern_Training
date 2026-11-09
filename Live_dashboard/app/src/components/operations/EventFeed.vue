@@ -1,0 +1,1 @@
+# EventFeed.vue - Real-time event feed

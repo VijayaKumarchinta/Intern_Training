@@ -1,0 +1,1 @@
+# Vue composable: useHistoryWindow - History window management

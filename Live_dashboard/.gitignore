@@ -1,0 +1,15 @@
+# Python
+*.pyc
+__pycache__/
+.env
+
+# Vitale
+.vite/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# Deploy
+Dockerfile
