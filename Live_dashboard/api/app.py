@@ -4,7 +4,7 @@ from flask import Flask, jsonify
 from flask.logging import default_handler
 
 from .config import config_by_name
-from .db import db, migrate
+from .db import db
 from .routes.health import health_bp
 from .routes.history import history_bp
 from .routes.stats import stats_bp
@@ -19,8 +19,7 @@ def create_app(config_name='production'):
     app.config.from_object(config_by_name[config_name])
 
     db.init_app(app)
-    migrate.init_app(app, db)
-
+    
     _setup_logging(app)
     _register_blueprints(app)
     _register_error_handlers(app)
