@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app,request, jsonify, send_file, current_app
+from flask import Blueprint,request, jsonify, send_file
 from api import db
 from api.models import Machine, Reading, Limit, Alarm, Event, History, Stat, Manifest, Subscriber
 import csv
