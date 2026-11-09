@@ -1,1 +1,0 @@
-# Vue composable: useControlSocket - WebSocket control connection
