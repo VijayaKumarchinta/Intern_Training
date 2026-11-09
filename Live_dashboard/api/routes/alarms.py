@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from api import db
-from api.models import Machine, Reading, Limit, Alarm, Event, History, Stat, Manifest, Subscriber
+from api.models import Alarm
 
 alarms_bp = Blueprint('alarms', __name__)
 
