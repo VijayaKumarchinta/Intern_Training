@@ -4,7 +4,7 @@
 | --- | --- |
 | **Author** | Chinta Vijayakumar |
 | **Company** | Triniti Advanced Software Labs Pvt Ltd |
-| **Period** | 17 August 2026 – 5 November 2026 |
+| **Period** | 17 August 2026 � 5 November 2026 |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
 | **Last reviewed** | 10 November 2026 — full self-review against the mentor email thread (17 Aug – 5 Nov), the live tree, Order & Sales Management app, and Live_dashboard architecture build; verification record in §9 |
 
@@ -699,5 +699,6 @@ the "review the live tree" lesson applying to the documentation too.
 *All file links in this document are relative and verified against the live
 tree on 8 October 2026. The capstone's
 [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md)
-carries the full simple + engineer detail; line-by-line code walkthroughsnlive per-topic, e.g.
+carries the full simple + engineer detail; line-by-line code walkthroughs
+nlive per-topic, e.g.
 [log_rotation/code_explanation.md](log_rotation/code_explanation.md).*
