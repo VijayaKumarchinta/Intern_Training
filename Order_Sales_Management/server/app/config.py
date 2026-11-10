@@ -79,3 +79,11 @@ class Config:
     VERIFY_TTL_MINUTES = int(os.getenv("VERIFY_TTL_MINUTES", "2"))
     VERIFY_MAX_ATTEMPTS = int(os.getenv("VERIFY_MAX_ATTEMPTS", "3"))
     RESET_TTL_HOURS = int(os.getenv("RESET_TTL_HOURS", "1"))
+
+    # Configuration file DB URLs are shared with live/local development (there
+    # is no separate .env.test path shipped for app config). Force the test DB
+    # at load time when the test environment is active so the test suite never
+    # uses the development database, even when env files still point at
+    # intern_training_db.
+    if _env_name == "test" and os.getenv("TEST_DATABASE_URL"):
+        os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL")
