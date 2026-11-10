@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "machine_code": "LINE_30",
+  "event_timestamp": "2026-04-17T12:09:53.162",
+  "source": {
+    "date": "2026-04-17",
+    "time": "12:09:53",
+    "millitm": 162
+  },
+  "measurements": {
+    "burner_output_load": 91.727043,
+    "burner_pv": 183.667496,
+    "oil_level_pv": 176.304459,
+    "at6802_filtered": 33.754292,
+    "tt5101_filtered": 183.494385,
+    "tt4401_filtered": 0.0,
+    "air_inlet_to_burner": 117.067848,
+    "heat_exchanger_stack_temp": 503.385437,
+    "aph_outlet": 220.143784,
+    "ambient_air_temp": 42.959541,
+    "oil_inlet_temperature": 183.672119,
+    "tt6102_filtered": 158.468536,
+    "tt7101_filtered": 38.430969,
+    "tt7102_filtered": 38.420048,
+    "tt7103_filtered": 38.207104,
+    "pump_loading": 89.087799,
+    "pump_load_pv": 179.788208,
+    "moisture_pv": 1.360851,
+    "temp_pid_pv": 1.360851,
+    "paddle_speed": 63.078938,
+    "delta_t": 25.203583
+  },
+  "setpoints": {
+    "burner_sp": 184.944778,
+    "pump_load_sp": 180.0,
+    "moisture_speed_pid_sp": 1.17,
+    "moisture_temp_pid_sp": 1.17
+  },
+  "controller_outputs": {
+    "moisture_speed_pid_cv": -1.328937,
+    "moisture_temp_pid_cv": -0.055166
+  },
+  "states": {
+    "valve_xv6601_open": 0
+  },
+  "configuration": {
+    "moisture_high_setpoint_1": 1.24,
+    "moisture_high_setpoint_2": 1.3,
+    "moisture_low_setpoint_1": 1.1,
+    "moisture_low_setpoint_2": 1.14
+  },
+  "metadata": {
+    "inactive_channels": [
+      "tt4401_filtered"
+    ],
+    "duplicate_pairs": [
+      [
+        "moisture_pv",
+        "temp_pid_pv"
+      ]
+    ]
+  }
+}

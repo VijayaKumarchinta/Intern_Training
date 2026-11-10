@@ -1,1014 +1,882 @@
-# Line Speed 30 --- IIoT Live Monitoring Dashboard
+# Line Speed 30 — IIoT Live Monitoring Dashboard
 
-A real-time industrial monitoring dashboard that replays machine
-readings from an Excel dataset, transports telemetry through MQTT,
-stores validated readings in PostgreSQL, and displays live machine
-information through a Vue.js dashboard.
+A real-time industrial monitoring dashboard that replays machine readings
+from an Excel dataset, transports telemetry through MQTT, stores validated
+readings in PostgreSQL, and displays live machine information through a
+Vue.js dashboard.
 
-The Excel file is a simulation input only. The dashboard and backend
+The Excel file is a **simulation input only**. The dashboard and backend
 read operational data from PostgreSQL and receive live updates through
 WebSockets.
 
-------------------------------------------------------------------------
+---
 
-## 1. Technology Stack
+## 1. What This Project Is
 
-  -----------------------------------------------------------------------
-  Layer                   Technology              Responsibility
-  ----------------------- ----------------------- -----------------------
-  Dataset preparation     Python, Pandas          Read, clean, validate
-                                                  and order Excel records
+- **Replay simulator** — a fixed dataset (~2,139 readings from one machine
+  on 17 April 2026) is published one record at a time to an MQTT broker,
+  mimicking a live telemetry feed.
+- **Ingestion pipeline** — a subscriber receives each message, validates it
+  against a frozen contract, deduplicates it by deterministic message
+  identity, persists it to PostgreSQL and evaluates alarm thresholds,
+  atomically, per message.
+- **Live dashboard** — Vue 3 + Pinia + ECharts, fed by REST for bootstrap
+  and history and by WebSocket for committed live updates. Database-backed
+  cursors let a client recover after a disconnect without data loss.
 
-  Replay publisher        Python, Paho MQTT       Publish telemetry
-                                                  messages
+The system is a **single-process modular monolith**: Flask, the MQTT
+subscriber, the ingestion worker and the replay worker run as threads in
+one Python process. Mosquitto and PostgreSQL run as separate services.
+One process does not mean one thread or one database connection.
 
-  Message broker          Eclipse Mosquitto       Receive and distribute
-                                                  MQTT messages
+---
 
-  MQTT subscriber         Python, Paho MQTT       Receive telemetry from
-                                                  the broker
+## 2. Technology Stack
 
-  Backend processing      Python                  Validate readings and
-                                                  evaluate alarm
-                                                  conditions
+| Layer | Technology | Responsibility |
+| --- | --- | --- |
+| Dataset preparation | Python, Pandas, openpyxl | Read, validate, normalize Excel; emit Parquet once |
+| Replay worker | Python, Paho MQTT | Publish Parquet records with stable identity and source-timing pacing |
+| Message broker | Eclipse Mosquitto | Topic-based telemetry transport with persistence |
+| MQTT subscriber | Python, Paho MQTT | Receive messages, enqueue to a bounded queue, manual ACK |
+| Ingestion worker | Python, SQLAlchemy | Validate, deduplicate, persist, evaluate alarms, then ACK and broadcast |
+| Database | PostgreSQL | Persistent source of truth for all operational state |
+| Database access | SQLAlchemy 2.x | Engine, sessions, transactions, connection pool |
+| HTTP API | Flask | Bootstrap, history, stats, manifest, alarms, events, export |
+| Real-time transport | Flask-Sock, WebSockets | Live updates and command channel |
+| Frontend | Vue 3 | Dashboard interface |
+| Frontend state | Pinia | Telemetry, alarms, events, replay state, cursor tracking |
+| Charts | Apache ECharts | Time-series rendering on a 5-second scheduler |
+| Configuration | python-dotenv | Load `.env` into typed `Settings` |
+| Logging | Python logging | Structured logs with message_id and machine context |
 
-  Database                PostgreSQL              Persist telemetry and
-                                                  operational records
+Redis, Kafka, Celery and any additional services are **not** used.
 
-  Database access         SQLAlchemy              Transactions, sessions
-                                                  and connection pooling
+---
 
-  HTTP API                Flask                   Initial data, history,
-                                                  statistics and exports
+## 3. Repository Layout
 
-  Real-time communication Flask-Sock, WebSockets  Live updates and
-                                                  dashboard commands
-
-  Frontend                Vue.js 3                Dashboard interface
-
-  Frontend state          Pinia                   Manage telemetry,
-                                                  alarms, events and
-                                                  replay state
-
-  Charts                  Apache ECharts          Display machine trends
-
-  Configuration           python-dotenv           Load environment
-                                                  configuration
-
-Logging                 Python logging          Record application
-                                                  activity and failures
-  -----------------------------------------------------------------------
-
-The initial implementation uses the existing stack. Redis, Kafka, Celery
-and additional services are not required for this version.
-
-------------------------------------------------------------------------
-
-## 2. High-Level System Architecture
-
-``` text
-Excel Dataset
-     |
-     v
-Python Replay Publisher
-     |
-     | MQTT QoS 1
-     v
-Mosquitto MQTT Broker
-     |
-     v
-Paho MQTT Subscriber
-     |
-     v
-Bounded Ingestion Queue
-     |
-     v
-Python Ingestion Worker
-     |
-     +---- Decode and validate payload
-     +---- Check message identity
-     +---- Resolve machine and replay session
-     +---- Evaluate alarm conditions
-     |
-     v
-SQLAlchemy Ingestion Engine
-     |
-     v
-PostgreSQL
-     |
-     | Successful commit
-     v
-In-process WebSocket Hub
-     |
-     v
-Flask-Sock WebSocket
-     |
-     v
-Vue.js Dashboard
+```text
+Live_dashboard/
+│
+├── backend/
+│   ├── __init__.py
+│   ├── config/
+│   │   └── settings.py            # typed .env loader — DONE
+│   ├── contract/
+│   │   ├── __init__.py
+│   │   └── schema.py              # frozen TelemetryRecord — DONE
+│   ├── mqtt/
+│   │   ├── client.py              # paho wrapper — DONE
+│   │   └── subscriber.py          # manual_ack subscriber — PENDING
+│   ├── replay/
+│   │   ├── worker.py              # Parquet → MQTT — PENDING
+│   │   ├── window.py              # 10-min source-window selection — PENDING
+│   │   └── identity.py            # deterministic message_id — PENDING
+│   ├── ingestion/
+│   │   ├── worker.py              # validator + enqueue — DONE
+│   │   ├── consumer.py            # queue → Postgres — PENDING
+│   │   └── alarms.py              # alarm evaluation — PENDING
+│   ├── database/
+│   │   ├── engine.py              # one engine — PENDING
+│   │   ├── models.py              # 11 models — PENDING
+│   │   ├── init_db.py             # schema + seeds — PENDING
+│   │   └── repository.py          # queries — PENDING
+│   ├── api/
+│   │   ├── __init__.py            # Flask factory — PENDING
+│   │   └── routes/                # REST endpoints — PENDING
+│   ├── realtime/
+│   │   ├── hub.py                 # WebSocket registry — PENDING
+│   │   └── sync.py                # cursor recovery — PENDING
+│   └── services/
+│       └── lifecycle.py           # worker startup — PENDING
+│
+├── frontend/                      # Vue 3
+│   └── src/
+│       ├── api/                   # REST clients
+│       ├── stores/                # Pinia
+│       ├── composables/           # WebSocket, cursors
+│       ├── charts/                # ECharts wrappers
+│       └── views/
+│
+├── data/
+│   ├── raw/Line_Speed_30.xlsx                       # source workbook (never modified)
+│   ├── processed/line_speed_30_normalized.parquet   # DONE
+│   └── reports/                                     # profiling + preprocessing reports
+│
+├── docs/
+│   ├── contract/signal_contract.md                  # DONE
+│   └── architecture/
+│       ├── mqtt_topics.md                           # DONE
+│       └── system_architecture.md                   # long-form design
+│
+├── mosquitto/mosquitto.conf       # project copy for reference
+├── reference/line_speed_30_design.html
+├── tools/
+│   ├── profiling/profile_dataset.py        # DONE
+│   ├── preprocessing/preprocess_dataset.py # DONE
+│   └── smoke/
+│       ├── mqtt_smoke.py          # DONE
+│       ├── replay_smoke.py        # DONE (v1)
+│       ├── ingestion_smoke.py     # DONE (v1)
+│       ├── db_connect_smoke.py    # DONE
+│       ├── db_schema_smoke.py     # PENDING
+│       └── persist_smoke.py       # PENDING
+│
+├── tests/
+│   ├── unit/
+│   └── integration/
+│
+├── logs/
+├── .env
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── README.md
 ```
 
-Flask also provides REST endpoints for initial dashboard data,
-historical readings, statistics, machine metadata, alarms and CSV
-exports.
+Files marked **DONE** are on disk and verified end to end. Files marked
+**PENDING** are specified in the architecture but not yet implemented.
 
-### Application structure
+---
 
-The initial deployment is a **single-process modular monolith**. The
-process contains separate application components and background threads:
+## 4. High-Level Architecture
 
-- Flask HTTP and WebSocket server.
-- Paho MQTT subscriber network loop.
-- Telemetry ingestion worker.
-- Python replay publisher worker.
-- In-process WebSocket client registry.
+```text
+Excel Workbook
+     │  imported once
+     ▼
+Preprocessing → data/processed/*.parquet
+     │
+     ▼
+Replay Worker ◄── command queue ◄── Flask replay service ◄── Vue commands
+     │  deterministic message_id · source-time pacing · 10-minute windows
+     │  MQTT QoS 1, not retained
+     ▼
+Mosquitto  (factory/line30/telemetry, factory/line30/state)
+     │
+     ▼
+Paho Subscriber (manual_ack=True, bounded queue, backpressure when full)
+     │
+     ▼
+Ingestion Worker (single thread, one transaction per message)
+     │  validate → deduplicate → stream offset → INSERT → alarms → COMMIT
+     │  then ACK MQTT → broadcast to WebSocket hub
+     ▼
+PostgreSQL (11 tables)
+     │  committed
+     ▼
+In-process WebSocket Hub (cursors from stream_state)
+     │
+     ▼
+Flask-Sock (live) + Flask REST (bootstrap, history, manifest)
+     │
+     ▼
+Vue 3 + Pinia + ECharts (5-second render scheduler)
+```
 
-Mosquitto and PostgreSQL run as separate services. A single application
-process does not mean a single thread or a single database connection.
+**One line:** Excel → Parquet → replay worker → MQTT → subscriber → queue →
+ingestion → PostgreSQL → WebSocket → Vue.
 
-------------------------------------------------------------------------
+---
 
-## 3. How the System Works
+## 5. Key Design Decisions (Frozen)
 
-### Step 1 --- Excel Dataset
+These were settled during design review. Do not revisit them without a
+specific, measured reason.
 
-The Excel workbook is the source for replay simulation.
+| Decision | Choice | Rationale |
+| --- | --- | --- |
+| Source storage | Parquet file, not Postgres | Replay source is immutable; fast to filter; no duplicate table or import pipeline |
+| Database schema | **11 tables** | See Section 11 |
+| Tables excluded | `replay_records`, `command_receipts`, `stream_offsets` (as a table) | Parquet is the source; command idempotency deferred to Phase 4; offsets collapse into one `stream_state` row |
+| SQLAlchemy engines | **One engine**, `pool_size=5`, `max_overflow=2`, `pool_timeout=5`, `pool_pre_ping=True` | Single-user, single ingestion thread; split only if contention is measured |
+| Deduplication | `UNIQUE (message_id)` on `telemetry_readings` | `message_id = sha256(dataset_id:session_id:cycle:sequence)[:32]`, stable across retries |
+| Replay identity | `UNIQUE (machine_id, replay_session_id, replay_cycle, source_sequence)` | Separates a legitimate later replay from a duplicate delivery |
+| Cursor source | `stream_state.last_reading_offset`, `stream_state.last_event_offset` | `MAX(reading_id)` races: `BIGSERIAL` allocates before commit, while `stream_state` increments inside the transaction |
+| Timestamps | `TIMESTAMPTZ` everywhere | Portable; source zone recorded in `datasets.source_timezone` with a `timezone_assumed` flag |
+| Source timezone | UTC with `timezone_assumed = true` initially | Correctable by one `UPDATE datasets` plus re-import |
+| Broker topics | `factory/line30/telemetry`, `factory/line30/state` | Namespaced by domain and machine |
+| MQTT QoS | 1 with `manual_ack=True` | At-least-once delivery, ACK only after commit |
+| Replay timing | Derived from source timestamp deltas | Preserves original cadence, including irregular gaps |
+| Frontend data | REST bootstrap + WebSocket live | No polling; charts render on a 5-second schedule |
+| Latest reading | In-memory frame, no `telemetry_latest` table | Loaded from Postgres at startup; only a newer reading may replace it |
 
-1. Read the workbook using Pandas.
+---
+
+## 6. Prerequisites
+
+- **Python 3.14** (environment at `F:\Intern_Training\.venv`)
+- **PostgreSQL 18** on `localhost:5432`, database `line30` created
+- **Mosquitto 2.1.2**, foreground broker config (see
+  `docs/architecture/mqtt_topics.md`)
+- **Node.js 20+** for the Vue 3 frontend (Phase 5)
+
+Python dependencies (installed):
+
+```text
+pandas==3.0.5
+pyarrow==26.0.1
+openpyxl==3.1.5
+python-dotenv==1.2.3
+SQLAlchemy==2.1.6
+psycopg2-binary==2.9.13
+paho-mqtt==2.1.0
+Flask            # Phase 4
+flask-sock       # Phase 4
+```
+
+Confirm the installed Paho version supports the manual-ack API before
+implementing the subscriber.
+
+---
+
+## 7. Environment Variables
+
+`.env.example` documents every key. Copy it to `.env` and fill in real
+credentials for `DATABASE_URL`. `.env` is git-ignored; `.env.example` is
+committed. Secrets never appear in logs.
+
+```dotenv
+DATABASE_URL=postgresql+psycopg2://postgres:<password>@localhost:5432/line30
+
+MQTT_HOST=127.0.0.1
+MQTT_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_CLIENT_ID_PREFIX=live_dashboard
+MQTT_KEEPALIVE_SECONDS=60
+
+MQTT_TOPIC_TELEMETRY=factory/line30/telemetry
+MQTT_TOPIC_STATE=factory/line30/state
+
+REPLAY_INTERVAL_SECONDS=10.0
+REPLAY_QUEUE_MAXSIZE=100
+```
+
+`REPLAY_INTERVAL_SECONDS` is a fallback and override for smoke tests. In
+normal replay the delay between records comes from source timestamp
+deltas, scaled by the replay speed.
+
+---
+
+## 8. Running the System
+
+### 8.1 Start the MQTT broker
+
+Mosquitto runs in the foreground for development. The Windows service is
+installed but does not read the project config and does not bind to 1883.
+
+```powershell
+& "C:\Program Files\Mosquitto\mosquitto.exe" `
+    -c "C:\Program Files\Mosquitto\mosquitto.conf" -v
+```
+
+Leave this window open. Expected output ends with
+`mosquitto version 2.1.2 running`.
+
+### 8.2 Set the Python path
+
+```powershell
+$env:PYTHONPATH = "F:\Intern_Training\Live_dashboard\backend"
+```
+
+### 8.3 Prepare the dataset (once)
+
+```powershell
+python .\tools\preprocessing\preprocess_dataset.py
+```
+
+Expected: `Records written: 2,139`, `Records rejected: 0`. Produces
+`data/processed/line_speed_30_normalized.parquet`.
+
+### 8.4 Initialize the database (once, Phase 3b)
+
+```powershell
+python .\tools\smoke\db_schema_smoke.py
+```
+
+Expected: `OK: 11 tables created. Seeds: 1 line, 1 machine, 32 signals, 1 dataset.`
+
+### 8.5 Run the replay (Phase 2d)
+
+```powershell
+python -m replay --limit 100 --interval 0.5
+```
+
+Publishes 100 records from the first 10-minute window at 0.5 s intervals.
+The broker window shows one `Received PUBLISH` per record, `r0` (not
+retained), on `factory/line30/telemetry`.
+
+### 8.6 Run the ingestion consumer (Phase 3c)
+
+```powershell
+python -m ingestion --limit 100
+```
+
+Expected: `Ingested 100 records, rejected 0. Stream offset: 100.`
+
+### 8.7 Start the Flask API and WebSocket (Phase 4)
+
+```powershell
+python -m backend.api
+```
+
+- REST: `http://localhost:5000/api/v1/*`
+- WebSocket: `ws://localhost:5000/ws/v1`
+
+### 8.8 Start the frontend (Phase 5)
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+---
+
+## 9. How the System Works
+
+### Step 1 — Dataset preparation
+
+1. Read the workbook with Pandas.
 2. Clean and validate the records.
-3. Convert timestamps to a consistent UTC representation.
-4. Sort records chronologically.
-5. Map workbook headers to the telemetry message fields.
-6. Prepare rows for replay.
+3. Convert timestamps to a consistent representation and record the
+   source timezone assumption in `datasets`.
+4. Sort chronologically and assign `source_sequence` (the row's position
+   in the Parquet file).
+5. Map workbook headers to telemetry fields.
+6. Write the normalized Parquet file.
 
-Excel is not read by the Vue dashboard and is not queried by Flask at
-runtime.
+Excel is not read by Vue or by Flask at runtime. Importing the same
+dataset twice must not create a second `datasets` row.
 
-### Step 2 --- Python Replay Publisher
+### Step 2 — Replay worker
 
-The publisher reads the prepared records one at a time.
+The worker reads Parquet records one at a time, in
+`(event_timestamp, source_sequence)` order, within a 10-minute source
+window. For each record it builds a JSON message, adds identity and
+replay metadata, publishes with QoS 1 (never retained), waits according
+to the source timestamp delta, and moves on. It starts another replay
+cycle when looping is enabled.
 
-For each record, it:
+The worker connects to Mosquitto. It never connects to PostgreSQL and
+never reads Excel.
 
-1. Builds a JSON telemetry message.
-2. Adds a stable message identity and replay metadata.
-3. Publishes to the MQTT topic.
-4. Waits for the configured replay interval.
-5. Moves to the next row.
-6. Starts another replay cycle when looping is enabled.
+**Telemetry topic:** `factory/line30/telemetry`
 
-**Telemetry topic**
+**Message fields**
 
-``` text
-factory/line30/telemetry
-```
-
-The publisher connects to Mosquitto. It does not connect to PostgreSQL.
-
-**Message identity**
-
-Each message includes:
-
-- `message_id`: globally unique identifier for the telemetry message.
-- `replay_session_id`: identifies one replay execution.
-- `replay_cycle`: identifies the loop number within that execution.
-- `sequence_number`: identifies the row's position in the replay
-    stream.
-- `machine_code`: identifies the machine.
-- `event_timestamp`: timestamp represented by the source reading.
+- `message_id`: deterministic, `sha256(dataset_id:session_id:cycle:sequence)[:32]`.
+- `replay_session_id`: one replay execution.
+- `replay_cycle`: loop number within that execution.
+- `source_sequence`: row position in the Parquet file.
+- `machine_code`: machine identifier.
+- `event_timestamp`: timestamp of the source reading.
 - `signals`: the signal values for that reading.
 
-The publisher must reuse the same `message_id` when retrying the same
-message. A new replay cycle receives a new identity. This allows the
-database to distinguish a legitimate repeated row in a later cycle from
-a duplicate delivery of an earlier message.
+A retry of the same message reuses the same `message_id`. A new replay
+cycle produces a new identity, so the database can tell a legitimate
+repeat in a later cycle from a duplicate delivery of an earlier message.
 
-The publisher uses MQTT QoS 1. Telemetry messages are not published as
-retained messages.
+### Step 3 — Mosquitto
 
-### Step 3 --- Mosquitto MQTT Broker
+- Receives telemetry from the replay worker and delivers it to subscribers.
+- Keeps the publisher independent of the database and dashboard.
+- Keeps persistent session state for the subscriber.
 
-Mosquitto is the messaging intermediary.
+For reliable recovery, enable Mosquitto persistence, and use a stable
+subscriber client ID and persistent session. The session settings must
+match the MQTT protocol version and the Paho configuration.
 
-- Receives telemetry from the publisher.
-- Delivers messages to subscribed clients.
-- Keeps the publisher independent from the database and dashboard.
-- Maintains persistent MQTT session state according to broker
-    configuration.
+### Step 4 — MQTT subscriber
 
-For reliable subscriber recovery, enable Mosquitto persistence and
-configure a stable subscriber client ID and persistent session. The
-exact session settings must match the MQTT protocol version and Paho
-client configuration.
+The subscriber connects with a stable client ID and subscribes to
+`factory/line30/telemetry`. The callback does minimal work: receive the
+message, capture topic, payload and delivery metadata, place it in the
+bounded queue (`maxsize=100`) and return to the network loop. It never
+does database work.
 
-### Step 4 --- Paho MQTT Subscriber
+**Backpressure rule:** a message is never silently dropped. If the queue
+is full, the subscriber stops accepting work and disconnects without
+acknowledging the QoS 1 delivery. After reconnecting, the broker
+redelivers unacknowledged messages from the persistent session.
 
-The subscriber connects to Mosquitto and subscribes to:
+### Step 5 — Ingestion worker
 
-``` text
-factory/line30/telemetry
-```
+A single worker thread processes one message at a time:
 
-The MQTT callback should do minimal work:
-
-1. Receive the message.
-2. Capture its topic, payload and MQTT delivery metadata.
-3. Place it into a bounded in-memory queue.
-4. Return control to the MQTT network loop.
-
-The callback should not perform long database operations directly. A
-separate ingestion worker consumes the queue and processes messages
-sequentially.
-
-**Backpressure rule:** Messages must never be silently dropped when the
-queue is full. The subscriber must stop accepting work and disconnect
-without acknowledging the unprocessed QoS 1 delivery. After
-reconnection, the broker can redeliver unacknowledged messages from the
-persistent session.
-
-### Step 5 --- Python Ingestion Processing
-
-The ingestion worker processes one message at a time.
-
-``` text
-MQTT Message
-     |
-     v
+```text
 Decode JSON
-     |
-     v
-Validate Required Fields and Types
-     |
-     v
-Validate Message Identity
-     |
-     v
-Resolve Machine and Replay Session
-     |
-     v
-Evaluate Applicable Alarm Thresholds
-     |
-     v
-Persist Reading and Alarm Transitions
+  → Validate required fields, types, timestamp format
+  → Validate message identity
+  → Resolve machine and replay session
+  → Detect duplicate message_id
+  → Evaluate applicable alarm thresholds
+  → Persist reading and alarm transitions
 ```
 
-Processing responsibilities:
+- Malformed JSON and invalid structures are rejected.
+- Machine, signal and threshold configuration may be cached. The cache
+  must be refreshed or invalidated when configuration changes.
+- One worker preserves processing order for this deployment.
 
-- Reject malformed JSON and invalid payload structures.
-- Validate required fields, data types and timestamp format.
-- Resolve the machine and replay session.
-- Detect duplicate message identities.
-- Evaluate machine-specific warning and critical thresholds.
-- Prepare telemetry and any alarm lifecycle changes for persistence.
+### Step 6 — PostgreSQL
 
-Machine metadata, signal metadata and threshold configuration can be
-cached to avoid repeated lookup queries. Cache refresh or invalidation
-is required when configuration changes.
+PostgreSQL is the persistent source of truth. See Section 11 for the
+eleven tables.
 
-A single ingestion worker preserves message processing order for this
-initial deployment. The database remains the source of truth for
-persisted readings and alarm state.
+**Wide telemetry table.** The signal set is known (32 signals), so one
+message creates one `telemetry_readings` row with a typed column per
+signal. Signal metadata lives in `signal_definitions`. Column names, SQL
+types, units and nullability come from the actual workbook headers; no
+placeholder names in migrations. If the signal catalogue becomes dynamic,
+reassess the storage model instead of adding columns ad hoc.
 
-### Step 6 --- PostgreSQL Database
+**Deduplication**
 
-PostgreSQL is the persistent source of truth.
+- `UNIQUE (message_id)` is the primary rule.
+- `UNIQUE (machine_id, replay_session_id, replay_cycle, source_sequence)`
+  is the secondary rule.
+- `(machine_id, event_timestamp)` is never a dedup key: two legitimate
+  readings can share a timestamp, and a timestamp does not identify a
+  delivery.
 
-The proposed schema contains **nine tables**:
+**Recommended indexes**
 
-  -----------------------------------------------------------------------
-  Table                               Responsibility
-  ----------------------------------- -----------------------------------
-  `lines`                             Production line information
+- Unique constraints above.
+- History: `(machine_id, event_timestamp DESC, reading_id DESC)`.
+- Cursor reads: `stream_offset` on `telemetry_readings`, `event_id` on `event_log`.
+- Active alarms and event history, based on actual filters.
 
-  `machines`                          Machine information and line
-                                      relationship
+Do not index every signal column. Add signal indexes only when query
+plans justify them.
 
-  `signal_definitions`                Signal names, codes, units and
-                                      telemetry column mapping
+**Latest reading.** No `telemetry_latest` table initially. Load the
+latest reading per machine at startup, keep it in memory, and replace it
+only when an incoming reading is newer by event time and tie-break.
+Out-of-order readings are stored in history but never replace the latest
+frame.
 
-  `machine_signal_limits`             Machine-specific warning and
-                                      critical thresholds
+### Step 7 — SQLAlchemy and connections
 
-  `telemetry_readings`                One wide row for each accepted
-                                      telemetry message
-
-  `alarms`                            Alarm occurrences, status and
-                                      acknowledgement lifecycle
-
-  `event_log`                         Important operational events and
-                                      alarm transitions
-
-  `operator_notes`                    Operator annotations
-
-`replay_sessions`                   Replay execution, cycle and control
-                                      state
-  -----------------------------------------------------------------------
-
-#### Telemetry table design
-
-The dataset has a known signal set, so the initial design uses a **wide
-telemetry table**:
-
-- One MQTT message creates one row in `telemetry_readings`.
-- Each signal has its own typed database column.
-- Signal metadata remains in `signal_definitions`.
-- Exact column names, SQL types, units and nullability must be derived
-    from the actual Excel headers and signal semantics before creating
-    the final DDL. Do not use placeholder signal names in production
-    migrations.
-
-The wide design avoids inserting a separate child row for every signal
-in every message. It is suitable while the signal catalogue is
-relatively fixed. If signals become highly dynamic, reassess the storage
-model rather than adding columns without a schema review.
-
-#### Message identity and duplicate protection
-
-The telemetry table must enforce a stable uniqueness rule. For this
-replay system, use:
-
-- A unique `message_id`.
-- A unique replay identity based on `replay_session_id`,
-    `replay_cycle` and `sequence_number` (include `machine_id` if
-    sequence numbers are only unique within a machine).
-
-Do not rely only on `(machine_id, event_timestamp)` for deduplication.
-Two legitimate readings can share a timestamp, and timestamps alone do
-not identify a delivery.
-
-#### Recommended indexes
-
-Start with indexes that support actual dashboard queries:
-
-- Unique index/constraint on `message_id`.
-- Unique constraint on the replay identity.
-- History index on
-    `(machine_id, event_timestamp DESC, reading_id DESC)`.
-- Indexes for active alarm queries and event history based on their
-    actual filters.
-
-Do not index every signal column by default. Add signal-specific indexes
-only when query plans and workload measurements justify them.
-
-#### Latest reading
-
-Do not maintain a separate `telemetry_latest` table initially.
-
-- On application startup, load the latest reading for each machine
-    from PostgreSQL.
-- Maintain the latest in-memory telemetry frame in the application
-    process.
-- Update it only when the incoming reading is newer according to the
-    defined event-time and tie-break policy.
-- Persist out-of-order readings in history, but do not let an older
-    reading replace the current latest frame.
-
-A separate latest-reading projection can be introduced later if measured
-query cost or machine count justifies it.
-
-### Step 7 --- SQLAlchemy and Database Connections
-
-SQLAlchemy Engines are created once during application startup. They
-manage reusable database connection pools.
-
-Use two Engines connected to the same PostgreSQL database:
-
-  -----------------------------------------------------------------------
-  Engine                  Used by                 Purpose
-  ----------------------- ----------------------- -----------------------
-  Ingestion Engine        Telemetry ingestion     Telemetry writes and
-                          worker                  alarm/event persistence
-
-Application Engine      Flask REST and          Dashboard reads,
-                          operational services    history, statistics,
-                                                  replay commands and
-                                                  alarm acknowledgement
-  -----------------------------------------------------------------------
-
-A practical initial pool configuration for the current single-process,
-low-volume replay workload is:
-
-  Setting             Ingestion pool   Application pool
-  ----------------- ---------------- ------------------
-  `pool_size`                      1                  3
-  `max_overflow`                   0                  2
-  `pool_timeout`           5 seconds          5 seconds
-  `pool_pre_ping`             `True`             `True`
-
-These are starting values, not universal production limits. Adjust them
-after measuring connection checkout wait time, query duration,
-transaction duration and concurrent request load.
+One Engine is created at startup and shared by the ingestion worker and
+Flask. Settings: `pool_size=5`, `max_overflow=2`, `pool_timeout=5`,
+`pool_pre_ping=True`. These are starting values; adjust after measuring
+checkout wait, query duration and concurrent load. Split into separate
+engines only if contention is observed.
 
 **Connection lifecycle**
 
-- Create each Engine once.
-- Create a short-lived SQLAlchemy Session for each unit of database
-    work.
-- Begin a transaction, execute the required queries and writes, then
-    commit or roll back.
-- Close the Session so its connection returns to the pool.
-- Never share a SQLAlchemy Session between threads.
-- Never hold a database transaction open while sending WebSocket
-    messages.
+- Create the Engine once, never per message.
+- Use a short-lived Session per unit of work: begin, query and write,
+  commit or roll back, close.
+- Never share a Session between threads.
+- Never hold a transaction open while sending WebSocket messages.
 
-A transaction is created for each telemetry message, but the underlying
-TCP connection is normally reused from the pool. A new database
-connection is not opened for every five-second replay interval.
+A transaction per message does not mean a new TCP connection per
+message; connections are reused from the pool.
 
-### Step 8 --- Database Transaction and MQTT Acknowledgement
+### Step 8 — Transaction, stream offset and MQTT acknowledgement
 
-Telemetry persistence and associated alarm transitions must be atomic.
-
-``` text
-Ingestion Worker Receives Queued Message
-                  |
-                  v
-        Validate and Resolve Data
-                  |
-                  v
-       Acquire Ingestion Connection
-                  |
-                  v
-             BEGIN
-                  |
-                  v
-       Insert Telemetry Reading
-                  |
-                  v
-       Check Duplicate Result
-                  |
-          +-------+-------+
-          |               |
-       Duplicate       New Reading
-          |               |
-          |               v
-          |        Evaluate Alarm State
-          |               |
-          |               v
-          |        Save Alarm Transitions
-          |               |
-          |               v
-          |        Save Related Events
-          |               |
-          |               v
-          |             COMMIT
-          |               |
-          +-------+-------+
-                  |
-                  v
-       Acknowledge MQTT Delivery
-                  |
-                  v
-       Broadcast Committed Update
-                  |
-                  v
-          Update Vue Dashboard
+```text
+Dequeue message
+   │
+   ▼
+Validate and resolve data
+   │
+   ▼
+BEGIN
+   │
+   ▼
+Duplicate check (message_id) ──► duplicate: skip insert, no alarm, no broadcast
+   │ new
+   ▼
+UPDATE stream_state SET last_reading_offset = last_reading_offset + 1
+   RETURNING last_reading_offset            (allocates stream_offset)
+   │
+   ▼
+INSERT telemetry_readings (with stream_offset)
+   │
+   ▼
+Evaluate alarm state → save alarm transitions → save related events
+   │
+   ▼
+COMMIT
+   │
+   ▼
+ACK MQTT delivery
+   │
+   ▼
+Broadcast committed update to WebSocket hub
 ```
 
 Rules:
 
-1. A duplicate message is not inserted again and does not create
-    another alarm transition or live telemetry event.
-2. A new reading and its alarm/event changes are committed in one
-    transaction.
-3. If the transaction fails, roll it back and do not acknowledge the
-    MQTT delivery.
-4. After a transient database failure, retry with bounded backoff. If
-    processing cannot complete, disconnect without acknowledging so the
-    broker can redeliver through the persistent session.
-5. A permanently invalid payload is rejected, logged with its reason
-    and acknowledged so it does not create an endless redelivery loop.
-    If rejected-payload audit is required, add a deliberate quarantine
-    mechanism.
-6. Acknowledge a valid QoS 1 MQTT delivery only after its database
-    transaction commits successfully.
+1. A duplicate is not inserted again and creates no alarm transition or
+   live event. It is still acknowledged.
+2. The reading, its stream offset, and its alarm/event changes commit in
+   one transaction. If the `UNIQUE` backstop fires (`IntegrityError`),
+   the whole transaction rolls back, offset included.
+3. On transaction failure: roll back and do not ACK.
+4. On a transient database failure, retry with bounded backoff (3
+   attempts: 100 ms, 500 ms, 2 s). If still failing, disconnect without
+   ACK so the broker redelivers.
+5. A permanently invalid payload is logged with its reason and ACKed to
+   avoid a poison-message loop. Add a quarantine mechanism only if
+   rejected-payload audit becomes a requirement.
+6. ACK a valid QoS 1 delivery only after commit.
 7. Broadcast only after commit.
 
-Configure the Paho subscriber for manual acknowledgements
-(`manual_ack=True`, where supported by the installed Paho version).
-Acknowledge the delivery using its message ID and QoS after successful
-persistence. Confirm the installed Paho version supports the selected
-manual-ack API before implementation.
+Why `stream_state` and not `MAX(reading_id)`: a `BIGSERIAL` value is
+allocated before commit, so a higher `reading_id` can commit before a
+lower one and a cursor based on `MAX` can skip rows. `stream_state` is
+updated inside the transaction and its row lock serializes writers, so
+offset order equals commit order. Any other writer that creates events
+(for example alarm acknowledgement from the API) must increment
+`last_event_offset` the same way, inside its own transaction.
 
-This provides at-least-once MQTT delivery with idempotent database
-persistence. It does not make MQTT delivery and WebSocket delivery one
-distributed transaction.
+This gives at-least-once MQTT delivery with idempotent persistence. It
+does not make MQTT delivery and WebSocket delivery one distributed
+transaction.
 
-### Step 9 --- Flask Backend
-
-Flask provides the application interface between PostgreSQL and Vue.js.
+### Step 9 — Flask backend
 
 #### REST API
 
-REST is used for request/response operations:
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/health` | Application and dependency health (Flask, PostgreSQL, MQTT state) |
+| `GET /api/v1/dashboard/bootstrap` | Initial snapshot plus synchronization cursors |
+| `GET /api/v1/history` | Historical telemetry (cursor-based, bounded) |
+| `GET /api/v1/stats` | Aggregated statistics |
+| `GET /api/v1/manifest` | Lines, machines, signal metadata |
+| `GET /api/v1/alarms` | Active and historical alarms |
+| `GET /api/v1/events` | Event history and cursor recovery |
+| `GET /api/v1/export` | CSV export |
 
-  -----------------------------------------------------------------------
-  Endpoint                            Purpose
-  ----------------------------------- -----------------------------------
-  `GET /api/v1/health`                Application and dependency health
+History endpoints take bounded time ranges, limits and selected signals.
+Avoid returning every signal when a chart needs a few.
 
-  `GET /api/v1/dashboard/bootstrap`   Initial dashboard snapshot and
-                                      synchronization cursors
+#### WebSocket (`/ws/v1`)
 
-  `GET /api/v1/history`               Historical telemetry
+Server to client: `telemetry.reading`, `alarm.raised`, `alarm.cleared`,
+`alarm.acknowledged`, `event.created`, `replay.state`, `command.ack`,
+`command.error`.
 
-  `GET /api/v1/stats`                 Aggregated statistics
+Client to server: `subscribe`, `sync.complete`, `replay.start`,
+`replay.pause`, `replay.speed`, `replay.reset`, `alarm.ack`.
 
-  `GET /api/v1/manifest`              Lines, machines and signal metadata
+Every command carries a unique `command_id`. Validate type, payload and
+authorization, then return an acknowledgement or a structured error.
 
-  `GET /api/v1/alarms`                Active and historical alarms
+#### Synchronization and recovery
 
-  `GET /api/v1/events`                Operational event history and
-                                      cursor recovery
+A WebSocket broadcast is not a durable queue. Clients recover from
+PostgreSQL using two cursors taken from `stream_state`:
 
-`GET /api/v1/export`                CSV export
-  -----------------------------------------------------------------------
+- `reading_cursor` — latest applied `telemetry_readings.stream_offset`.
+- `event_cursor` — latest applied `event_log.event_id`.
 
-Historical endpoints should support bounded time ranges, limits and
-selected signals. Avoid retrieving every signal when a chart needs only
-a small subset.
-
-#### WebSocket
-
-Use Flask-Sock for the WebSocket endpoint:
-
-``` text
-/ws/v1
-```
-
-Server-to-client messages:
-
-- `telemetry.reading`
-- `alarm.raised`
-- `alarm.cleared`
-- `alarm.acknowledged`
-- `event.created`
-- `replay.state`
-- `command.ack`
-- `command.error`
-
-Client-to-server commands:
-
-- `subscribe`
-- `sync.complete`
-- `replay.start`
-- `replay.pause`
-- `replay.speed`
-- `replay.reset`
-- `alarm.ack`
-
-Each command should include a unique `command_id`. Validate command
-type, payload and authorization before applying it. Return an
-acknowledgement or a structured error.
-
-#### WebSocket synchronization and recovery
-
-A WebSocket broadcast is not a durable message queue. A client can
-disconnect or miss an update. Use database-backed cursors to recover.
-
-Use two cursors:
-
-- `reading_cursor`: latest processed `telemetry_readings.reading_id`.
-- `event_cursor`: latest processed `event_log.event_id`.
-
-Initial dashboard synchronization:
+**Initial sync**
 
 1. Vue opens the WebSocket and sends `subscribe`.
-2. The server registers the client in buffering mode before reading the
-    snapshot.
-3. Vue requests `GET /api/v1/dashboard/bootstrap`.
-4. The bootstrap response returns the dashboard snapshot and both
-    cursors from one consistent read-only database transaction.
-5. Vue applies the snapshot and sends `sync.complete` with the returned
-    cursors.
-6. The server discards buffered updates at or below those cursors,
-    sends newer buffered updates, then switches the client to live
-    delivery.
+2. The server registers the client in buffering mode before the snapshot.
+3. Vue calls `GET /api/v1/dashboard/bootstrap`.
+4. The response returns the snapshot and both cursors from one consistent
+   read-only transaction.
+5. Vue applies the snapshot and sends `sync.complete` with those cursors.
+6. The server discards buffered updates at or below the cursors, sends
+   newer ones, then switches the client to live delivery.
 
-Reconnect synchronization:
+**Reconnect**
 
-1. Vue reconnects and sends its last successfully applied cursors.
+1. Vue reconnects and sends its last applied cursors.
 2. The server registers the connection in buffering mode.
-3. The server retrieves missed telemetry and events from PostgreSQL
-    after those cursors.
-4. The server sends the missed records, then flushes newer buffered
-    messages without duplicating cursor values.
-5. The connection switches to live delivery.
+3. The server reads missed telemetry and events after those cursors.
+4. It sends the missed records, flushes newer buffered messages without
+   repeating cursor values, and switches to live delivery.
 
-The history and event APIs must support cursor-based retrieval. Keep
-cursor advancement in the frontend only after the corresponding update
-has been successfully applied.
+The frontend advances a cursor only after the update has been applied.
+Each client has a bounded outbound queue so a slow client cannot block
+ingestion. No second MQTT notification topic is needed; the hub
+broadcasts in-process after commit. After an application restart the hub
+registry is rebuilt and the latest state is restored from PostgreSQL.
 
-For the initial single-process design, the WebSocket hub can broadcast
-directly in-process after database commit. No second MQTT notification
-topic is required.
+### Step 10 — Vue dashboard
 
-If a WebSocket client misses an update, it can recover from PostgreSQL
-using its cursors. If the application restarts, the in-memory WebSocket
-registry is rebuilt and the latest telemetry state is recovered from
-PostgreSQL.
+Features: machine and line status, live KPI cards, real-time signal
+charts, active alarms and history, event history, historical readings
+with time-range selection, replay controls, CSV export.
 
-### Step 10 --- Vue.js Dashboard
+- REST for the initial snapshot and history; WebSocket for live updates
+  and commands. Do not poll the telemetry API.
+- Pinia stores: telemetry, alarms, events, replay, dashboard state.
+- WebSocket composable: connection, reconnect, message validation,
+  cursor tracking.
+- Chart components: ECharts, updated on a 5-second scheduler.
+- History service: bounded windows and selected signals.
+- Command service: replay and alarm commands with `command_id`.
 
-Vue.js displays the data received from Flask.
+---
 
-Dashboard features:
+## 10. Replay Control and Alarms
 
-- Machine and production-line status.
-- Live KPI cards.
-- Real-time signal charts.
-- Active alarms and alarm history.
-- Operational event history.
-- Historical readings and time-range selection.
-- Replay controls.
-- CSV export.
+### Replay control
 
-Use REST for the initial snapshot and historical queries. Use WebSockets
-for live updates and operational commands. Do not poll the telemetry API
-every five seconds to simulate real-time updates.
+The replay worker and Flask run in the same process, in separate
+threads, connected by a thread-safe command queue.
 
-Recommended frontend responsibilities:
-
-- Pinia stores: telemetry, alarms, events, replay and dashboard state.
-- WebSocket composable: connection, reconnect, message validation and
-    cursor tracking.
-- Chart components: render selected signal series using ECharts.
-- History service: request bounded historical windows and selected
-    signals.
-- Command service: send replay and alarm commands with command IDs.
-
-------------------------------------------------------------------------
-
-## 4. Replay Control Design
-
-The replay publisher and Flask application initially run inside the same
-application process, but in separate threads.
-
-Use a thread-safe command queue or equivalent synchronized control
-interface between the Flask replay service and the publisher worker.
-
-``` text
+```text
 Vue Dashboard
-     |
-     | WebSocket command + command_id
-     v
+     │  WebSocket command + command_id
+     ▼
 Flask Replay Service
-     |
-     +---- Validate command
-     +---- Persist requested state
-     +---- Enqueue publisher command
-     |
-     v
-Thread-safe Replay Command Queue
-     |
-     v
-Python Publisher Worker
-     |
-     +---- Start
-     +---- Pause
-     +---- Change speed
-     +---- Reset
-     |
-     v
-Persist applied state and event
-     |
-     v
-WebSocket acknowledgement/state update
+     ├── validate command
+     ├── persist requested_state
+     └── enqueue worker command
+     ▼
+Replay Command Queue (thread-safe)
+     ▼
+Replay Worker: start · pause · speed · reset
+     ▼
+Persist applied_state and event
+     ▼
+WebSocket command.ack / replay.state
 ```
 
-The publisher worker must check for control commands between replay
-records and during its wait interval so pause and speed changes do not
-have to wait for the full original interval.
+- The worker checks for commands between records and during its wait, so
+  pause and speed changes do not wait out a long source gap.
+- Requested and applied state are distinct. The dashboard shows a state
+  as active or paused only after the worker confirms it.
+- Lifecycle lives in `replay_sessions` (`requested_state`,
+  `applied_state`, `replay_cycle`).
+- If the worker later moves to its own process, replace the in-process
+  queue with an explicit inter-process control channel.
 
-Distinguish between a requested command and a command actually applied
-by the publisher. Do not report a replay state as active or paused until
-the publisher confirms the change.
+### Alarm lifecycle
 
-Persist replay lifecycle information in `replay_sessions`. Use
-`command_id` to make command handling idempotent.
+- Thresholds come from `machine_signal_limits`, cached in memory.
+- Each valid reading is evaluated; only meaningful transitions are
+  persisted (`raised → acknowledged → cleared`), never one row per
+  normal reading.
+- Reading and alarm transitions commit atomically.
+- Active alarms are restored from PostgreSQL after a restart.
 
-If the publisher is moved into a separate process in a future version,
-replace the in-process queue with an explicit inter-process control
-mechanism. That is not required for the initial deployment.
+Acknowledgement is a separate operator command:
 
-------------------------------------------------------------------------
-
-## 5. Alarm Lifecycle and Acknowledgement
-
-Alarm evaluation is performed by the Python ingestion processing layer
-using machine-specific thresholds.
-
-- Load threshold configuration from PostgreSQL and cache it.
-- Evaluate each new valid reading.
-- Persist only meaningful alarm lifecycle transitions, not a new alarm
-    row for every normal reading.
-- Persist the telemetry reading and its alarm transitions atomically.
-- Restore active alarm state from PostgreSQL after application
-    restart.
-
-Alarm acknowledgement is a separate operator command:
-
-``` text
-Vue Dashboard
-     |
-     v
-WebSocket alarm.ack + command_id
-     |
-     v
-Flask Alarm Service
-     |
-     v
-Application SQLAlchemy Pool
-     |
-     v
-BEGIN
-     |
-     v
-Validate and conditionally update alarm
-     |
-     v
-Insert acknowledgement event
-     |
-     v
-COMMIT
-     |
-     v
-WebSocket acknowledgement and state update
+```text
+Vue → WebSocket alarm.ack + command_id → Flask alarm service
+   → BEGIN → conditionally update alarm → insert acknowledgement event
+     (advance last_event_offset) → COMMIT
+   → WebSocket alarm.acknowledged
 ```
 
-Acknowledgement must be idempotent. A repeated command must not create
-duplicate acknowledgement events or incorrectly change an
-already-cleared alarm.
+It must be idempotent: a repeat creates no duplicate event and never
+changes an already-cleared alarm.
 
-------------------------------------------------------------------------
+---
 
-## 6. Failure Handling and Recovery
+## 11. Database Schema (11 Tables)
 
-  -----------------------------------------------------------------------
-  Failure                             Required behaviour
-  ----------------------------------- -----------------------------------
-  Publisher loses MQTT connection     Reconnect with backoff; do not
-                                      silently skip the current record
+| # | Table | Owner | Purpose |
+| --- | --- | --- | --- |
+| 1 | `datasets` | Preprocessor | One row per imported workbook; `source_timezone`, `timezone_assumed` |
+| 2 | `lines` | Seed | Production lines; seeded `LINE_30` |
+| 3 | `machines` | Seed | Machines; seeded `LINE_30` machine linked to its line |
+| 4 | `signal_definitions` | Seed | 32 signals: name, section, unit (nullable), column mapping |
+| 5 | `machine_signal_limits` | Manual | Warning and critical thresholds per (machine, signal) |
+| 6 | `replay_sessions` | Replay worker | `requested_state` vs `applied_state`, `replay_cycle` |
+| 7 | `stream_state` | Ingestion worker | Single row: `last_reading_offset`, `last_event_offset` |
+| 8 | `telemetry_readings` | Ingestion worker | Wide row per accepted message, with `stream_offset` |
+| 9 | `alarms` | Ingestion worker | Lifecycle: raised → acknowledged → cleared |
+| 10 | `event_log` | Ingestion worker / API | Operational events with monotonic `event_id` |
+| 11 | `operator_notes` | API | Free-form annotations |
 
-  Subscriber loses broker connection  Reconnect using the stable client
-                                      ID and persistent session
+DDL is defined by `backend/database/models.py` and applied by
+`init_db.create_schema()`. `event_log` holds meaningful operational
+events only; telemetry belongs in `telemetry_readings`.
 
-  PostgreSQL is temporarily           Roll back, do not MQTT-ack the
-  unavailable                         valid message, retry with bounded
-                                      backoff
+---
 
-  MQTT message is redelivered         Detect its stable `message_id`; do
-                                      not insert or broadcast it twice
+## 12. Failure Handling
 
-  Ingestion queue is full             Do not drop or acknowledge the
-                                      message; apply backpressure and
-                                      reconnect for redelivery
+| Failure | Required behaviour |
+| --- | --- |
+| Publisher loses MQTT connection | Reconnect with backoff; never silently skip the current record |
+| Subscriber loses broker connection | Reconnect with stable client ID and persistent session |
+| PostgreSQL temporarily unavailable | Roll back, do not ACK, retry 3 times (100 ms, 500 ms, 2 s), then disconnect |
+| MQTT message redelivered | Detect via `message_id`; no duplicate insert, no duplicate broadcast |
+| Ingestion queue full (`maxsize=100`) | Do not drop, do not ACK; disconnect for backpressure |
+| Payload permanently invalid | Log reason, ACK to prevent a poison-message loop |
+| WebSocket client disconnects | Client reconnects with cursors; server sends missed records |
+| WebSocket broadcast fails | Do not roll back committed telemetry; rely on cursor recovery |
+| Application restarts | Reconnect MQTT; restore latest reading and active alarms from Postgres; rebuild WebSocket registry |
+| Replay command fails | Report failure; do not claim the requested state was applied |
 
-  Payload is permanently invalid      Log the validation reason and
-                                      acknowledge it to avoid
-                                      poison-message loops
+Recovery of unacknowledged messages while the process is down depends on
+correct Mosquitto persistence and MQTT session configuration, and must
+be tested.
 
-  WebSocket client disconnects        Reconnect and recover missed
-                                      records using reading and event
-                                      cursors
+---
 
-  WebSocket broadcast fails           Do not roll back committed
-                                      telemetry; rely on cursor-based
-                                      recovery
+## 13. Logging, Monitoring and Retention
 
-  Application restarts                Reconnect MQTT, restore latest
-                                      readings and active alarms from
-                                      PostgreSQL, rebuild WebSocket
-                                      connections
+**Log** (structured, with `message_id`, topic and machine code where
+practical): startup and shutdown; MQTT connect, disconnect and
+subscription state; validation failures and reasons; transaction
+success, rollback and retry; duplicate detection; alarm transitions and
+acknowledgements; WebSocket connect, disconnect and sync failures;
+replay commands and applied state; pool checkout timeouts and database
+errors. Never log secrets.
 
-Replay command fails                Report failure; do not claim the
-                                      requested state was applied
-  -----------------------------------------------------------------------
+**Health checks** cover the Flask process, PostgreSQL connectivity and
+MQTT connection state.
 
-The initial system uses one ingestion worker and one application
-process. If the process is unavailable, the MQTT persistent session and
-broker persistence help retain unacknowledged QoS 1 deliveries. This
-depends on correct Mosquitto persistence and MQTT session configuration
-and must be tested.
+**Retention and performance**
 
-------------------------------------------------------------------------
-
-## 7. Logging and Monitoring
-
-Use Python logging with structured fields where practical.
-
-Record:
-
-- Application startup and shutdown.
-- MQTT connection, disconnection and subscription state.
-- Message ID, topic and machine code.
-- Payload validation failures and rejection reasons.
-- Database transaction success, rollback and retry.
-- Duplicate message detection.
-- Alarm transitions and acknowledgements.
-- WebSocket connections, disconnections and synchronization failures.
-- Replay commands and applied state.
-- Connection pool checkout timeouts and database errors.
-
-Do not write every telemetry message into `event_log`. Telemetry belongs
-in `telemetry_readings`; `event_log` is for meaningful operational
-events.
-
-Provide health checks for the Flask process, PostgreSQL connectivity and
-MQTT connection state. Keep secrets and credentials out of logs.
-
-------------------------------------------------------------------------
-
-## 8. Data Retention and Performance
-
-Start with a simple retention policy and measure actual data growth.
-
-- Keep the telemetry history needed by the dashboard and project.
-- Define a retention period before production deployment.
-- Archive or delete old telemetry according to an approved policy.
+- The dataset is small (~2,139 readings); repeated replay cycles add
+  rows. Define a retention period before any wider deployment.
 - Monitor table size, index size, query duration and write latency.
-- Introduce time-based partitioning only when volume and retention
-    operations justify it.
-- Avoid premature tuning of PostgreSQL internals.
-- Do not add indexes without a query requirement and query-plan
-    evidence.
+- Add time-based partitioning only when volume justifies it.
+- Estimate storage from the real signal columns, machine count and
+  replay duration. For reference, a live feed of one message every
+  5 seconds would be 12 readings per minute and 17,280 per day.
 
-At one message every five seconds, one machine produces 12 readings per
-minute and 17,280 readings per day. Calculate storage and retention
-using the actual signal columns, number of machines and replay duration.
+---
 
-------------------------------------------------------------------------
+## 14. Verification and Smoke Tests
 
-## 9. Suggested Project Structure
+Each phase has a smoke test under `tools/smoke/`. A phase is complete
+only when its smoke test passes cleanly.
 
-``` text
-line-speed-30-iiot/
-|
-+-- backend/
-|   +-- app/
-|   |   +-- __init__.py
-|   |   +-- config.py
-|   |   +-- extensions.py
-|   |   +-- models/
-|   |   +-- repositories/
-|   |   +-- services/
-|   |   |   +-- ingestion_service.py
-|   |   |   +-- alarm_service.py
-|   |   |   +-- replay_service.py
-|   |   |   +-- websocket_service.py
-|   |   +-- mqtt/
-|   |   |   +-- subscriber.py
-|   |   |   +-- message_queue.py
-|   |   +-- api/
-|   |   |   +-- routes/
-|   |   +-- websocket/
-|   |   |   +-- routes.py
-|   |   +-- workers/
-|   |       +-- ingestion_worker.py
-|   |       +-- replay_worker.py
-|   +-- migrations/
-|   +-- tests/
-|   +-- run.py
-|
-+-- publisher/
-|   +-- replay_publisher.py
-|   +-- dataset_loader.py
-|   +-- payload_builder.py
-|   +-- replay_controls.py
-|
-+-- frontend/
-|   +-- src/
-|       +-- components/
-|       +-- views/
-|       +-- stores/
-|       +-- composables/
-|       +-- services/
-|       +-- charts/
-|
-+-- data/
-|   +-- Line_Speed_30.xlsx
-|
-+-- database/
-|   +-- schema.sql
-|   +-- seed.sql
-|
-+-- logs/
-|
-+-- .env.example
-+-- .gitignore
-+-- README.md
-```
+| Phase | Smoke test | Expected |
+| --- | --- | --- |
+| 1 | `python .\tools\smoke\db_connect_smoke.py` | `OK: SELECT 1 -> 1` |
+| 2b | `python .\tools\smoke\mqtt_smoke.py` | `OK: published state and telemetry` |
+| 2c (v1) | `python .\tools\smoke\replay_smoke.py` | `OK: published 5 records at 0.5s intervals` |
+| 2d | `python .\tools\smoke\replay_smoke_v2.py` | 10 messages with correct `message_id`s |
+| 3b | `python .\tools\smoke\db_schema_smoke.py` | 11 tables, seeds present |
+| 3c | `python .\tools\smoke\persist_smoke.py` | 10 rows, `stream_offset` 1..10, no duplicates on re-replay |
+| 4b | `python .\tools\smoke\websocket_smoke.py` | 5 live readings received |
 
-This is a logical structure. Adjust file names to the actual
-implementation while keeping responsibilities separated.
+### Acceptance tests
 
-------------------------------------------------------------------------
+Run before declaring the project complete.
 
-## 10. Implementation Order
+| Test | Expected behaviour |
+| --- | --- |
+| Import same dataset twice | No duplicate `datasets` row; second import is idempotent |
+| Replay a 10-minute window | All eligible records published in `(event_timestamp, source_sequence)` order |
+| Replay the same window twice | Cycle 2 produces new rows with new `message_id`s; no duplicates |
+| Duplicate MQTT delivery (re-publish) | `UNIQUE (message_id)` catches it; no duplicate row, no duplicate broadcast |
+| Kill Postgres mid-replay | Consumer rolls back, does not ACK, retries; no data loss on recovery |
+| Fill ingestion queue | Subscriber disconnects; broker redelivers on reconnect |
+| Restart broker | Subscriber reconnects; unacked messages redelivered |
+| Restart Flask app | WebSocket clients reconnect; cursors catch up; no missing readings |
+| Disconnect WebSocket client for 30 s | Reconnect with cursors; missed records delivered; no gap |
+| Slow WebSocket client | Isolated by bounded outbound queue; does not block ingestion |
+| Chart render interval | ECharts updates on a 5-second schedule; no polling |
+| Alarm threshold crossing | `alarm.raised` broadcast; `alarms` row created; chart marker appears |
+| Alarm acknowledged twice | One acknowledgement event; no state corruption |
+| Replay pause command | `applied_state` changes only after the worker confirms; dashboard reflects confirmed state |
 
-Build and verify the system in stages.
+---
 
-1. **Dataset and message contract** --- inspect the actual workbook
-    headers, define signal types and units, and finalize the JSON
-    payload and message identity.
-2. **Database** --- create the nine-table schema, constraints, indexes
-    and seed records.
-3. **Publisher** --- replay one row at a time with QoS 1, session
-    identity, cycle and sequence metadata.
-4. **MQTT subscriber** --- establish persistent session configuration,
-    manual acknowledgements and reconnect behaviour.
-5. **Ingestion worker** --- bounded queue, validation, idempotency,
-    transaction handling and alarm persistence.
-6. **Flask REST API** --- bootstrap snapshot, history, statistics,
-    manifest, alarms, events and export.
-7. **WebSocket layer** --- in-process fanout, initial synchronization,
-    cursor recovery and command handling.
-8. **Vue dashboard** --- initial snapshot, live telemetry, charts,
-    alarms, events and history.
-9. **Replay controls** --- thread-safe publisher commands and persisted
-    replay state.
-10. **Hardening** --- test duplicate delivery, database outage, queue
-    saturation, broker restart, WebSocket reconnect and application
-    restart.
+## 15. Implementation Status and Order
 
-Do not proceed to visual polish before the telemetry pipeline, database
+| Phase | Status | Deliverables |
+| --- | --- | --- |
+| 1 — Dataset, contract, Parquet | ✅ Complete | `preprocess_dataset.py`, `schema.py`, `signal_contract.md`, `*.parquet` |
+| 2a — Broker, topic contract | ✅ Complete | `mosquitto.conf`, `mqtt_topics.md` |
+| 2b — MQTT client | ✅ Complete | `backend/mqtt/client.py` |
+| 2c — Replay publisher (v1) | ✅ Complete, superseded | `backend/publisher/replay.py`, replaced by `backend/replay/worker.py` |
+| 2d — Replay worker, subscriber, bounded queue | ⏳ Next | `backend/replay/*`, `backend/mqtt/subscriber.py`, `replay_smoke_v2.py` |
+| 3a — Database engine + models | ⏳ | `engine.py`, `models.py` |
+| 3b — Schema + seeds | ⏳ | `init_db.py`, `db_schema_smoke.py` |
+| 3c — Ingestion consumer + repository | ⏳ | `consumer.py`, `repository.py`, `persist_smoke.py` |
+| 4a — Flask REST API | ⏳ | `backend/api/*` |
+| 4b — WebSocket hub + sync | ⏳ | `backend/realtime/*`, `websocket_smoke.py` |
+| 5a — Vue scaffold | ⏳ | `frontend/` |
+| 5b — Dashboard, charts, alarms | ⏳ | `frontend/src/*` |
+| 6 — Replay controls + hardening | ⏳ | `backend/services/lifecycle.py`, `tools/dev/start_all.ps1` |
+
+Phases 1 and 2a–2c are proven end to end; the remaining work starts at
+Phase 2d. Do not start visual polish before the telemetry pipeline,
 persistence and live update path are reliable.
 
-------------------------------------------------------------------------
+---
 
-## 11. Architecture Rules
+## 16. Architecture Rules
 
-1. Excel is only a replay input.
-2. The publisher connects to Mosquitto, not PostgreSQL.
-3. The subscriber receives MQTT messages; the ingestion worker performs
-    database processing.
-4. PostgreSQL is the persistent source of truth.
-5. Use stable message identity and database uniqueness constraints.
-6. Use MQTT QoS 1 and acknowledge valid messages only after successful
-    database commit.
-7. Persist each reading and its alarm transitions atomically.
-8. Use SQLAlchemy Engines and connection pools; do not create an Engine
-    per message.
-9. Use short-lived Sessions and never share a Session across threads.
-10. Keep ingestion and application database pools separate.
-11. Commit database changes before WebSocket broadcasts.
-12. Use REST for snapshots and historical queries.
-13. Use WebSockets for live updates and operational commands.
-14. Use database-backed cursors to recover missed WebSocket updates.
-15. Replay controls must reach and be confirmed by the actual publisher
-    worker.
-16. Keep the initial deployment as a single-process modular monolith.
-17. Add infrastructure only when a measured requirement justifies it.
+1. Excel is a replay input only, imported once.
+2. The replay worker reads Parquet; it does not read Excel or query `telemetry_readings`.
+3. The publisher connects to Mosquitto, never to PostgreSQL.
+4. The subscriber does not touch the database; the ingestion worker does.
+5. PostgreSQL is the persistent source of truth for operational state.
+6. `message_id` is deterministic; `UNIQUE (message_id)` is the primary dedup rule.
+7. Replay identity `(machine_id, replay_session_id, replay_cycle, source_sequence)` is the secondary dedup rule.
+8. Never use `(machine_id, event_timestamp)` as a dedup key.
+9. `stream_offset` is allocated inside each transaction via `stream_state UPDATE ... RETURNING`; never `MAX(reading_id)`.
+10. MQTT QoS 1 with manual ACK; ACK only after commit.
+11. Broadcast only after commit.
+12. One engine, one pool; short-lived sessions; never share a session across threads.
+13. Persist each reading and its alarm transitions in a single transaction.
+14. REST for snapshots and history; WebSocket for live updates and commands.
+15. Cursor recovery uses `stream_state.last_reading_offset` and `last_event_offset`.
+16. Replay commands are confirmed by the worker (`applied_state`), not by the Flask endpoint.
+17. Single-process modular monolith for the initial deployment.
+18. Add infrastructure only when a measured requirement justifies it.
 
-------------------------------------------------------------------------
+---
 
-## 12. Final Data Flow
+## 17. Non-Goals
 
-``` text
-EXCEL DATASET
-     |
-     v
-PYTHON REPLAY PUBLISHER
-     |
-     | MQTT QoS 1
-     v
-MOSQUITTO MQTT BROKER
-     |
-     v
-PAHO MQTT SUBSCRIBER
-     |
-     v
-BOUNDED INGESTION QUEUE
-     |
-     v
-PYTHON INGESTION WORKER
-     |
-     | Validate + deduplicate + evaluate alarms
-     v
-SQLALCHEMY INGESTION POOL
-     |
-     | Transaction: insert reading + alarm/event changes
-     v
-POSTGRESQL
-     |
-     | Commit, then acknowledge MQTT delivery
-     v
-IN-PROCESS WEBSOCKET HUB
-     |
-     v
-FLASK-SOCK WEBSOCKET
-     |
-     v
-VUE.JS + PINIA + ECHARTS DASHBOARD
+- Multi-machine replay in one deployment (the schema supports it; the deployment does not)
+- Authentication and authorisation (development only, loopback broker)
+- Horizontal scaling (single process, single Postgres, single Mosquitto)
+- Data warehousing or analytics (operational history only)
+- Automatic alarm threshold tuning (thresholds are manual)
+- Cloud deployment (local development only)
+
+---
+
+## 18. Handoff
+
+Reference documents:
+
+- Architecture: `docs/architecture/system_architecture.md`
+- Signal contract: `docs/contract/signal_contract.md`
+- MQTT topics: `docs/architecture/mqtt_topics.md`
+- Frozen telemetry schema: `backend/contract/schema.py`
+
+For a new developer:
+
+1. Read `docs/architecture/system_architecture.md`, then `docs/contract/signal_contract.md`.
+2. Run `python .\tools\smoke\db_connect_smoke.py` to confirm the environment.
+3. Run `python .\tools\smoke\mqtt_smoke.py` to confirm the broker.
+4. Read `tools/preprocessing/preprocess_dataset.py` for the data path.
+5. Follow Section 15 to see where implementation stands.
+
+---
+
+## 19. Final Data Flow
+
+```text
+EXCEL → PARQUET → REPLAY WORKER
+   │  MQTT QoS 1
+   ▼
+MOSQUITTO → PAHO SUBSCRIBER → BOUNDED QUEUE → INGESTION WORKER
+   │  validate + deduplicate + stream offset + alarms
+   ▼
+POSTGRESQL (one transaction) → COMMIT → ACK MQTT
+   ▼
+IN-PROCESS WEBSOCKET HUB → FLASK-SOCK → VUE + PINIA + ECHARTS
 ```
 
-Flask REST endpoints serve initial snapshots and historical data.
-WebSockets deliver committed live updates and carry replay and alarm
-commands.
-
-**Excel → Publisher → MQTT Broker → Subscriber → Python Processing →
-PostgreSQL → Flask → WebSocket → Vue.js Dashboard**
-
 MQTT transports telemetry, Python validates and processes it, PostgreSQL
-persists it, SQLAlchemy manages reusable database connections, Flask
-exposes the application interface, WebSockets deliver live updates, and
-Vue.js presents the industrial monitoring dashboard.
+persists it, SQLAlchemy manages reusable connections, Flask exposes the
+application interface, WebSockets deliver committed live updates, and
+Vue presents the industrial monitoring dashboard
