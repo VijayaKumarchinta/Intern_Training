@@ -6,7 +6,7 @@
 | **Company** | Triniti Advanced Software Labs Pvt Ltd |
 | **Period** | 17 August 2026 – 5 November 2026 |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
-| **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 5 Nov), the live tree, and a re-run of the Order & Sales Management backend suite; verification record in §9 |
+| **Last reviewed** | 10 November 2026 — full self-review against the mentor email thread (17 Aug – 5 Nov), the live tree, Order & Sales Management app, and Live_dashboard architecture build; verification record in §9 |
 
 This document records the complete training period: what was built, what was
 learned, what went wrong, and which engineering habits changed along the way.
