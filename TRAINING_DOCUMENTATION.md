@@ -104,7 +104,7 @@ assignments and the live tree; the verification record is §9.
 | Nov 2 | Pandas documentation prepared + sample-dataset practice completed | [Pandas/Pandas.md](Pandas/Pandas.md) |
 | Nov 3 | Reviewed Excel sheet data from mentor; confirmed data structure and column assignments |
 | Nov 4 | Verified data frame conversion and string splitting operations completed |
-| Nov 5 | Reviewed final Excel sheet; confirmed alignment with pandas analysis and documentation updates |
+| Nov 5 | Reviewed final Excel sheet; confirmed alignment with pandas analysis and documentation updates; reviewed Excel data for Live_dashboard IIoT live monitoring dashboard setup |
 ---
 
 ---
@@ -486,7 +486,7 @@ because the DB host never saw the server's credentials.** Full details in
 | **Networking / frontend** | [NetWorking/NAT.md](NetWorking/NAT.md), [NetWorking/Vue.md](NetWorking/Vue.md) | NAT/redirection concepts, Vue Router + Pinia explainer |
 | **Capstone** | [MQTT/Machine_Sensor_API/](MQTT/Machine_Sensor_API/) | Flask + PostgreSQL machine sensor API, pool, timeouts, import ledger |
 | **Order & Sales** | [Order_Sales_Management/](Order_Sales_Management/) | Vue 3 + Flask + PostgreSQL full-stack app, roles, status machine, reports |
-
+| **Live_dashboard** | [Live_dashboard/](Live_dashboard/) | IIoT live monitoring dashboard: Excel → MQTT → PostgreSQL → Flask API → WebSocket → Vue.js dashboard, real-time telemetry, alarm evaluation, replay controls |
 ---
 
 ## 5. Error log (encountered → resolved)
@@ -657,17 +657,18 @@ role-scoped data, a strict order state machine, and server-side pricing.
 ## 9. Verification record — 8 October 2026 (re-verified against Oct 26–27 docs)
 
 A full pass comparing this document, the mentor email thread (17 Aug – 5 Nov),
-and the live tree.
-
-**Task coverage: 10/10 for Aug–Oct 8; Nov 3–5 entries added from email
-thread; plus the shipped Order & Sales Management app (Oct 13–23).** Every
-e-mail-assigned task has a live artifact —
+and the live tree.**Task coverage: 10/10 for Aug–Oct 8; Nov 3–5 entries added from email
+thread; plus the shipped Order & Sales Management app (Oct 13–23) and the
+Live_dashboard IIoT live monitoring project.** Every e-mail-assigned task has a
+live artifact —
 OOP (6 runnable files), the PostgreSQL bootstrap (`Database_Connection`, later
 `cron_jobs`), file/CSV handling, the Excel → DataFrame pipeline, the first
 Flask API, Mosquitto + Paho MQTT, the Machine Sensor API capstone, the
 cron-jobs/partitioning project, both regex exercises (concepts + practice),
 the pandas analysis, the git reference, the traceback reference, the full
 SQL portfolio, and the Order & Sales Management app with its shipped
+`docpack/`.
+agement app with its shipped
 `docpack/`.
 
 **Checks actually run / verified against code:**
