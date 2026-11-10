@@ -1,1 +1,0 @@
-# ChartDataTable.vue - Expandable chart data table

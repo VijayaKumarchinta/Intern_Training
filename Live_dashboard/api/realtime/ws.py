@@ -1,1 +1,0 @@
-# WebSocket endpoint handler for WS /ws/v1

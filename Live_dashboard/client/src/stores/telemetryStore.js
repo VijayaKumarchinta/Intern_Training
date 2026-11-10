@@ -1,1 +1,0 @@
-'Pinia telemetryStore - latest frame, signal values, connection state'

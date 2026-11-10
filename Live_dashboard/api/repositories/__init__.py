@@ -1,1 +1,0 @@
-# Repository pattern initialization - SQLAlchemy persistence operations

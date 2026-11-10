@@ -1,1 +1,0 @@
-# MQTT payload validation per Section 7.3 - structure and signal value validation

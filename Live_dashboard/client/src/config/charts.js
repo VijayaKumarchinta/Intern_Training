@@ -1,1 +1,0 @@
-# ECharts 5 chart configurations - 5 view setups with blue primary accent

@@ -1,1 +1,0 @@
-# WebSocket hub - maintains connected clients, broadcasts committed frames

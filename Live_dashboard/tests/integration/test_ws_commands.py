@@ -1,1 +1,0 @@
-# WebSocket commands test - replay.start/pause/speed/reset, alarm.ack acknowledgements

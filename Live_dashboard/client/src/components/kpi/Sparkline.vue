@@ -1,1 +1,0 @@
-# Sparkline.vue - Individual KPI sparkline rendering

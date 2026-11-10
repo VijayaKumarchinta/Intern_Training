@@ -1,1 +1,0 @@
-# Pytest conftest - shared fixtures for database, broker, event loop

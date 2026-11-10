@@ -1,1 +1,0 @@
-# WebSocket service - connect, send commands, handle frames, reconnection

@@ -1,1 +1,0 @@
-# ChartPanel component - ECharts visualization with title, legend, current value, delta, data table

@@ -1,1 +1,0 @@
-# Validator test suite - MQTT payload validation and signal value range checks

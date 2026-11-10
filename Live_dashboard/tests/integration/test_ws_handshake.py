@@ -1,1 +1,0 @@
-# WebSocket handshake test - WS /ws/v1 connection and authentication

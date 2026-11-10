@@ -1,1 +1,0 @@
-# HistoryTable.vue - Historical readings with pagination

@@ -1,1 +1,0 @@
-# Alarm engine test suite - limit evaluation, debounce and transition logic

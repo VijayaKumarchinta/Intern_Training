@@ -1,1 +1,0 @@
-# AlarmsTable.vue - Active alarms with severity, acknowledgement state

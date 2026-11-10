@@ -1,1 +1,0 @@
-'Pinia eventStore - bounded real-time event history'

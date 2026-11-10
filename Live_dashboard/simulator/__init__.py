@@ -1,1 +1,0 @@
-# MQTT simulator package for Line Speed 30 IIoT platform
