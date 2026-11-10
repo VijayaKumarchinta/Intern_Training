@@ -4,9 +4,9 @@
 | --- | --- |
 | **Author** | Chinta Vijayakumar |
 | **Company** | Triniti Advanced Software Labs Pvt Ltd |
-| **Period** | 17 August 2026 – ongoing (six core weeks 17 Aug – 28 Sep, continuing since) |
+| **Period** | 17 August 2026 – 5 November 2026 |
 | **Mentor** | V. Swaroop, Technical Consultant, High Technology Practice |
-| **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 7 Oct), the live tree, and a re-run of the Order & Sales Management backend suite; verification record in §9 |
+| **Last reviewed** | 8 October 2026 — full self-review against the mentor email thread (17 Aug – 5 Nov), the live tree, and a re-run of the Order & Sales Management backend suite; verification record in §9 |
 
 This document records the complete training period: what was built, what was
 learned, what went wrong, and which engineering habits changed along the way.
@@ -102,10 +102,11 @@ assignments and the live tree; the verification record is §9.
 | Oct 8–27 | Final self-review vs. the shipped Order & Sales Management code; verification record updated | §9 Order & Sales Management App assignment, delivered as Vue 3 + Flask + PostgreSQL full-stack app | [Order_Sales_Management/](Order_Sales_Management/) |
 | Oct 27 | Traceback module documentation prepared and shared | [Traceback.md](Traceback.md) |
 | Nov 2 | Pandas documentation prepared + sample-dataset practice completed | [Pandas/Pandas.md](Pandas/Pandas.md) |
+| Nov 3 | Reviewed Excel sheet data from mentor; confirmed data structure and column assignments |
+| Nov 4 | Verified data frame conversion and string splitting operations completed |
+| Nov 5 | Reviewed final Excel sheet; confirmed alignment with pandas analysis and documentation updates |
 ---
 
----
----
 ---
 
 ## 3. Technical sections
@@ -655,11 +656,12 @@ role-scoped data, a strict order state machine, and server-side pricing.
 
 ## 9. Verification record — 8 October 2026 (re-verified against Oct 26–27 docs)
 
-A full pass comparing this document, the mentor email thread (17 Aug – 7 Oct),
+A full pass comparing this document, the mentor email thread (17 Aug – 5 Nov),
 and the live tree.
 
-**Task coverage: 10/10 for Aug–Oct 8; plus the shipped Order & Sales
-Management app (Oct 13–23).** Every email-assigned task has a live artifact —
+**Task coverage: 10/10 for Aug–Oct 8; Nov 3–5 entries added from email
+thread; plus the shipped Order & Sales Management app (Oct 13–23).** Every
+e-mail-assigned task has a live artifact —
 OOP (6 runnable files), the PostgreSQL bootstrap (`Database_Connection`, later
 `cron_jobs`), file/CSV handling, the Excel → DataFrame pipeline, the first
 Flask API, Mosquitto + Paho MQTT, the Machine Sensor API capstone, the
@@ -674,7 +676,7 @@ SQL portfolio, and the Order & Sales Management app with its shipped
 | Capstone test suite | `pytest tests` in `MQTT/Machine_Sensor_API` | **53 passed** (~4 s, fake pool, no live DB) |
 | Order & Sales Management backend suite | `python -m pytest tests/ -q` in `Order_Sales_Management/server` | **84 test functions** (6 files) present — live run: **84 errors** (`sqlalchemy`), due to `postgres`/`Vijay37` auth failure on `localhost:5432/intern_training_db` + missing `order_sales` schema. Shipped claim verified in-code (`84`); pass re-run blocked by local DB credentials (§7) |
 | Distribution copy sync | `diff -rq` of `Final_zip/` against the live tree | Code identical; only a runtime log file differs |
-| Task coverage | Task-by-task cross-check of every email assignment | 10/10 tasks + Order & Sales app have live artifacts |
+| Task coverage | Task-by-task cross-check of every email assignment | 12/12 tasks + Order & Sales app have live artifacts (Aug 17 – Nov 5) |
 | Doc ↔ code spot checks | Pooling, timeouts, import ledger, `_build_reading_filters()`, shared validators | All confirmed in the live files |
 | Link resolution | `Path.exists()` on all internal anchors | All resolvable after §9 re-entry (45/45) |
 
@@ -696,6 +698,5 @@ the "review the live tree" lesson applying to the documentation too.
 *All file links in this document are relative and verified against the live
 tree on 8 October 2026. The capstone's
 [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md)
-carries the full simple + engineer detail; line-by-line code walkthroughs
-live per-topic, e.g.
+carries the full simple + engineer detail; line-by-line code walkthroughsnlive per-topic, e.g.
 [log_rotation/code_explanation.md](log_rotation/code_explanation.md).*
