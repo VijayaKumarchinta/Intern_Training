@@ -106,6 +106,7 @@ assignments and the live tree; the verification record is §9.
 | Nov 4 | Verified data frame conversion and string splitting operations completed |
 | Nov 5 | Reviewed final Excel sheet; confirmed alignment with pandas analysis and documentation updates; reviewed Excel data for Live_dashboard IIoT live monitoring dashboard setup |
 | Nov 10 | Architecture built: IIoT live monitoring dashboard design - Excel dataset, MQTT broker, PostgreSQL database, Flask API, WebSocket hub, Vue.js dashboard framework |
+| Nov 13 | Reviewed and committed Live_dashboard codebase (PlantView / Line 30 Live Dashboard): Flask + Flask-SocketIO backend, Vue 3 + Vite frontend, PostgreSQL telemetry schema, MQTT ingest pipeline, Socket.IO room model, hourly summary, replay-cycle classification, CSV exports, and full software documentation set |
 ---
 
 ---
@@ -488,6 +489,7 @@ because the DB host never saw the server's credentials.** Full details in
 | **Capstone** | [MQTT/Machine_Sensor_API/](MQTT/Machine_Sensor_API/) | Flask + PostgreSQL machine sensor API, pool, timeouts, import ledger |
 | **Order & Sales** | [Order_Sales_Management/](Order_Sales_Management/) | Vue 3 + Flask + PostgreSQL full-stack app, roles, status machine, reports |
 | **Live_dashboard** | [Live_dashboard/](Live_dashboard/) | IIoT live monitoring dashboard: Excel → MQTT → PostgreSQL → Flask API → WebSocket → Vue.js dashboard, real-time telemetry, alarm evaluation, replay controls |
+| **PlantView / Line 30 Live Dashboard** | [Live_dashboard/](Live_dashboard/) | Committed codebase (Nov 13, 2026): PlantView Line 30 dashboard — MQTT ingest → PostgreSQL (telemetry schema) → Flask + Flask-SocketIO backend → Vue 3 + Vite frontend; live Socket.IO streaming, hourly summary, replay-cycle classification, CSV exports, full software documentation; committed to git on main |
 ---
 
 ## 5. Error log (encountered → resolved)
