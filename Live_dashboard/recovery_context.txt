@@ -1,0 +1,4386 @@
+﻿LINE SPEED 30 - RECOVERY SOURCE BUNDLE
+
+
+========== frontend\src\stores\telemetryStore.js ==========
+import { defineStore } from "pinia";
+import { telemetryApi } from "../services/api";
+import { telemetrySocket } from "../services/socket";
+
+const LINE_ID = "line30";
+const HISTORY_LIMIT = 500;
+const EVENT_HISTORY_LIMIT = 500;
+
+function getRecordKey(record) {
+  if (record.replay_cycle_id && record.message_id) {
+    return `${record.replay_cycle_id}:${record.message_id}`;
+  }
+
+  return String(record.id);
+}
+
+function compareRecords(a, b) {
+  const timestampDifference =
+    new Date(a.event_ts).getTime() -
+    new Date(b.event_ts).getTime();
+
+  if (timestampDifference !== 0) {
+    return timestampDifference;
+  }
+
+  return Number(a.id) - Number(b.id);
+}
+
+function compareEventsNewestFirst(a, b) {
+  const timestampDifference =
+    new Date(b.event_ts).getTime() -
+    new Date(a.event_ts).getTime();
+
+  if (timestampDifference !== 0) {
+    return timestampDifference;
+  }
+
+  return Number(b.id) - Number(a.id);
+}
+
+function getLatestById(records) {
+  return records.reduce((latest, candidate) => {
+    if (!latest) return candidate;
+
+    return Number(candidate.id) >= Number(latest.id)
+      ? candidate
+      : latest;
+  }, null);
+}
+
+export const useTelemetryStore = defineStore("telemetry", {
+  state: () => ({
+    lineId: LINE_ID,
+
+    // Live process telemetry
+    history: [],
+    latestReading: null,
+    currentCycleId: null,
+
+    // Hourly summary and historical view
+    hourlySummary: null,
+    selectedHourSummary: null,
+    recentReadings: [],
+    events: [],
+    replayCycles: [],
+    selectedCycleId: null,
+    selectedHourStart: null,
+    selectedHourIndex: -1,
+    activeView: "overview",
+    cyclesLoading: false,
+    cyclesError: null,
+    historyRequestToken: 0,
+
+    // Main dashboard loading state
+    isLoading: false,
+    hasLoaded: false,
+    error: null,
+
+    // History view loading states
+    summaryLoading: false,
+    readingsLoading: false,
+    eventsLoading: false,
+
+    // History view errors
+    summaryError: null,
+    readingsError: null,
+    eventsError: null,
+
+    // CSV export state
+    exporting: {
+      hourlySummary: false,
+      readings: false,
+      events: false,
+    },
+    exportError: null,
+
+    // Connection health
+    socketStatus: "disconnected",
+    databaseStatus: "unknown",
+    mqttStatus: "unknown",
+    serverStatus: "unknown",
+
+    lastUpdateAt: null,
+    started: false,
+
+    // Five-second refresh coordination
+    pendingTelemetry: [],
+    pendingEvents: [],
+    refreshTimer: null,
+    refreshInProgress: false,
+  }),
+
+  getters: {
+    connectionStatus: (state) => {
+      if (state.socketStatus === "connected") return "live";
+      if (state.socketStatus === "connecting") return "connecting";
+      if (state.socketStatus === "reconnecting") return "reconnecting";
+      return "disconnected";
+    },
+
+    recordCount: (state) => state.history.length,
+
+    eventCount: (state) => state.events.length,
+    selectedCycle: (state) => state.replayCycles.find(
+      (cycle) => cycle.replay_cycle_id === state.selectedCycleId
+    ) || null,
+    canPreviousHour: (state) => state.selectedHourIndex > 0,
+    canNextHour: (state) => state.selectedHourIndex >= 0 &&
+      state.selectedHourIndex < (state.hourlySummary?.data?.length ?? 0) - 1,
+  },
+
+  actions: {
+    mergeRecords(records, { live = false } = {}) {
+      if (!Array.isArray(records) || records.length === 0) {
+        return;
+      }
+
+      const validRecords = records.filter(
+        (record) =>
+          record &&
+          record.event_ts &&
+          record.message_id &&
+          record.replay_cycle_id &&
+          record.payload &&
+          record.id !== undefined &&
+          record.id !== null
+      );
+
+      if (validRecords.length === 0) {
+        return;
+      }
+
+      // Use the newest inserted record to identify this batch's cycle.
+      const newestIncomingRecord = getLatestById(validRecords);
+      const incomingCycleId = newestIncomingRecord.replay_cycle_id;
+
+      // A cycle transition starts a new in-memory chart history.
+      if (this.currentCycleId !== incomingCycleId) {
+        this.history = [];
+        this.latestReading = null;
+        this.currentCycleId = incomingCycleId;
+      }
+
+      const cycleRecords = validRecords.filter(
+        (record) => record.replay_cycle_id === this.currentCycleId
+      );
+
+      const recordMap = new Map();
+
+      for (const record of this.history) {
+        if (record.replay_cycle_id === this.currentCycleId) {
+          recordMap.set(getRecordKey(record), record);
+        }
+      }
+
+      for (const record of cycleRecords) {
+        recordMap.set(getRecordKey(record), record);
+      }
+
+      this.history = Array.from(recordMap.values())
+        .sort(compareRecords)
+        .slice(-HISTORY_LIMIT);
+
+      const latestCandidates = [
+        this.latestReading,
+        ...cycleRecords,
+      ].filter(
+        (record) =>
+          record &&
+          record.replay_cycle_id === this.currentCycleId &&
+          record.id !== undefined &&
+          record.id !== null
+      );
+
+      this.latestReading = getLatestById(latestCandidates);
+
+      if (live && this.latestReading) {
+        this.lastUpdateAt =
+          this.latestReading.received_at ||
+          new Date().toISOString();
+      }
+    },
+
+    handleTelemetryUpdate(data) {
+      if (this.activeView === "history" || !data || data.line_id !== this.lineId) {
+        return;
+      }
+
+      const exists = this.pendingTelemetry.some(
+        (record) => getRecordKey(record) === getRecordKey(data)
+      );
+
+      if (!exists) {
+        this.pendingTelemetry.push(data);
+      }
+    },
+
+    handleOperationalEvent(data) {
+      if (this.activeView === "history" || !data || data.line_id !== this.lineId) {
+        return;
+      }
+
+      if (data.id === undefined || data.id === null) {
+        return;
+      }
+
+      const alreadyExists =
+        this.events.some(
+          (event) => String(event.id) === String(data.id)
+        ) ||
+        this.pendingEvents.some(
+          (event) => String(event.id) === String(data.id)
+        );
+
+      if (alreadyExists) {
+        return;
+      }
+
+      this.pendingEvents.push(data);
+    },
+
+    handleSocketConnect() {
+      this.socketStatus = "connected";
+
+      telemetrySocket.emit(
+        "join_line",
+        { line_id: this.lineId },
+        (response) => {
+          if (response?.status !== "joined") {
+            this.error =
+              response?.message ||
+              "Unable to subscribe to telemetry.";
+          }
+        }
+      );
+    },
+
+    handleSocketDisconnect() {
+      if (this.started) {
+        this.socketStatus = "reconnecting";
+      }
+    },
+
+    handleSocketConnectError(error) {
+      this.socketStatus = "reconnecting";
+      this.error =
+        error?.message || "Socket connection failed.";
+    },
+
+    async loadHealth() {
+      try {
+        const result = await telemetryApi.getHealth();
+
+        this.serverStatus = result.status;
+        this.databaseStatus = result.database;
+        this.mqttStatus = result.mqtt;
+
+        return result;
+      } catch (error) {
+        this.serverStatus = "unhealthy";
+        this.databaseStatus = "unknown";
+        this.mqttStatus = "unknown";
+        throw error;
+      }
+    },
+
+    async loadHistory() {
+      const cycleAtRequest = this.currentCycleId;
+
+      const result = await telemetryApi.getHistory({
+        lineId: this.lineId,
+        limit: HISTORY_LIMIT,
+      });
+
+      // Ignore a stale response if live telemetry changed cycles
+      // while this HTTP request was in progress.
+      if (
+        this.currentCycleId !== null &&
+        this.currentCycleId !== cycleAtRequest
+      ) {
+        return result;
+      }
+
+      this.mergeRecords(result.data);
+
+      this.hasLoaded = true;
+
+      return result;
+    },
+
+    async loadReplayCycles() {
+      th
+
+
+
+
+========== frontend\src\services\api.js ==========
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
+
+async function request(path) {
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`);
+  } catch {
+    throw new Error("Unable to reach the Flask API server.");
+  }
+
+  let result;
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`Invalid API response (${response.status}).`);
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      result.error || `API request failed (${response.status}).`
+    );
+  }
+
+  return result;
+}
+
+async function downloadCsv(path, fallbackFilename) {
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`);
+  } catch {
+    throw new Error("Unable to reach the Flask API server.");
+  }
+
+  if (!response.ok) {
+    let message = `CSV export failed (${response.status}).`;
+
+    try {
+      const result = await response.json();
+      message = result.error || message;
+    } catch {
+      // Keep the HTTP error message when the response is not JSON.
+    }
+
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = filenameMatch?.[1] || fallbackFilename;
+
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(objectUrl);
+}
+
+function addHistoricalScope(params, { cycleId, start, end, hourStart } = {}) {
+  if (cycleId) params.set("cycle_id", cycleId);
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  if (hourStart) params.set("hour_start", hourStart);
+  return params;
+}
+
+export const telemetryApi = {
+  getHealth() {
+    return request("/api/health");
+  },
+
+  getLatest(lineId = "line30") {
+    const params = new URLSearchParams({ line_id: lineId });
+    return request(`/api/telemetry/latest?${params}`);
+  },
+
+  getHistory({ lineId = "line30", limit = 100, cycleId, start, end } = {}) {
+    const params = new URLSearchParams({ line_id: lineId, limit: String(limit) });
+    addHistoricalScope(params, { cycleId, start, end });
+    return request(`/api/telemetry/history?${params}`);
+  },
+
+  getStatistics({ lineId = "line30", field, start, end } = {}) {
+    if (!field) throw new Error("A telemetry field is required for statistics.");
+    const params = new URLSearchParams({ line_id: lineId, field });
+    if (start) params.set("start", start);
+    if (end) params.set("end", end);
+    return request(`/api/telemetry/statistics?${params}`);
+  },
+
+  getHourlySummary({ lineId = "line30", hours, cycleId, hourStart } = {}) {
+    const params = new URLSearchParams({ line_id: lineId });
+    if (hours !== undefined && hours !== null) params.set("hours", String(hours));
+    addHistoricalScope(params, { cycleId, hourStart });
+    return request(`/api/summary/hourly?${params}`);
+  },
+
+  getEvents({ lineId = "line30", limit = 100, cycleId, start, end } = {}) {
+    const params = new URLSearchParams({ line_id: lineId, limit: String(limit) });
+    addHistoricalScope(params, { cycleId, start, end });
+    return request(`/api/events?${params}`);
+  },
+
+  getReplayCycles({ lineId = "line30", limit = 50 } = {}) {
+    const params = new URLSearchParams({ line_id: lineId, limit: String(limit) });
+    return request(`/api/history/cycles?${params}`);
+  },
+
+  downloadHourlySummary({ lineId = "line30", hours, cycleId, hourStart } = {}) {
+    const params = new URLSearchParams({ line_id: lineId });
+    if (hours !== undefined && hours !== null) params.set("hours", String(hours));
+    addHistoricalScope(params, { cycleId, hourStart });
+    return downloadCsv(`/api/exports/hourly-summary.csv?${params}`, "line30-hourly-summary.csv");
+  },
+
+  downloadReadings({ lineId = "line30", cycleId, start, end } = {}) {
+    const params = new URLSearchParams({ line_id: lineId });
+    addHistoricalScope(params, { cycleId, start, end });
+    return downloadCsv(`/api/exports/readings.csv?${params}`, "line30-historical-readings.csv");
+  },
+
+  downloadEvents({ lineId = "line30", cycleId, start, end } = {}) {
+    const params = new URLSearchParams({ line_id: lineId });
+    addHistoricalScope(params, { cycleId, start, end });
+    return downloadCsv(`/api/exports/events.csv?${params}`, "line30-event-history.csv");
+  },
+};
+
+
+
+========== frontend\src\services\socket.js ==========
+import { io } from "socket.io-client";
+
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL || "http://127.0.0.1:8000";
+
+export const telemetrySocket = io(SOCKET_URL, {
+  autoConnect: false,
+  transports: ["websocket"],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 10000,
+});
+
+
+
+========== frontend\src\App.vue ==========
+<script setup>
+import { computed, onBeforeUnmount, onMounted } from "vue";
+import { useTelemetryStore } from "./stores/telemetryStore";
+import ProcessChart from "./components/ProcessChart.vue";
+import HourlySummaryView from "./components/HourlySummaryView.vue";
+
+const telemetry = useTelemetryStore();
+const activeView = computed(() => telemetry.activeView);
+
+const latestPayload = computed(
+  () => telemetry.latestReading?.payload ?? {}
+);
+
+const kpis = computed(() => [
+  { label: "Oil Temperature", field: "Burner PV", value: latestPayload.value["Burner PV"], unit: "Â°C", accent: "blue" },
+  { label: "Delta T", field: "DeltaT", value: latestPayload.value.DeltaT, unit: "Â°C", accent: "cyan" },
+  { label: "Burner Load", field: "Burner Output Load", value: latestPayload.value["Burner Output Load"], unit: "%", accent: "orange" },
+  { label: "Moisture", field: "Moisture PV", value: latestPayload.value["Moisture PV"], unit: "", accent: "violet" },
+  { label: "Paddle Speed", field: "Paddle Speed", value: latestPayload.value["Paddle Speed"], unit: "", accent: "teal" },
+  { label: "Oil Level", field: "oil Level PV", value: latestPayload.value["oil Level PV"], unit: "", accent: "slate" },
+]);
+
+const charts = [
+  { id: "delta-t", title: "Delta T", subtitle: "Temperature differential over time", type: "TIME SERIES", field: "DeltaT" },
+  { id: "delta-t-burner", title: "Delta T vs Burner SP", subtitle: "Temperature differential against burner setpoint", type: "PROCESS RELATIONSHIP", field: "Burner SP Â· DeltaT" },
+  { id: "delta-t-oil", title: "Delta T vs Oil Level", subtitle: "Temperature differential against oil level", type: "PROCESS RELATIONSHIP", field: "oil Level PV Â· DeltaT" },
+  { id: "burner-load", title: "Burner Load", subtitle: "Burner output load over time", type: "TIME SERIES", field: "Burner Output Load" },
+  { id: "moisture", title: "Moisture", subtitle: "Moisture process value over time", type: "TIME SERIES", field: "Moisture PV" },
+];
+
+const activity = computed(() =>
+  [...telemetry.history]
+    .sort((a, b) => Number(b.id) - Number(a.id))
+    .slice(0, 6)
+);
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") return "â€”";
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(2) : "â€”";
+}
+
+function formatTimestamp(value) {
+  if (!value) return "â€”";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "â€”";
+
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatClock(value) {
+  if (!value) return "Waiting for telemetry";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "â€”";
+  return date.toLocaleTimeString("en-IN", { hour12: false });
+}
+
+function statusLabel(value) {
+  const labels = {
+    live: "SOCKET CONNECTED",
+    connecting: "CONNECTING",
+    reconnecting: "RECONNECTING",
+    disconnected: "DISCONNECTED",
+  };
+  return labels[value] || "DISCONNECTED";
+}
+
+async function openHistoryView() {
+  if (activeView.value === "history") return;
+
+  await telemetry.setActiveView("history");
+}
+
+function refreshHistoryView() {
+  return telemetry.refreshHistoryView();
+}
+
+function exportHourlySummary() {
+  return telemetry.exportHourlySummary();
+}
+
+function exportReadings() {
+  return telemetry.exportReadings();
+}
+
+function exportEvents() {
+  return telemetry.exportEvents();
+}
+
+onMounted(() => telemetry.initialize());
+onBeforeUnmount(() => telemetry.stop());
+</script>
+
+<template>
+  <div class="plantview">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <div class="brand-name">PLANT<span>VIEW</span></div>
+          <div class="brand-caption">INDUSTRIAL MONITORING</div>
+        </div>
+      </div>
+
+      <div class="topbar-center">
+        <span class="breadcrumb-muted">PLANT OPERATIONS</span>
+        <span class="breadcrumb-divider">/</span>
+        <strong>Line 30</strong>
+        <span class="line-chip">PROCESS LINE</span>
+      </div>
+
+      <div class="topbar-right">
+        <div class="connection-indicator" :class="telemetry.connectionStatus">
+          <span class="status-dot"></span>
+          {{ statusLabel(telemetry.connectionStatus) }}
+        </div>
+        <div class="topbar-divider"></div>
+        <div class="clock-block">
+          <span class="clock-label">LAST RECEIVED</span>
+          <strong>{{ formatClock(telemetry.lastUpdateAt) }}</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <nav class="view-navigation" aria-label="Dashboard views">
+        <button
+          type="button"
+          class="view-navigation-button"
+          :class="{ active: activeView === 'overview' }"
+          :aria-current="activeView === 'overview' ? 'page' : undefined"
+          @click="telemetry.setActiveView('overview')"
+        >
+          Process Overview
+        </button>
+
+        <button
+          type="button"
+          class="view-navigation-button"
+          :class="{ active: activeView === 'history' }"
+          :aria-current="activeView === 'history' ? 'page' : undefined"
+          @click="openHistoryView"
+        >
+          Hourly Summary & History
+        </button>
+      </nav>
+
+      <template v-if="activeView === 'overview'">
+      <section class="page-heading">
+        <div>
+          <div class="eyebrow">PRODUCTION MONITORING <span>â€¢</span> LINE 30</div>
+          <h1>Process Overview</h1>
+          <p class="page-description">
+            Live process telemetry, operating conditions and historical trends.
+          </p>
+        </div>
+
+        <div class="heading-meta">
+          <div class="meta-item">
+            <span class="meta-label">RECORDS IN VIEW</span>
+            <strong>{{ telemetry.recordCount.toLocaleString("en-IN") }}</strong>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">LATEST EVENT TIME</span>
+            <strong>{{ formatTimestamp(telemetry.latestReading?.event_ts) }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="system-strip" aria-label="System health">
+        <div class="system-strip-title">SYSTEM HEALTH</div>
+
+        <div class="system-health-item">
+          <span class="health-indicator" :class="telemetry.serverStatus"></span>
+          <span>API</span>
+          <strong>{{ telemetry.serverStatus.toUpperCase() }}</strong>
+        </div>
+
+        <div class="system-health-item">
+          <span class="health-indicator" :class="telemetry.databaseStatus"></span>
+          <span>DATABASE</span>
+          <strong>{{ telemetry.databaseStatus.toUpperCase() }}</strong>
+        </div>
+
+        <div class="system-health-item">
+          <span class="health-indicator" :class="telemetry.mqttStatus"></span>
+          <span>MQTT BROKER</span>
+          <strong>{{ telemetry.mqttStatus.toUpperCase() }}</strong>
+        </div>
+
+        <div class="system-strip-spacer"></div>
+        <div class="source-label">
+          <span class="source-icon">?</span>
+          TELEMETRY SOURCE <strong>MQTT Â· LINE 30</strong>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">AT A GLANCE</div>
+            <h2>Key Process Indicators</h2>
+          </div>
+          <span class="section-note">LATEST RECEIVED READING</span>
+        </div>
+
+        <div class="kpi-grid">
+          <article
+            v-for="item in kpis"
+            :key="item.field"
+            class="kpi-card"
+            :class="'accent-' + item.accent"
+          >
+            <div class="kpi-topline">
+              <span class="kpi-label">{{ item.label }}</span>
+              <span class="kpi-indicator"></span>
+            </div>
+
+            <div class="kpi-value">
+              {{ formatValue(item.value) }}
+              <span v-if="item.unit" class="kpi-unit">{{ item.unit }}</span>
+            </div>
+
+            <div class="kpi-field">{{ item.field }}</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section-block charts-section">
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">PROCESS ANALYTICS</div>
+            <h2>Live Trends & Relationships</h2>
+          </div>
+
+          <div class="chart-section-meta">
+            <span class="live-key"></span>
+            <span>SOCKET STREAM</span>
+            <span class="chart-window">UP TO 500 RECORDS</span>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <article
+            v-for="(chart, index) in charts"
+            :key="chart.id"
+            class="chart-card"
+            :class="{ 'chart-card-featured': index === 0 }"
+          >
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-type">{{ chart.type }}</div>
+                <h3>{{ chart.title }}</h3>
+                <p>{{ chart.subtitle }}</p>
+              </div>
+              <span class="chart-index">0{{ index + 1 }}</span>
+            </div>
+
+            <div class="chart-canvas">
+              <div
+                v-if="telemetry.isLoading && !telemetry.hasLoaded"
+                class="chart-empty"
+              >
+                <span class="loading-ring"></span>
+                <span>Loading historical telemetry</span>
+              </div>
+
+              <ProcessChart
+                v-else
+                :chart="chart"
+                :records="telemetry.history"
+              />
+            </div>
+
+            <div class="chart-card-footer">
+              <span>FIELD <strong>{{ chart.field }}</strong></span>
+              <span>{{ telemetry.recordCount }} POINTS AVAILABLE</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section-block operations-section">
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">OPERATIONS</div>
+            <h2>Operational Activity</h2>
+          </div>
+        </div>
+
+        <div class="operations-grid">
+          <article class="panel-card">
+            <div class="panel-heading">
+              <div>
+                <h3>Alarm Management</h3>
+                <p>Process alarm state and acknowledgement</p>
+              </div>
+              <span class="integration-tag">MOISTURE RULE</span>
+            </div>
+
+            <div class="empty-panel">
+              <div class="empty-panel-icon">!</div>
+              <div>
+                <strong>Moisture alarm monitoring configured</strong>
+                <p>
+                  LOW alarm below 1.10; HIGH alarm above 1.30. Values from 1.10 through 1.30 are within the operating range. Alarm transitions are persisted in operational event history.
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel-card">
+            <div class="panel-heading">
+              <div>
+                <h3>Telemetry Activity</h3>
+                <p>Most recently received process records</p>
+              </div>
+              <span class="activity-count">{{ activity.length }} RECORDS</span>
+            </div>
+
+            <div v-if="activity.length" class="activity-list">
+              <div
+                v-for="record in activity"
+                :key="record.id"
+                class="activity-row"
+              >
+                <span class="activity-marker"></span>
+
+                <div class="activity-main">
+                  <strong>Telemetry record received</strong>
+                  <span>
+                    Cycle {{ record.replay_cycle_number }} Â· Record 
+                  </span>
+                </div>
+
+                <div class="activity-time">
+                  <strong>{{ formatClock(record.received_at) }}</strong>
+                  <span>{{ formatValue(record.payload?.DeltaT) }} Â°C ?T</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="activity-empty">
+              Waiting for the first telemetry record.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section v-if="telemetry.error" class="error-banner" role="status">
+        <strong>Dashboard notice</strong>
+        <span>{{ telemetry.error }}</span>
+      </section>
+      </template>
+
+      <HourlySummaryView
+        v-else
+        :summary="telemetry.hourlySummary"
+        :selected-hour-summary="telemetry.selectedHourSummary"
+        :cycles="telemetry.replayCycles"
+        :selected-cycle-id="telemetry.selectedCycleId"
+        :selected-hour-start="telemetry.selectedHourStart"
+        :selected-hour-index="telemetry.selectedHourIndex"
+        :can-previous-hour="telemetry.canPreviousHour"
+        :can-next-hour="telemetry.canNextHour"
+        :cycles-loading="telemetry.cyclesLoading"
+        :cycles-error="telemetry.cyclesError"
+        :recent-readings="telemetry.recentReadings"
+        :events="telemetry.events"
+        :summary-loading="telemetry.summaryLoading"
+        :readings-loading="telemetry.readingsLoading"
+        :events-loading="telemetry.eventsLoading"
+        :summary-error="telemetry.summaryError"
+        :readings-error="telemetry.readingsError"
+        :events-error="telemetry.eventsError"
+        :exporting="telemetry.exporting"
+        :export-error="telemetry.exportError"
+        @refresh="refreshHistoryView"
+        @select-cycle="telemetry.selectCycle"
+        @select-hour="telemetry.selectHour"
+        @previous-hour="telemetry.moveSelectedHour(-1)"
+        @next-hour="telemetry.moveSelectedHour(1)"
+        @export-hourly="exportHourlySummary"
+        @export-readings="exportReadings"
+        @export-events="exportEvents"
+      />
+
+      <footer class="dashboard-footer">
+        <span>PLANTVIEW <b>Â·</b> LINE 30 MONITORING</span>
+        <span>Event time and server receipt time are shown separately.</span>
+      </footer>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+.view-navigation {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 22px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid 
+}
+
+.view-navigation-button {
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: 
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.view-navigation-button:hover {
+  color: 
+  background: 
+}
+
+.view-navigation-button.active {
+  color: 
+  background: 
+  border-color: 
+}
+
+.view-navigation-button:focus-visible {
+  outline: 2px solid 
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .view-navigation {
+    overflow-x: auto;
+  }
+
+  .view-navigation-button {
+    flex: 0 0 auto;
+    padding: 0 11px;
+  }
+}
+</style>
+
+
+
+
+
+========== frontend\src\components\HourlySummaryView.vue ==========
+<script setup>
+import { computed } from "vue";
+
+const props = defineProps({
+  summary: { type: Object, default: null },
+  selectedHourSummary: { type: Object, default: null },
+  cycles: { type: Array, default: () => [] },
+  selectedCycleId: { type: String, default: null },
+  selectedHourStart: { type: String, default: null },
+  selectedHourIndex: { type: Number, default: -1 },
+  canPreviousHour: Boolean,
+  canNextHour: Boolean,
+  cyclesLoading: Boolean,
+  cyclesError: { type: String, default: null },
+  recentReadings: { type: Array, default: () => [] },
+  events: { type: Array, default: () => [] },
+  summaryLoading: Boolean,
+  readingsLoading: Boolean,
+  eventsLoading: Boolean,
+  summaryError: { type: String, default: null },
+  readingsError: { type: String, default: null },
+  eventsError: { type: String, default: null },
+  exporting: { type: Object, default: () => ({ hourlySummary: false, readings: false, events: false }) },
+  exportError: { type: String, default: null },
+});
+
+const emit = defineEmits([
+  "refresh", "select-cycle", "select-hour", "previous-hour", "next-hour",
+  "export-hourly", "export-readings", "export-events",
+]);
+
+const metrics = [
+  { key: "oil_temperature", prefix: "burner_pv", label: "Oil Temperature", field: "Burner PV", unit: "Â°C" },
+  { key: "delta_t", prefix: "delta_t", label: "Delta T", field: "DeltaT", unit: "Â°C" },
+  { key: "burner_load", prefix: "burner_load", label: "Burner Load", field: "Burner Output Load", unit: "%" },
+  { key: "moisture", prefix: "moisture", label: "Moisture", field: "Moisture PV", unit: "" },
+  { key: "paddle_speed", prefix: "paddle_speed", label: "Paddle Speed", field: "Paddle Speed", unit: "" },
+  { key: "oil_level", prefix: "oil_level", label: "Oil Level", field: "oil Level PV", unit: "" },
+];
+
+const summaryRows = computed(() => Array.isArray(props.summary?.data) ? props.summary.data : []);
+const selectedStatistics = computed(() => props.selectedHourSummary?.statistics ?? {});
+const selectedCycle = computed(() => props.cycles.find((cycle) => cycle.replay_cycle_id === props.selectedCycleId) || null);
+const windowLabel = computed(() => {
+  if (!props.summary?.window_start || !props.summary?.window_end) return "No summary window available";
+  return `${formatTimestamp(props.summary.window_start)} â€” ${formatTimestamp(props.summary.window_end)}`;
+});
+
+function formatValue(value, digits = 2) {
+  if (value === null || value === undefined || value === "") return "â€”";
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(digits) : "â€”";
+}
+function formatDuration(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remaining = total % 60;
+  if (hours) return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(remaining).padStart(2, "0")}s`;
+  if (minutes) return `${minutes}m ${String(remaining).padStart(2, "0")}s`;
+  return `${remaining}s`;
+}
+function formatTimestamp(value) {
+  if (!value) return "â€”";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "â€”";
+  return date.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+function formatHour(value) {
+  if (!value) return "â€”";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "â€”";
+  return date.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+function severityClass(severity) {
+  const value = String(severity || "").toLowerCase();
+  if (value === "critical") return "severity-critical";
+  if (value === "high") return "severity-high";
+  if (value === "warning") return "severity-warning";
+  if (value === "info") return "severity-info";
+  return "severity-default";
+}
+function stateClass(state) {
+  const value = String(state || "").toLowerCase();
+  if (value === "active") return "event-active";
+  if (value === "cleared") return "event-cleared";
+  return "";
+}
+function cycleLabel(cycle) {
+  const number = cycle.replay_cycle_number == null ? "â€”" : `#${cycle.replay_cycle_number}`;
+  const stamp = cycle.first_event_ts ? formatTimestamp(cycle.first_event_ts) : "Timestamp unavailable";
+  return `${number} Â· ${cycle.status} Â· ${stamp} Â· ${cycle.persisted_records}/${cycle.expected_records ?? "?"}`;
+}
+</script>
+
+<template>
+  <div class="history-view">
+    <section class="history-heading">
+      <div>
+        <div class="section-kicker">PRODUCTION ANALYTICS</div>
+        <h1>Hourly Summary & History</h1>
+        <p class="history-description">Complete replay-cycle performance, hourly drill-down, telemetry readings and operational events.</p>
+      </div>
+      <div class="history-actions">
+        <button type="button" class="history-button secondary-button" :disabled="cyclesLoading || summaryLoading || readingsLoading || eventsLoading" @click="emit('refresh')">
+          {{ cyclesLoading || summaryLoading || readingsLoading || eventsLoading ? "Refreshing..." : "Refresh data" }}
+        </button>
+      </div>
+    </section>
+
+    <section class="history-window panel-card">
+      <div class="cycle-picker">
+        <label class="history-label" for="replay-cycle-select">REPLAY CYCLE</label>
+        <select id="replay-cycle-select" :value="selectedCycleId || ''" :disabled="cyclesLoading || !cycles.length" @change="emit('select-cycle', $event.target.value)">
+          <option v-for="cycle in cycles" :key="cycle.replay_cycle_id" :value="cycle.replay_cycle_id">{{ cycleLabel(cycle) }}</option>
+        </select>
+      </div>
+      <div class="history-window-meta">
+        <div><span class="history-label">REPLAY STATUS</span><strong>{{ selectedCycle?.status || (cyclesLoading ? "Loading" : "No cycle") }}</strong></div>
+        <div><span class="history-label">PERSISTED / EXPECTED</span><strong>{{ selectedCycle ? `${selectedCycle.persisted_records} / ${selectedCycle.expected_records ?? "Unknown"}` : "â€”" }}</strong></div>
+        <div><span class="history-label">SOURCE EVENT WINDOW</span><strong>{{ selectedCycle ? `${formatTimestamp(selectedCycle.first_event_ts)} â€” ${formatTimestamp(selectedCycle.last_event_ts)}` : "â€”" }}</strong></div>
+      </div>
+    </section>
+
+    <div v-if="cyclesError" class="history-error"><strong>Unable to load replay cycles</strong><span>{{ cyclesError }}</span></div>
+    <div v-if="selectedCycle?.status_reason" class="cycle-reason"><strong>{{ selectedCycle.status }}</strong><span>{{ selectedCycle.status_reason }}</span></div>
+
+    <section class="history-section">
+      <div class="history-section-heading">
+        <div><div class="section-kicker">HOURLY PERFORMANCE</div><h2>Hourly Process Summary</h2><p>All available source-event hours in the selected replay cycle. Select a row to inspect that hour.</p></div>
+        <button type="button" class="history-button primary-button" :disabled="exporting.hourlySummary || !selectedCycleId" @click="emit('export-hourly')">{{ exporting.hourlySummary ? "Preparing..." : "Export cycle summary CSV" }}</button>
+      </div>
+      <div v-if="summaryLoading && !summaryRows.length" class="history-state"><span class="loading-ring"></span>Loading hourly summary...</div>
+      <div v-else-if="summaryError" class="history-error"><strong>Unable to load hourly summary</strong><span>{{ summaryError }}</span></div>
+      <div v-else-if="!summaryRows.length" class="history-state">No hourly summary data is available for this replay cycle.</div>
+      <div v-else class="table-scroll panel-card">
+        <table class="history-table hourly-table">
+          <thead><tr><th class="sticky-column">Hour</th><th>Samples</th><th v-for="metric in metrics" :key="metric.key">{{ metric.label }} <span v-if="metric.unit" class="table-unit">{{ metric.unit }}</span><span class="table-subheading">AVG / MIN / MAX</span></th><th>Burner at 100%</th></tr></thead>
+          <tbody>
+            <tr v-for="row in summaryRows" :key="row.hour_start" :class="{ 'selected-hour-row': row.hour_start === selectedHourStart }" @click="emit('select-hour', row.hour_start)">
+              <td class="sticky-column hour-cell"><button type="button" class="hour-select" :aria-pressed="row.hour_start === selectedHourStart" @click.stop="emit('select-hour', row.hour_start)">{{ formatHour(row.hour_start) }}</button></td>
+              <td class="numeric-cell">{{ Number(row.sample_count || 0).toLocaleString("en-IN") }}</td>
+              <td v-for="metric in metrics" :key="metric.key"><div class="metric-triplet"><span>{{ formatValue(row[`${metric.prefix}_average`]) }}</span><span>{{ formatValue(row[`${metric.prefix}_minimum`]) }}</span><span>{{ formatValue(row[`${metric.prefix}_maximum`]) }}</span></div></td>
+              <td class="duration-cell">{{ formatDuration(row.burner_at_100_seconds) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="history-section">
+      <div class="history-section-heading"><div><div class="section-kicker">SELECTED HOUR</div><h2>Hourly Process Indicators</h2><p>{{ selectedHourStart ? formatHour(selectedHourStart) : "Select an hour from the summary above" }} Â· {{ selectedHourSummary?.sample_count?.toLocaleString("en-IN") ?? "â€”" }} samples</p></div>
+        <div class="hour-navigation"><button type="button" class="history-button secondary-button" :disabled="!canPreviousHour || summaryLoading" @click="emit('previous-hour')">Previous hour</button><button type="button" class="history-button secondary-button" :disabled="!canNextHour || summaryLoading" @click="emit('next-hour')">Next hour</button></div>
+      </div>
+      <div v-if="!selectedHourStart" class="history-state">Choose an hourly row to load its six KPIs, readings and operational events.</div>
+      <div v-else-if="summaryLoading && !selectedHourSummary" class="history-state"><span class="loading-ring"></span>Loading selected-hour statistics...</div>
+      <div v-else-if="summaryError" class="history-error">{{ summaryError }}</div>
+      <div v-else class="statistics-grid">
+        <article v-for="metric in metrics" :key="metric.key" class="statistic-card panel-card">
+          <div class="statistic-title">{{ metric.label }}</div><div class="statistic-field">{{ metric.field }}</div>
+          <div class="statistic-values"><div><span>AVERAGE</span><strong>{{ formatValue(selectedStatistics[metric.key]?.average) }}</strong></div><div><span>MINIMUM</span><strong>{{ formatValue(selectedStatistics[metric.key]?.minimum) }}</strong></div><div><span>MAXIMUM</span><strong>{{ formatValue(selectedStatistics[metric.key]?.maximum) }}</strong></div></div>
+          <div v-if="metric.unit" class="statistic-unit">Values in {{ metric.unit }}</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="history-section">
+      <div class="history-section-heading"><div><div class="section-kicker">SELECTED-HOUR TELEMETRY</div><h2>Historical Readings</h2><p>All persisted readings in the selected hour, ordered by event timestamp.</p></div><button type="button" class="history-button primary-button" :disabled="exporting.readings || !selectedHourStart" @click="emit('export-readings')">{{ exporting.readings ? "Preparing..." : "Export selected-hour readings" }}</button></div>
+      <div v-if="readingsLoading" class="history-state"><span class="loading-ring"></span>Loading historical readings...</div>
+      <div v-else-if="readingsError" class="history-error"><strong>Unable to load historical readings</strong><span>{{ readingsError }}</span></div>
+      <div v-else-if="!recentReadings.length" class="history-state">No readings are available for the selected hour.</div>
+      <div v-else class="table-scroll panel-card"><table class="history-table readings-table">
+        <thead><tr><th>Event Time</th><th>Source Row</th><th>Burner PV Â°C</th><th>Delta T Â°C</th><th>Burner Load %</th><th>Moisture</th><th>Paddle Speed</th><th>Oil Level</th><th>Received At</th></tr></thead>
+        <tbody><tr v-for="record in recentReadings" :key="record.id"><td class="timestamp-cell">{{ formatTimestamp(record.event_ts) }}</td><td>{{ record.payload?.source_row ?? "â€”" }}</td><td class="numeric-cell">{{ formatValue(record.payload?.["Burner PV"]) }}</td><td class="numeric-cell">{{ formatValue(record.payload?.DeltaT) }}</td><td class="numeric-cell">{{ formatValue(record.payload?.["Burner Output Load"]) }}</td><td class="numeric-cell">{{ formatValue(record.payload?.["Moisture PV"]) }}</td><td class="numeric-cell">{{ formatValue(record.payload?.["Paddle Speed"]) }}</td><td class="numeric-cell">{{ formatValue(record.payload?.["oil Level PV"]) }}</td><td class="timestamp-cell">{{ formatTimestamp(record.received_at) }}</td></tr></tbody>
+      </table></div>
+    </section>
+
+    <section class="history-section">
+      <div class="history-section-heading"><div><div class="section-kicker">SELECTED-HOUR EVENTS</div><h2>Operational Event History</h2><p>Persisted alarm transitions filtered by the selected replay cycle and event hour.</p></div><button type="button" class="history-button primary-button" :disabled="exporting.events || !selectedHourStart" @click="emit('export-events')">{{ exporting.events ? "Preparing..." : "Export selected-hour events" }}</button></div>
+      <div v-if="eventsLoading" class="history-state"><span class="loading-ring"></span>Loading operational events...</div>
+      <div v-else-if="eventsError" class="history-error"><strong>Unable to load event history</strong><span>{{ eventsError }}</span></div>
+      <div v-else-if="!events.length" class="history-state">No operational events were recorded during the selected hour.</div>
+      <div v-else class="table-scroll panel-card"><table class="history-table events-table">
+        <thead><tr><th>Event Time</th><th>Severity</th><th>Event Code</th><th>State</th><th>Title / Description</th><th>Cycle</th></tr></thead>
+        <tbody><tr v-for="event in events" :key="event.id"><td class="timestamp-cell">{{ formatTimestamp(event.event_ts) }}</td><td><span class="severity-tag" :class="severityClass(event.severity)">{{ event.severity || "â€”" }}</span></td><td class="event-code">{{ event.event_code || "â€”" }}</td><td><span class="event-state" :class="stateClass(event.state)">{{ event.state || "â€”" }}</span></td><td class="event-description"><strong>{{ event.title || "Operational event" }}</strong><span>{{ event.description || "â€”" }}</span></td><td class="cycle-cell">{{ event.replay_cycle_id || "â€”" }}</td></tr></tbody>
+      </table></div>
+    </section>
+    <div v-if="exportError" class="history-error export-error" role="status"><strong>CSV export failed</strong><span>{{ exportError }}</span></div>
+  </div>
+</template>
+
+<style scoped>
+.history-view {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  min-width: 0;
+}
+
+.history-heading,
+.history-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.history-heading h1 {
+  margin: 7px 0 6px;
+  color: 
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+}
+
+.history-description,
+.history-section-heading p {
+  margin: 0;
+  color: 
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.history-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primary-button {
+  color: 
+  background: 
+  border-color: 
+}
+
+.primary-button:hover:not(:disabled) {
+  background: 
+}
+
+.secondary-button {
+  color: 
+  background: 
+  border-color: 
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: 
+}
+
+.history-window {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 17px 20px;
+}
+
+.history-window > div,
+.history-window-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.history-window strong {
+  color: 
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.history-label {
+  color: 
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.7px;
+}
+
+.history-window-meta {
+  display: flex;
+  gap: 34px;
+}
+
+.history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.history-section-heading h2 {
+  margin: 5px 0 4px;
+  color: 
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid 
+  border-radius: 7px;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: 
+  font-size: 11px;
+  text-align: left;
+}
+
+.history-table th {
+  padding: 12px 11px;
+  color: 
+  background: 
+  border-bottom: 1px solid 
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+}
+
+.history-table td {
+  padding: 12px 11px;
+  border-bottom: 1px solid 
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.history-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.history-table tbody tr:hover td {
+  background: 
+}
+
+.table-unit {
+  color: 
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.table-subheading {
+  display: block;
+  margin-top: 5px;
+  color: 
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.25px;
+}
+
+.hourly-table {
+  min-width: 1170px;
+}
+
+.hourly-table .sticky-column {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: 
+}
+
+.hourly-table thead .sticky-column {
+  z-index: 2;
+  background: 
+}
+
+.hour-cell {
+  color: 
+  font-weight: 700;
+}
+
+.metric-triplet {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-triplet span:first-child {
+  color: 
+  font-weight: 700;
+}
+
+.metric-triplet span:nth-child(2),
+.metric-triplet span:nth-child(3) {
+  color: 
+  font-size: 10px;
+}
+
+.numeric-cell,
+.duration-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.duration-cell {
+  color: 
+  font-weight: 700;
+}
+
+.statistics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.statistic-card {
+  min-width: 0;
+  padding: 16px;
+}
+
+.statistic-title {
+  color: 
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.statistic-field {
+  margin-top: 4px;
+  color: 
+  font-size: 10px;
+}
+
+.statistic-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.statistic-values > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.statistic-values span {
+  color: 
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.4px;
+}
+
+.statistic-values strong {
+  color: 
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.statistic-unit {
+  margin-top: 12px;
+  color: 
+  font-size: 9px;
+}
+
+.readings-table {
+  min-width: 1050px;
+}
+
+.events-table {
+  min-width: 850px;
+}
+
+.timestamp-cell {
+  color: 
+  font-variant-numeric: tabular-nums;
+}
+
+.event-code {
+  color: 
+  font-weight: 700;
+}
+
+.event-description {
+  min-width: 220px;
+  max-width: 360px;
+  white-space: normal !important;
+}
+
+.event-description strong,
+.event-description span {
+  display: block;
+}
+
+.event-description strong {
+  color: 
+  font-size: 11px;
+}
+
+.event-description span {
+  margin-top: 4px;
+  color: 
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.cycle-cell {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: 
+  font-size: 9px;
+}
+
+.severity-tag,
+.event-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.severity-critical {
+  color: 
+  background: 
+}
+
+.severity-high {
+  color: 
+  background: 
+}
+
+.severity-warning {
+  color: 
+  background: 
+}
+
+.severity-info {
+  color: 
+  background: 
+}
+
+.severity-default {
+  color: 
+  background: 
+}
+
+.event-active {
+  color: 
+  background: 
+}
+
+.event-cleared {
+  color: 
+  background: 
+}
+
+.history-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-height: 110px;
+  padding: 20px;
+  border: 1px dashed 
+  border-radius: 7px;
+  color: 
+  font-size: 11px;
+  text-align: center;
+}
+
+.compact-state {
+  min-height: 65px;
+}
+
+.history-error {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid 
+  border-radius: 6px;
+  color: 
+  background: 
+  font-size: 11px;
+}
+
+.history-error strong {
+  font-weight: 750;
+}
+
+.export-error {
+  margin-top: -10px;
+}
+
+.loading-ring {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid 
+  border-top-color: 
+  border-radius: 50%;
+  animation: history-spin 0.8s linear infinite;
+}
+
+@keyframes history-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .statistics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .history-window {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 600px) {
+  .history-heading,
+  .history-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .history-window-meta {
+    flex-wrap: wrap;
+    gap: 18px;
+  }
+
+  .statistics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .statistic-values strong {
+    font-size: 14px;
+  }
+}
+
+.cycle-picker { display: flex; flex-direction: column; gap: 7px; min-width: 280px; flex: 1 1 320px; }
+.cycle-picker select { min-height: 36px; max-width: 100%; padding: 0 10px; color: 
+.hour-navigation { display: flex; gap: 7px; }
+.hourly-table tbody tr { cursor: pointer; }
+.hourly-table tbody tr.selected-hour-row td,
+.hourly-table tbody tr.selected-hour-row .sticky-column { background: 
+.hour-select { padding: 0; color: 
+.cycle-reason { display: flex; flex-direction: column; gap: 4px; padding: 11px 14px; border: 1px solid 
+.cycle-reason strong { color: 
+@media (max-width: 600px) { .cycle-picker { min-width: 100%; } .hour-navigation { flex-wrap: wrap; } }
+</style>
+
+
+========== frontend\package.json ==========
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0",
+    "pinia": "^4.1.0",
+    "socket.io-client": "^4.8.4",
+    "vue": "^3.5.44",
+    "vue-echarts": "^8.3.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "vite": "^8.3.6"
+  }
+}
+
+
+
+========== server\__init__.py ==========
+
+
+========== server\api\__init__.py ==========
+
+from flask import Blueprint
+
+api = Blueprint("api", __name__, url_prefix="/api")
+
+from server.api import health_routes  # noqa: F401,E402
+from server.api import telemetry_routes  # noqa: F401,E402
+from server.api import summary_routes  # noqa: F401,E402
+from server.api import event_routes  # noqa: F401,E402
+from server.api import export_routes  # noqa: F401,E402
+
+from server.api import replay_routes  # noqa: F401,E402
+
+
+
+========== server\api\event_routes.py ==========
+
+from uuid import UUID
+
+from flask import jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
+
+from server.api import api
+from server.services.event_service import get_event_history
+from server.services.telemetry_service import parse_timestamp
+
+
+@api.get("/events")
+def event_history():
+    line_id = request.args.get("line_id", "line30").strip()
+
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+
+    try:
+        limit = int(request.args.get("limit", "100"))
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000.")
+        cycle_id = request.args.get("cycle_id") or None
+        start = parse_timestamp(request.args.get("start"), "start")
+        end = parse_timestamp(request.args.get("end"), "end")
+        if start and end and start >= end:
+            raise ValueError("start must be earlier than end.")
+        if (start or end) and not cycle_id:
+            raise ValueError("cycle_id is required for a bounded historical query.")
+        if cycle_id:
+            UUID(cycle_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        events = get_event_history(line_id, limit, cycle_id, start, end)
+
+        return jsonify({
+            "line_id": line_id,
+            "count": len(events),
+            "limit": limit,
+            "data": events,
+        }), 200
+    except SQLAlchemyError:
+        return jsonify({
+            "error": "Unable to retrieve event history.",
+        }), 500
+
+
+
+========== server\api\export_routes.py ==========
+from uuid import UUID
+
+from flask import Response, jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
+from server.api import api
+from server.services.export_service import build_events_csv, build_hourly_summary_csv, build_readings_csv
+from server.services.telemetry_service import parse_timestamp
+
+
+def _csv_response(filename: str, content: str):
+    response = Response(content, mimetype="text/csv; charset=utf-8")
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _scope_parameters():
+    cycle_id = request.args.get("cycle_id") or None
+    start = parse_timestamp(request.args.get("start"), "start")
+    end = parse_timestamp(request.args.get("end"), "end")
+    if start and end and start >= end:
+        raise ValueError("start must be earlier than end.")
+    if (start or end) and not cycle_id:
+        raise ValueError("cycle_id is required for a bounded historical export.")
+    if cycle_id:
+        UUID(cycle_id)
+    return cycle_id, start, end
+
+
+@api.get("/exports/hourly-summary.csv")
+def export_hourly_summary():
+    line_id = request.args.get("line_id", "line30").strip()
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+    try:
+        hours_arg = request.args.get("hours")
+        hours = int(hours_arg) if hours_arg is not None else None
+        if hours is not None and not 1 <= hours <= 24:
+            raise ValueError("hours must be between 1 and 24.")
+        cycle_id = request.args.get("cycle_id") or None
+        hour_start = parse_timestamp(request.args.get("hour_start"), "hour_start")
+        if hour_start and not cycle_id:
+            raise ValueError("cycle_id is required when hour_start is supplied.")
+        if cycle_id:
+            UUID(cycle_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    try:
+        return _csv_response("line30-hourly-summary.csv", build_hourly_summary_csv(line_id, hours, cycle_id, hour_start))
+    except SQLAlchemyError:
+        return jsonify({"error": "Unable to export hourly summary."}), 500
+
+
+@api.get("/exports/readings.csv")
+def export_readings():
+    line_id = request.args.get("line_id", "line30").strip()
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+    try:
+        limit = int(request.args.get("limit", "100000"))
+        if not 1 <= limit <= 100000:
+            raise ValueError("limit must be between 1 and 100000.")
+        cycle_id, start, end = _scope_parameters()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    try:
+        return _csv_response("line30-historical-readings.csv", build_readings_csv(line_id, limit, cycle_id, start, end))
+    except SQLAlchemyError:
+        return jsonify({"error": "Unable to export telemetry readings."}), 500
+
+
+@api.get("/exports/events.csv")
+def export_events():
+    line_id = request.args.get("line_id", "line30").strip()
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+    try:
+        limit = int(request.args.get("limit", "100000"))
+        if not 1 <= limit <= 100000:
+            raise ValueError("limit must be between 1 and 100000.")
+        cycle_id, start, end = _scope_parameters()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    try:
+        return _csv_response("line30-event-history.csv", build_events_csv(line_id, limit, cycle_id, start, end))
+    except SQLAlchemyError:
+        return jsonify({"error": "Unable to export event history."}), 500
+
+
+
+========== server\api\health_routes.py ==========
+
+from flask import jsonify
+from sqlalchemy.exc import SQLAlchemyError
+
+from server.api import api
+from server.database import ping_database
+from server.mqtt.subscriber import is_mqtt_connected
+
+
+@api.get("/health")
+def health():
+    database_connected = False
+
+    try:
+        ping_database()
+        database_connected = True
+    except SQLAlchemyError:
+        pass
+
+    mqtt_connected = is_mqtt_connected()
+    healthy = database_connected and mqtt_connected
+
+    return jsonify({
+        "status": "healthy" if healthy else "unhealthy",
+        "database": (
+            "connected" if database_connected else "disconnected"
+        ),
+        "mqtt": (
+            "connected" if mqtt_connected else "disconnected"
+        ),
+    }), 200 if healthy else 503
+
+
+
+========== server\api\replay_routes.py ==========
+from flask import jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
+from server.api import api
+from server.services.replay_service import get_replay_cycle_history
+
+@api.get("/history/cycles")
+def replay_cycle_history():
+    line_id = request.args.get("line_id", "line30").strip()
+
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+
+    try:
+        limit = int(request.args.get("limit", "50"))
+
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100.")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        result = get_replay_cycle_history(line_id, limit)
+        return jsonify(result), 200
+    except SQLAlchemyError:
+        return jsonify({
+            "error": "Unable to retrieve replay-cycle history.",
+        }), 500
+
+
+
+========== server\api\summary_routes.py ==========
+
+from uuid import UUID
+
+from flask import jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
+
+from server.api import api
+from server.services.summary_service import get_hourly_summary
+from server.services.telemetry_service import parse_timestamp
+
+
+@api.get("/summary/hourly")
+def hourly_summary():
+    line_id = request.args.get("line_id", "line30").strip()
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+
+    cycle_id = request.args.get("cycle_id") or None
+    hour_start = None
+    try:
+        hour_start = parse_timestamp(request.args.get("hour_start"), "hour_start")
+        hours_value = request.args.get("hours")
+        hours = int(hours_value) if hours_value is not None else None
+        if hours is not None and not 1 <= hours <= 24:
+            raise ValueError("hours must be between 1 and 24.")
+        if hour_start and not cycle_id:
+            raise ValueError("cycle_id is required when hour_start is supplied.")
+        if cycle_id:
+            UUID(cycle_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        result = get_hourly_summary(line_id, hours, cycle_id, hour_start)
+        return jsonify({"line_id": line_id, **result}), 200
+    except SQLAlchemyError:
+        return jsonify({"error": "Unable to calculate hourly summary."}), 500
+
+
+
+========== server\api\telemetry_routes.py ==========
+
+from uuid import UUID
+
+from flask import jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
+
+from server.api import api
+from server.repositories.telemetry_query_repository import get_reading_history
+from server.services.telemetry_service import (
+    get_latest_telemetry,
+    get_telemetry_history,
+    get_telemetry_statistics,
+    parse_timestamp,
+)
+
+
+@api.get("/telemetry/latest")
+def latest_telemetry():
+    line_id = request.args.get("line_id", "line30").strip()
+
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+
+    try:
+        return jsonify({
+            "line_id": line_id,
+            "data": get_latest_telemetry(line_id),
+        }), 200
+    except SQLAlchemyError:
+        return jsonify({
+            "error": "Unable to retrieve latest telemetry.",
+        }), 500
+
+
+@api.get("/telemetry/history")
+def telemetry_history():
+    line_id = request.args.get("line_id", "line30").strip()
+
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+
+    try:
+        limit = int(request.args.get("limit", "100"))
+
+        if not 1 <= limit <= 500:
+            raise ValueError("limit must be between 1 and 500.")
+
+        before = parse_timestamp(request.args.get("before"), "before")
+        start = parse_timestamp(request.args.get("start"), "start")
+        end = parse_timestamp(request.args.get("end"), "end")
+        cycle_id = request.args.get("cycle_id") or None
+        if start and end and start >= end:
+            raise ValueError("start must be earlier than end.")
+        if (start or end) and not cycle_id:
+            raise ValueError("cycle_id is required for a bounded historical query.")
+        if cycle_id:
+            UUID(cycle_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        if cycle_id:
+            raw_rows = get_reading_history(
+                line_id, before, limit, cycle_id=cycle_id, start=start, end=end
+            )
+            rows = [
+                {
+                    "id": row["id"],
+                    "message_id": row["message_id"],
+                    "replay_session_id": row["replay_session_id"],
+                    "replay_cycle_id": str(row["replay_cycle_id"]),
+                    "replay_cycle_number": row["replay_cycle_number"],
+                    "line_id": row["line_id"],
+                    "event_ts": row["event_ts"].isoformat(),
+                    "received_at": row["received_at"].isoformat(),
+                    "payload": row["payload"],
+                }
+                for row in raw_rows
+            ]
+        else:
+            rows = get_telemetry_history(line_id, before, limit)
+
+        return jsonify({"line_id": line_id, "count": len(rows), "limit": limit, "data": rows}), 200
+    except SQLAlchemyError:
+        return jsonify({
+            "error": "Unable to retrieve telemetry history.",
+        }), 500
+
+
+@api.get("/telemetry/statistics")
+def telemetry_statistics():
+    line_id = request.args.get("line_id", "line30").strip()
+    field = request.args.get("field", "").strip()
+
+    if not line_id:
+        return jsonify({"error": "line_id cannot be empty."}), 400
+
+    if not field:
+        return jsonify({"error": "field is required."}), 400
+
+    try:
+        start = parse_timestamp(
+            request.args.get("start"),
+            "start",
+        )
+        end = parse_timestamp(
+            request.args.get("end"),
+            "end",
+        )
+
+        cycle_id = request.args.get("cycle_id") or None
+
+        if start and end and start >= end:
+            raise ValueError("start must be earlier than end.")
+
+        if (start or end) and not cycle_id:
+            raise ValueError(
+                "cycle_id is required for a bounded statistics query."
+            )
+
+        if cycle_id:
+            UUID(cycle_id)
+
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        result = get_telemetry_statistics(
+            line_id,
+            field,
+            start,
+            end,
+            cycle_id,
+        )
+
+        return jsonify(result), 200
+    except SQLAlchemyError:
+        return jsonify({
+            "error": "Unable to calculate telemetry statistics.",
+        }), 500
+
+
+
+========== server\app.py ==========
+
+from flask import Flask
+from flask_cors import CORS
+from server.api import api
+from server.config import SOCKETIO_CORS_ORIGINS
+from server.extensions import socketio
+
+def create_app() -> Flask:
+    app = Flask(__name__)
+
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": SOCKETIO_CORS_ORIGINS,
+            }
+        },
+    )
+
+    app.register_blueprint(api)
+
+    socketio.init_app(
+        app,
+        cors_allowed_origins=SOCKETIO_CORS_ORIGINS,
+        async_mode="threading",
+        logger=False,
+        engineio_logger=False,
+    )
+
+    return app
+
+
+
+========== server\config.py ==========
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+from sqlalchemy.engine import make_url
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+load_dotenv(PROJECT_ROOT / ".env")
+
+def _required_env(key: str) -> str:
+    value = os.getenv(key)
+
+    if value is None or not value.strip():
+        raise RuntimeError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value.strip()
+
+DATABASE_URL = make_url(_required_env("DATABASE_URL"))
+
+if DATABASE_URL.drivername != "postgresql+psycopg":
+    raise RuntimeError(
+        "DATABASE_URL must use postgresql+psycopg."
+    )
+
+if not all((
+    DATABASE_URL.host,
+    DATABASE_URL.database,
+    DATABASE_URL.username,
+    DATABASE_URL.password,
+)):
+    raise RuntimeError(
+        "DATABASE_URL must include host, database, username and password."
+    )
+
+DB_POOL_SIZE = 5
+DB_MAX_OVERFLOW =2
+DB_POOL_TIMEOUT =30
+
+MQTT_HOST = "127.0.0.1"
+MQTT_PORT = 1883
+MQTT_KEEPALIVE = 60
+MQTT_TOPIC = "factory/line30/telemetry"
+MQTT_QOS = 1
+MQTT_CLIENT_ID = "line30-flask-subscriber"
+
+if not MQTT_HOST:
+    raise RuntimeError("MQTT_HOST cannot be empty.")
+
+if not MQTT_TOPIC:
+    raise RuntimeError("MQTT_TOPIC cannot be empty.")
+
+if not MQTT_CLIENT_ID:
+    raise RuntimeError("MQTT_CLIENT_ID cannot be empty.")
+
+SOCKETIO_CORS_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv(
+        "SOCKETIO_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+
+if not SOCKETIO_CORS_ORIGINS:
+    raise RuntimeError(
+        "SOCKETIO_CORS_ORIGINS must contain at least one allowed frontend origin."
+    )
+
+
+
+
+========== server\database\__init__.py ==========
+
+from server.database.connection import (
+    check_database_connection,
+    engine,
+    ping_database,
+)
+
+__all__ = [
+    "engine",
+    "check_database_connection",
+    "ping_database",
+]
+
+
+
+========== server\database\connection.py ==========
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
+from server.config import (
+    DATABASE_URL,
+    DB_POOL_SIZE,
+    DB_MAX_OVERFLOW,
+    DB_POOL_TIMEOUT,
+)
+
+engine: Engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
+    pool_timeout=DB_POOL_TIMEOUT,
+    pool_recycle=1800,
+    echo=False,
+)
+
+
+def check_database_connection() -> dict:
+    with engine.connect() as connection:
+        result = connection.execute(
+            text(
+                """
+                SELECT
+                    current_user AS database_user,
+                    current_database() AS database_name,
+                    current_schema() AS current_schema,
+                    version() AS database_version
+                """
+            )
+        ).mappings().one()
+
+        return dict(result)
+
+
+def ping_database() -> None:
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+
+
+
+========== server\extensions.py ==========
+from flask_socketio import SocketIO
+
+socketio = SocketIO(
+    async_mode="threading",
+)
+
+
+
+========== server\mqtt\__init__.py ==========
+
+
+========== server\mqtt\message_handler.py ==========
+
+import json
+import logging
+
+import paho.mqtt.client as mqtt
+from sqlalchemy.exc import SQLAlchemyError
+
+from server.repositories.telemetry_repository import save_telemetry
+from server.sockets.broadcaster import (
+    broadcast_operational_events,
+    broadcast_telemetry,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _ack_message(client, message):
+    result = client.ack(message.mid, message.qos)
+
+    if result != mqtt.MQTT_ERR_SUCCESS:
+        logger.error(
+            "MQTT acknowledgement failed: packet_id=%s result=%s",
+            message.mid,
+            result,
+        )
+        return False
+
+    return True
+
+
+def on_message(client, userdata, message):
+    try:
+        raw_payload = message.payload.decode("utf-8")
+        payload = json.loads(raw_payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.error(
+            "Discarding malformed MQTT message: topic=%s error=%s",
+            message.topic,
+            exc,
+        )
+        _ack_message(client, message)
+        return
+
+    try:
+        record = save_telemetry(payload)
+    except ValueError as exc:
+        logger.error(
+            "Discarding invalid telemetry payload: topic=%s error=%s",
+            message.topic,
+            exc,
+        )
+        _ack_message(client, message)
+        return
+    except SQLAlchemyError:
+        logger.exception(
+            "Database persistence failed. MQTT message remains "
+            "unacknowledged: topic=%s packet_id=%s",
+            message.topic,
+            message.mid,
+        )
+        return
+    except Exception:
+        logger.exception(
+            "Unexpected telemetry processing failure. MQTT message "
+            "remains unacknowledged: topic=%s packet_id=%s",
+            message.topic,
+            message.mid,
+        )
+        return
+
+    if record is None:
+        logger.info(
+            "Duplicate telemetry ignored: message_id=%s",
+            payload.get("message_id"),
+        )
+        _ack_message(client, message)
+        return
+
+    logger.info(
+        "Telemetry persisted: record_id=%s message_id=%s "
+        "generated_events=%s",
+        record["id"],
+        payload.get("message_id"),
+        len(record["events"]),
+    )
+
+    acknowledged = _ack_message(client, message)
+
+    if not acknowledged:
+        logger.error(
+            "Telemetry was persisted but MQTT acknowledgement "
+            "failed: record_id=%s",
+            record["id"],
+        )
+
+    try:
+        broadcast_telemetry(record, payload)
+    except Exception:
+        logger.exception(
+            "Telemetry was persisted but Socket.IO broadcast failed: "
+            "record_id=%s",
+            record["id"],
+        )
+
+    try:
+        broadcast_operational_events(record)
+    except Exception:
+        logger.exception(
+            "Telemetry was persisted but operational event "
+            "broadcast failed: record_id=%s",
+            record["id"],
+        )
+
+
+
+========== server\mqtt\subscriber.py ==========
+
+import logging
+
+import paho.mqtt.client as mqtt
+
+from server.config import (
+    MQTT_CLIENT_ID,
+    MQTT_HOST,
+    MQTT_KEEPALIVE,
+    MQTT_PORT,
+    MQTT_QOS,
+    MQTT_TOPIC,
+)
+from server.mqtt.message_handler import on_message
+
+logger = logging.getLogger(__name__)
+_mqtt_client = None
+
+
+def is_mqtt_connected() -> bool:
+    return (
+        _mqtt_client is not None
+        and _mqtt_client.is_connected()
+    )
+
+
+def on_connect(client, userdata, flags, reason_code, properties):
+    if reason_code.is_failure:
+        logger.error(
+            "MQTT connection rejected: %s",
+            reason_code,
+        )
+        return
+
+    logger.info(
+        "Connected to MQTT broker: %s:%s",
+        MQTT_HOST,
+        MQTT_PORT,
+    )
+
+    result, message_id = client.subscribe(
+        MQTT_TOPIC,
+        qos=MQTT_QOS,
+    )
+
+    if result != mqtt.MQTT_ERR_SUCCESS:
+        logger.error(
+            "MQTT subscription failed: return_code=%s",
+            result,
+        )
+        return
+
+    logger.info(
+        "Subscribed to topic '%s' at QoS %s",
+        MQTT_TOPIC,
+        MQTT_QOS,
+    )
+
+
+def create_mqtt_client():
+    client = mqtt.Client(
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+        client_id=MQTT_CLIENT_ID,
+        protocol=mqtt.MQTTv311,
+        clean_session=False,
+        manual_ack=True,
+    )
+
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    client.reconnect_delay_set(
+        min_delay=1,
+        max_delay=30,
+    )
+
+    return client
+
+
+def start_mqtt_subscriber():
+    global _mqtt_client
+
+    client = create_mqtt_client()
+
+    logger.info(
+        "Starting MQTT subscriber: client_id=%s",
+        MQTT_CLIENT_ID,
+    )
+
+    client.connect(
+        MQTT_HOST,
+        MQTT_PORT,
+        MQTT_KEEPALIVE,
+    )
+
+    _mqtt_client = client
+    client.loop_start()
+
+    return client
+
+
+def stop_mqtt_subscriber(client):
+    global _mqtt_client
+
+    if client is None:
+        return
+
+    logger.info("Stopping MQTT subscriber")
+
+    client.disconnect()
+    client.loop_stop()
+
+    if _mqtt_client is client:
+        _mqtt_client = None
+
+
+
+========== server\repositories\__init__.py ==========
+
+
+========== server\repositories\event_repository.py ==========
+from sqlalchemy import DateTime, bindparam, text
+from sqlalchemy.dialects.postgresql import UUID
+from server.database import engine
+
+EVENT_HISTORY_SQL = text("""
+    SELECT
+        id,
+        line_id,
+        event_type,
+        event_code,
+        severity,
+        state,
+        title,
+        description,
+        event_ts,
+        recorded_at,
+        reading_id,
+        replay_cycle_id,
+        details
+    FROM telemetry.events
+    WHERE line_id = :line_id
+        AND replay_cycle_id = COALESCE(
+          :selected_cycle_id,
+          (
+              SELECT replay_cycle_id
+              FROM telemetry.readings
+              WHERE line_id = :line_id
+              ORDER BY received_at DESC, id DESC
+              LIMIT 1
+          )
+        )
+      AND (:start_time IS NULL OR event_ts >= :start_time)
+      AND (:end_time IS NULL OR event_ts < :end_time)
+    ORDER BY event_ts DESC, id DESC
+    LIMIT :row_limit
+    """).bindparams(
+        bindparam("selected_cycle_id", type_=UUID(as_uuid=False)),
+        bindparam("start_time", type_=DateTime()),
+        bindparam("end_time", type_=DateTime()),
+    )
+
+def get_events(
+    line_id: str,
+    limit: int = 100,
+    cycle_id=None,
+    start=None,
+    end=None,
+):
+    with engine.connect() as connection:
+        return connection.execute(
+            EVENT_HISTORY_SQL,
+            {
+                "line_id": line_id,
+                "selected_cycle_id": cycle_id,
+                "start_time": start,
+                "end_time": end,
+                "row_limit": limit,
+            },
+        ).mappings().all()
+
+
+========== server\repositories\export_repository.py ==========
+from sqlalchemy import DateTime, bindparam, text
+from sqlalchemy.dialects.postgresql import UUID
+
+from server.database import engine
+
+EXPORT_READINGS_SQL = text("""
+    SELECT
+        id,
+        message_id,
+        replay_session_id,
+        replay_cycle_id,
+        replay_cycle_number,
+        line_id,
+        event_ts,
+        received_at,
+        payload
+    FROM telemetry.readings
+    WHERE line_id = :line_id
+            AND replay_cycle_id = COALESCE(
+          :selected_cycle_id,
+          (
+              SELECT replay_cycle_id
+              FROM telemetry.readings
+              WHERE line_id = :line_id
+              ORDER BY received_at DESC, id DESC
+              LIMIT 1
+          )
+      )
+      AND (:start_time IS NULL OR event_ts >= :start_time)
+      AND (:end_time IS NULL OR event_ts < :end_time)
+    ORDER BY event_ts ASC, id ASC
+    LIMIT :row_limit
+    """).bindparams(
+        bindparam("selected_cycle_id", type_=UUID(as_uuid=False)),
+        bindparam("start_time", type_=DateTime()),
+        bindparam("end_time", type_=DateTime()),
+    )
+
+
+def get_readings_for_export(
+    line_id: str,
+    limit: int,
+    cycle_id=None,
+    start=None,
+    end=None,
+):
+    with engine.connect() as connection:
+        return connection.execute(
+            EXPORT_READINGS_SQL,
+            {
+                "line_id": line_id,
+                "selected_cycle_id": cycle_id,
+                "start_time": start,
+                "end_time": end,
+                "row_limit": limit,
+            },
+        ).mappings().all()
+
+
+
+========== server\repositories\replay_repository.py ==========
+from sqlalchemy import text
+from server.database import engine
+
+REPLAY_CYCLES_SQL = text("""
+    WITH cycle_statistics AS (
+        SELECT
+            replay_cycle_id,
+            COUNT(*) AS persisted_records,
+
+            COUNT(*) FILTER (
+                WHERE payload ? 'replay_total_records'
+            ) AS metadata_records,
+
+            COUNT(*) FILTER (
+                WHERE payload ->> 'source_file_sha256'
+                    ~ '^[0-9a-fA-F]{64}$'
+            ) AS hash_records,
+            COUNT(*) FILTER (
+                WHERE payload ? 'replay_session_id'
+                  AND NULLIF(BTRIM(payload ->> 'replay_session_id'), '') IS NOT NULL
+            ) AS session_id_records,
+
+            COUNT(DISTINCT payload ->> 'replay_session_id')
+                AS session_id_variants,
+
+            COUNT(*) FILTER (
+                WHERE payload ->> 'replay_cycle_number' ~ '^[0-9]+$'
+            ) AS cycle_number_records,
+
+            COUNT(DISTINCT payload ->> 'replay_cycle_number')
+            FILTER (
+                WHERE payload ->> 'replay_cycle_number' ~ '^[0-9]+$'
+            ) AS cycle_number_variants,
+
+            COUNT(*) FILTER (
+                WHERE payload ? 'source_row'
+                  AND payload ->> 'source_row' ~ '^[0-9]+$'
+            ) AS valid_source_rows,
+
+            COUNT(*) FILTER (
+                WHERE payload ->> 'replay_total_records' ~ '^[0-9]+$'
+            ) AS expected_count_records,
+
+            COUNT(DISTINCT (payload ->> 'replay_total_records')::BIGINT)
+            FILTER (
+                WHERE payload ->> 'replay_total_records' ~ '^[0-9]+$'
+            ) AS expected_count_variants,
+
+            MAX((payload ->> 'replay_total_records')::BIGINT)
+            FILTER (
+                WHERE payload ->> 'replay_total_records' ~ '^[0-9]+$'
+            ) AS expected_records,
+
+            COUNT(DISTINCT payload ->> 'source_file_sha256')
+            FILTER (
+                WHERE payload ->> 'source_file_sha256'
+                    ~ '^[0-9a-fA-F]{64}$'
+            ) AS source_hash_variants,
+
+            MAX(payload ->> 'source_file_sha256')
+            FILTER (
+                WHERE payload ->> 'source_file_sha256'
+                    ~ '^[0-9a-fA-F]{64}$'
+            ) AS source_file_sha256,
+
+            COUNT(DISTINCT (payload ->> 'source_row')::BIGINT)
+            FILTER (
+                WHERE payload ->> 'source_row' ~ '^[0-9]+$'
+            ) AS distinct_source_rows,
+
+            MIN((payload ->> 'source_row')::BIGINT)
+            FILTER (
+                WHERE payload ->> 'source_row' ~ '^[0-9]+$'
+            ) AS min_source_row,
+
+            MAX((payload ->> 'source_row')::BIGINT)
+            FILTER (
+                WHERE payload ->> 'source_row' ~ '^[0-9]+$'
+            ) AS max_source_row,
+
+            MAX(payload ->> 'replay_session_id') AS replay_session_id,
+            MAX(payload ->> 'replay_cycle_number') AS replay_cycle_number,
+
+            MIN(event_ts) AS first_event_ts,
+            MAX(event_ts) AS last_event_ts,
+            MIN(received_at) AS first_received_at,
+            MAX(received_at) AS last_received_at
+
+        FROM telemetry.readings
+        WHERE line_id = :line_id
+        GROUP BY replay_cycle_id
+    ),
+
+    classified_cycles AS (
+        SELECT
+            *,
+            CASE
+                WHEN metadata_records = 0
+                    THEN 'UNKNOWN'
+
+                WHEN metadata_records <> persisted_records
+                  OR hash_records <> persisted_records
+                  OR session_id_records <> persisted_records
+                  OR session_id_variants <> 1
+                  OR cycle_number_records <> persisted_records
+                  OR cycle_number_variants <> 1
+                  OR valid_source_rows <> persisted_records
+                  OR expected_count_variants <> 1
+                  OR source_hash_variants <> 1
+                    THEN 'INCOMPLETE'
+
+                WHEN expected_records = persisted_records
+                  AND distinct_source_rows = expected_records
+                  AND min_source_row = 2
+                  AND max_source_row = expected_records + 1
+                    THEN 'COMPLETED'
+
+                ELSE 'INCOMPLETE'
+            END AS status
+        FROM cycle_statistics
+    )
+
+    SELECT
+        replay_cycle_id,
+        replay_session_id,
+        replay_cycle_number,
+        status,
+
+        persisted_records,
+        expected_records,
+        distinct_source_rows,
+        min_source_row,
+        max_source_row,
+        source_file_sha256,
+
+        first_event_ts,
+        last_event_ts,
+        first_received_at,
+        last_received_at,
+
+        CASE
+            WHEN status = 'COMPLETED'
+                THEN 'All expected source records are persisted.'
+            WHEN status = 'UNKNOWN'
+                THEN 'Legacy cycle has no replay completion metadata.'
+            WHEN metadata_records <> persisted_records
+                THEN 'Some persisted records are missing replay metadata.'
+            WHEN hash_records <> persisted_records
+                THEN 'Some persisted records are missing the source fingerprint.'
+            WHEN session_id_records <> persisted_records
+                THEN 'Some persisted records are missing the replay session ID.'
+            WHEN session_id_variants <> 1
+                THEN 'Replay session IDs are inconsistent within this cycle.'
+            WHEN cycle_number_records <> persisted_records
+                THEN 'Some persisted records are missing a valid replay cycle number.'
+            WHEN cycle_number_variants <> 1
+                THEN 'Replay cycle numbers are inconsistent within this cycle.'
+            WHEN valid_source_rows <> persisted_records
+                THEN 'Some persisted records have invalid or missing source rows.'
+            WHEN expected_count_variants <> 1
+                THEN 'Expected record counts are missing or inconsistent.'
+            WHEN source_hash_variants <> 1
+                THEN 'Source file fingerprints are missing or inconsistent.'
+            WHEN expected_records <> persisted_records
+                THEN 'Persisted record count does not match the expected count.'
+            WHEN distinct_source_rows <> expected_records
+                THEN 'Distinct source-row coverage does not match the expected count.'
+            WHEN min_source_row <> 2
+              OR max_source_row <> expected_records + 1
+                THEN 'Source-row boundaries do not match the expected range.'
+            ELSE 'Replay completion checks have not been satisfied.'
+        END AS status_reason
+
+    FROM classified_cycles
+    ORDER BY last_received_at DESC, replay_cycle_id DESC
+    LIMIT :limit
+""")
+
+
+def get_replay_cycles(line_id: str, limit: int = 50) -> list[dict]:
+    with engine.connect() as connection:
+        rows = connection.execute(
+            REPLAY_CYCLES_SQL,
+            {
+                "line_id": line_id,
+                "limit": limit,
+            },
+        ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+
+
+
+========== server\repositories\summary_repository.py ==========
+from datetime import datetime, timedelta
+from sqlalchemy import DateTime, bindparam, text
+from sqlalchemy.dialects.postgresql import UUID
+from server.database import engine
+
+CYCLE_INFO_SQL = text("""
+    SELECT
+        replay_cycle_id,
+        MIN(event_ts) AS first_event_ts,
+        MAX(event_ts) AS last_event_ts
+    FROM telemetry.readings
+    WHERE line_id = :line_id
+      AND replay_cycle_id = COALESCE(
+          :selected_cycle_id,
+          (
+              SELECT replay_cycle_id
+              FROM telemetry.readings
+              WHERE line_id = :line_id
+              ORDER BY received_at DESC, id DESC
+              LIMIT 1
+          )
+      )
+    GROUP BY replay_cycle_id
+    """).bindparams(
+        bindparam("selected_cycle_id", type_=UUID(as_uuid=False)),
+    )
+
+HOURLY_SUMMARY_SQL = text("""
+WITH
+        buckets AS (
+            SELECT generate_series(
+                :window_start,
+                :window_end,
+                INTERVAL '1 hour'
+            ) AS hour_start
+        ),
+
+        cycle_readings AS (
+            SELECT
+                id,
+                event_ts,
+                CASE
+                    WHEN jsonb_typeof(
+                        payload -> 'Burner Output Load'
+                    ) = 'number'
+                    THEN (payload ->> 'Burner Output Load')::NUMERIC
+                END AS burner_load,
+
+                CASE
+                    WHEN jsonb_typeof(payload -> 'Burner PV') = 'number'
+                    THEN (payload ->> 'Burner PV')::NUMERIC
+                END AS burner_pv,
+
+                CASE
+                    WHEN jsonb_typeof(payload -> 'DeltaT') = 'number'
+                    THEN (payload ->> 'DeltaT')::NUMERIC
+                END AS delta_t,
+
+                CASE
+                    WHEN jsonb_typeof(payload -> 'Moisture PV') = 'number'
+                    THEN (payload ->> 'Moisture PV')::NUMERIC
+                END AS moisture,
+
+                CASE
+                    WHEN jsonb_typeof(payload -> 'Paddle Speed') = 'number'
+                    THEN (payload ->> 'Paddle Speed')::NUMERIC
+                END AS paddle_speed,
+
+                CASE
+                    WHEN jsonb_typeof(payload -> 'oil Level PV') = 'number'
+                    THEN (payload ->> 'oil Level PV')::NUMERIC
+                END AS oil_level
+
+            FROM telemetry.readings
+            WHERE line_id = :line_id
+             AND replay_cycle_id = :cycle_id
+        ),
+
+        ordered_readings AS (
+            SELECT
+                id,
+                event_ts,
+                burner_load,
+                burner_pv,
+                delta_t,
+                moisture,
+                paddle_speed,
+                oil_level,
+                LEAD(event_ts) OVER (
+                    ORDER BY event_ts, id
+                ) AS next_event_ts
+            FROM cycle_readings
+        ),
+
+        hourly_metrics AS (
+            SELECT
+                date_trunc('hour', event_ts) AS hour_start,
+                COUNT(*) AS sample_count,
+
+                AVG(burner_pv) AS burner_pv_avg,
+                MIN(burner_pv) AS burner_pv_min,
+                MAX(burner_pv) AS burner_pv_max,
+
+                AVG(delta_t) AS delta_t_avg,
+                MIN(delta_t) AS delta_t_min,
+                MAX(delta_t) AS delta_t_max,
+
+                AVG(burner_load) AS burner_load_avg,
+                MIN(burner_load) AS burner_load_min,
+                MAX(burner_load) AS burner_load_max,
+
+                AVG(moisture) AS moisture_avg,
+                MIN(moisture) AS moisture_min,
+                MAX(moisture) AS moisture_max,
+
+                AVG(paddle_speed) AS paddle_speed_avg,
+                MIN(paddle_speed) AS paddle_speed_min,
+                MAX(paddle_speed) AS paddle_speed_max,
+
+                AVG(oil_level) AS oil_level_avg,
+                MIN(oil_level) AS oil_level_min,
+                MAX(oil_level) AS oil_level_max
+
+            FROM ordered_readings
+            WHERE event_ts >= :window_start
+              AND event_ts < :window_end + INTERVAL '1 hour'
+            GROUP BY date_trunc('hour', event_ts)
+        ),
+
+        burner_intervals AS (
+            SELECT
+                event_ts,
+                next_event_ts
+            FROM ordered_readings
+            WHERE burner_load = 100
+              AND next_event_ts > event_ts
+              AND event_ts < :window_end + INTERVAL '1 hour'
+              AND next_event_ts > :window_start
+        ),
+
+        burner_hour_splits AS (
+            SELECT
+                hour_bucket.hour_start,
+                EXTRACT(
+                    EPOCH FROM (
+                        LEAST(
+                            burner_intervals.next_event_ts,
+                            hour_bucket.hour_start + INTERVAL '1 hour'
+                        )
+                        -
+                        GREATEST(
+                            burner_intervals.event_ts,
+                            hour_bucket.hour_start
+                        )
+                    )
+                ) AS duration_seconds
+            FROM burner_intervals
+            CROSS JOIN LATERAL generate_series(
+                date_trunc(
+                    'hour',
+                    GREATEST(
+                        burner_intervals.event_ts,
+                        :window_start
+                    )
+                ),
+                date_trunc(
+                    'hour',
+                    LEAST(
+                        burner_intervals.next_event_ts,
+                        :window_end + INTERVAL '1 hour'
+                    ) - INTERVAL '1 microsecond'
+                ),
+                INTERVAL '1 hour'
+            ) AS hour_bucket(hour_start)
+        ),
+        burner_durations AS (
+            SELECT
+                hour_start,
+                SUM(duration_seconds) AS burner_at_100_seconds
+            FROM burner_hour_splits
+            GROUP BY hour_start
+        )
+
+        SELECT
+            buckets.hour_start,
+            COALESCE(metrics.sample_count, 0) AS sample_count,
+
+            metrics.burner_pv_avg,
+            metrics.burner_pv_min,
+            metrics.burner_pv_max,
+
+            metrics.delta_t_avg,
+            metrics.delta_t_min,
+            metrics.delta_t_max,
+
+            metrics.burner_load_avg,
+            metrics.burner_load_min,
+            metrics.burner_load_max,
+
+            metrics.moisture_avg,
+            metrics.moisture_min,
+            metrics.moisture_max,
+
+            metrics.paddle_speed_avg,
+            metrics.paddle_speed_min,
+            metrics.paddle_speed_max,
+
+            metrics.oil_level_avg,
+            metrics.oil_level_min,
+            metrics.oil_level_max,
+
+            COALESCE(
+                durations.burner_at_100_seconds,
+                0
+            ) AS burner_at_100_seconds
+
+        FROM buckets
+        LEFT JOIN hourly_metrics AS metrics
+            ON metrics.hour_start = buckets.hour_start
+        LEFT JOIN burner_durations AS durations
+            ON durations.hour_start = buckets.hour_start
+        ORDER BY buckets.hour_start ASC
+        """).bindparams(
+            bindparam("cycle_id", type_=UUID(as_uuid=False)),
+            bindparam("window_start", type_=DateTime()),
+            bindparam("window_end", type_=DateTime()),
+        )
+
+SUMMARY_STATISTICS_SQL = text("""
+    SELECT
+        COUNT(*) AS sample_count,
+
+        AVG((payload ->> 'Burner PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Burner PV') = 'number'
+        ) AS burner_pv_avg,
+        MIN((payload ->> 'Burner PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Burner PV') = 'number'
+        ) AS burner_pv_min,
+        MAX((payload ->> 'Burner PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Burner PV') = 'number'
+        ) AS burner_pv_max,
+
+        AVG((payload ->> 'DeltaT')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'DeltaT') = 'number'
+        ) AS delta_t_avg,
+        MIN((payload ->> 'DeltaT')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'DeltaT') = 'number'
+        ) AS delta_t_min,
+        MAX((payload ->> 'DeltaT')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'DeltaT') = 'number'
+        ) AS delta_t_max,
+
+        AVG((payload ->> 'Burner Output Load')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Burner Output Load') = 'number'
+        ) AS burner_load_avg,
+        MIN((payload ->> 'Burner Output Load')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Burner Output Load') = 'number'
+        ) AS burner_load_min,
+        MAX((payload ->> 'Burner Output Load')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Burner Output Load') = 'number'
+        ) AS burner_load_max,
+
+        AVG((payload ->> 'Moisture PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Moisture PV') = 'number'
+        ) AS moisture_avg,
+        MIN((payload ->> 'Moisture PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Moisture PV') = 'number'
+        ) AS moisture_min,
+        MAX((payload ->> 'Moisture PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Moisture PV') = 'number'
+        ) AS moisture_max,
+
+        AVG((payload ->> 'Paddle Speed')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Paddle Speed') = 'number'
+        ) AS paddle_speed_avg,
+        MIN((payload ->> 'Paddle Speed')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Paddle Speed') = 'number'
+        ) AS paddle_speed_min,
+        MAX((payload ->> 'Paddle Speed')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'Paddle Speed') = 'number'
+        ) AS paddle_speed_max,
+
+        AVG((payload ->> 'oil Level PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'oil Level PV') = 'number'
+        ) AS oil_level_avg,
+        MIN((payload ->> 'oil Level PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'oil Level PV') = 'number'
+        ) AS oil_level_min,
+        MAX((payload ->> 'oil Level PV')::NUMERIC) FILTER (
+            WHERE jsonb_typeof(payload -> 'oil Level PV') = 'number'
+        ) AS oil_level_max
+
+    FROM telemetry.readings
+    WHERE line_id = :line_id
+      AND replay_cycle_id = :cycle_id
+      AND event_ts >= :window_start
+      AND event_ts < :window_end + INTERVAL '1 hour'
+    """).bindparams(
+        bindparam("cycle_id", type_=UUID(as_uuid=False)),
+        bindparam("window_start", type_=DateTime()),
+        bindparam("window_end", type_=DateTime()),
+    )
+
+
+def get_hourly_summary_data(
+    line_id: str,
+    hours: int | None = None,
+    cycle_id: str | None = None,
+    hour_start: datetime | None = None,
+) -> dict | None:
+    """Fetch a complete cycle summary or one selected hourly bucket."""
+
+    with engine.connect() as connection:
+        cycle_info = connection.execute(
+            CYCLE_INFO_SQL,
+            {
+                "line_id": line_id,
+                "selected_cycle_id": cycle_id,
+            },
+        ).mappings().one_or_none()
+
+        if cycle_info is None:
+            return None
+
+        cycle_id = cycle_info["replay_cycle_id"]
+        first_event_ts = cycle_info["first_event_ts"]
+        last_event_ts = cycle_info["last_event_ts"]
+
+        if first_event_ts is None or last_event_ts is None:
+            return None
+
+        if hour_start is not None:
+            window_start = hour_start.replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            window_end = window_start
+
+        elif hours is None:
+            window_start = first_event_ts.replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            window_end = last_event_ts.replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+
+        else:
+            window_end = last_event_ts.replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            window_start = window_end - timedelta(hours=hours - 1)
+
+        parameters = {
+            "line_id": line_id,
+            "cycle_id": cycle_id,
+            "window_start": window_start,
+            "window_end": window_end,
+        }
+
+        hourly_rows = connection.execute(
+            HOURLY_SUMMARY_SQL,
+            parameters,
+        ).mappings().all()
+
+        statistics = connection.execute(
+            SUMMARY_STATISTICS_SQL,
+            parameters,
+        ).mappings().one()
+
+    return {
+        "cycle_id": cycle_id,
+        "window_start": window_start,
+        "window_end": window_end,
+        "hourly_rows": hourly_rows,
+        "statistics": statistics,
+    }
+
+
+========== server\repositories\telemetry_query_repository.py ==========
+from sqlalchemy import DateTime, String, bindparam, text
+from sqlalchemy.dialects.postgresql import UUID
+from server.database import engine
+
+LATEST_READING_SQL = text("""
+    SELECT
+        id,
+        message_id,
+        replay_session_id,
+        replay_cycle_id,
+        replay_cycle_number,
+        line_id,
+        event_ts,
+        received_at,
+        payload
+    FROM telemetry.readings
+    WHERE line_id = :line_id
+    AND replay_cycle_id = (
+        SELECT replay_cycle_id
+        FROM telemetry.readings
+        WHERE line_id = :line_id
+        ORDER BY received_at DESC, id DESC
+        LIMIT 1
+    )
+    ORDER BY event_ts DESC, id DESC
+    LIMIT 1
+    """)
+
+HISTORY_SQL = text("""
+    SELECT
+        id,
+        message_id,
+        replay_session_id,
+        replay_cycle_id,
+        replay_cycle_number,
+        line_id,
+        event_ts,
+        received_at,
+        payload
+    FROM telemetry.readings
+    WHERE line_id = :line_id
+      AND replay_cycle_id = COALESCE(
+          :selected_cycle_id,
+          (
+              SELECT replay_cycle_id
+              FROM telemetry.readings
+              WHERE line_id = :line_id
+              ORDER BY received_at DESC, id DESC
+              LIMIT 1
+          )
+      )
+      AND (:start_time IS NULL OR event_ts >= :start_time)
+      AND (:end_time IS NULL OR event_ts < :end_time)
+      AND (:before_time IS NULL OR event_ts < :before_time)
+    ORDER BY event_ts DESC, id DESC
+    LIMIT :row_limit
+    """).bindparams(
+        bindparam("selected_cycle_id", type_=UUID(as_uuid=False)),
+        bindparam("start_time", type_=DateTime()),
+        bindparam("end_time", type_=DateTime()),
+        bindparam("before_time", type_=DateTime()),
+    )
+
+STATISTICS_SQL = text("""
+    WITH selected_cycle AS (
+        SELECT COALESCE(
+            :selected_cycle_id,
+            (
+                SELECT replay_cycle_id
+                FROM telemetry.readings
+                WHERE line_id = :line_id
+                ORDER BY received_at DESC, id DESC
+                LIMIT 1
+            )
+        ) AS replay_cycle_id
+    )
+    SELECT
+        selected_cycle.replay_cycle_id AS cycle_id,
+
+        COUNT(*) FILTER (
+            WHERE jsonb_typeof(readings.payload -> :field_name) = 'number'
+        ) AS sample_count,
+
+        AVG((readings.payload ->> :field_name)::NUMERIC) FILTER (
+            WHERE jsonb_typeof(readings.payload -> :field_name) = 'number'
+        ) AS average,
+
+        MIN((readings.payload ->> :field_name)::NUMERIC) FILTER (
+            WHERE jsonb_typeof(readings.payload -> :field_name) = 'number'
+        ) AS minimum,
+
+        MAX((readings.payload ->> :field_name)::NUMERIC) FILTER (
+            WHERE jsonb_typeof(readings.payload -> :field_name) = 'number'
+        ) AS maximum
+
+    FROM selected_cycle
+    LEFT JOIN telemetry.readings AS readings
+      ON readings.line_id = :line_id
+     AND readings.replay_cycle_id = selected_cycle.replay_cycle_id
+     AND (:start_time IS NULL OR readings.event_ts >= :start_time)
+     AND (:end_time IS NULL OR readings.event_ts < :end_time)
+    GROUP BY selected_cycle.replay_cycle_id
+    """).bindparams(
+        bindparam("selected_cycle_id", type_=UUID(as_uuid=False)),
+        bindparam("field_name", type_=String()),
+        bindparam("start_time", type_=DateTime()),
+        bindparam("end_time", type_=DateTime()),
+    )
+
+def get_latest_reading(line_id: str):
+    with engine.connect() as connection:
+        return connection.execute(
+            LATEST_READING_SQL,
+            {"line_id": line_id},
+        ).mappings().one_or_none()
+
+def get_reading_history(
+    line_id: str,
+    before,
+    limit: int,
+    cycle_id=None,
+    start=None,
+    end=None,
+):
+    with engine.connect() as connection:
+        return connection.execute(
+            HISTORY_SQL,
+            {
+                "line_id": line_id,
+                "selected_cycle_id": cycle_id,
+                "start_time": start,
+                "end_time": end,
+                "before_time": before,
+                "row_limit": limit,
+            },
+        ).mappings().all()
+    
+def get_reading_statistics(
+    line_id: str,
+    field: str,
+    start,
+    end,
+    cycle_id=None,
+):
+    with engine.connect() as connection:
+        return connection.execute(
+            STATISTICS_SQL,
+            {
+                "line_id": line_id,
+                "selected_cycle_id": cycle_id,
+                "field_name": field,
+                "start_time": start,
+                "end_time": end,
+            },
+        ).mappings().one()
+
+
+
+========== server\repositories\telemetry_repository.py ==========
+import json
+import math
+import re
+from datetime import datetime
+from uuid import UUID as PythonUUID
+from sqlalchemy import bindparam, text
+from sqlalchemy.dialects.postgresql import UUID
+from server.database import engine
+
+RULE_KEY = "moisture_operating_range"
+MOISTURE_LOW_LIMIT = 1.10
+MOISTURE_HIGH_LIMIT = 1.30
+
+INSERT_TELEMETRY_SQL = text("""
+    INSERT INTO telemetry.readings (
+        message_id,
+        replay_session_id,
+        replay_cycle_id,
+        replay_cycle_number,
+        line_id,
+        event_ts,
+        payload
+    )
+    VALUES (
+        :message_id,
+        :replay_session_id,
+        :replay_cycle_id,
+        :replay_cycle_number,
+        :line_id,
+        :event_ts,
+        CAST(:payload AS JSONB)
+    )
+    ON CONFLICT (replay_cycle_id, message_id)
+    DO NOTHING
+    RETURNING id, received_at
+    """).bindparams(
+        bindparam("replay_session_id", type_=UUID(as_uuid=False)),
+        bindparam("replay_cycle_id", type_=UUID(as_uuid=False)),
+    )
+
+INSERT_ALARM_STATE_SQL = text("""
+    INSERT INTO telemetry.alarm_state (
+        line_id,
+        rule_key,
+        replay_cycle_id,
+        state
+    )
+    VALUES (
+        :line_id,
+        :rule_key,
+        :replay_cycle_id,
+        'NORMAL'
+    )
+    ON CONFLICT (line_id, rule_key, replay_cycle_id)
+    DO NOTHING
+    """).bindparams(
+        bindparam("replay_cycle_id", type_=UUID(as_uuid=False))
+    )
+
+LOCK_ALARM_STATE_SQL = text("""
+    SELECT
+        state,
+        active_event_code
+    FROM telemetry.alarm_state
+    WHERE line_id = :line_id
+      AND rule_key = :rule_key
+      AND replay_cycle_id = :replay_cycle_id
+    FOR UPDATE
+    """).bindparams(
+        bindparam("replay_cycle_id", type_=UUID(as_uuid=False))
+    )
+
+UPDATE_ALARM_STATE_SQL = text("""
+    UPDATE telemetry.alarm_state
+    SET
+        state = :state,
+        severity = :severity,
+        active_event_code = :active_event_code,
+        last_reading_id = :reading_id,
+        last_event_ts = CASE
+            WHEN :transitioned THEN :event_ts
+            ELSE last_event_ts
+        END,
+        updated_at = clock_timestamp()
+    WHERE line_id = :line_id
+      AND rule_key = :rule_key
+      AND replay_cycle_id = :replay_cycle_id
+    """).bindparams(
+        bindparam("replay_cycle_id", type_=UUID(as_uuid=False))
+    )
+
+INSERT_EVENT_SQL = text("""
+    INSERT INTO telemetry.events (
+        line_id,
+        event_type,
+        event_code,
+        severity,
+        state,
+        title,
+        description,
+        event_ts,
+        reading_id,
+        replay_cycle_id,
+        details
+    )
+    VALUES (
+        :line_id,
+        'ALARM',
+        :event_code,
+        'WARNING',
+        :state,
+        :title,
+        :description,
+        :event_ts,
+        :reading_id,
+        :replay_cycle_id,
+        CAST(:details AS JSONB)
+    )
+    RETURNING id, recorded_at
+    """).bindparams(
+        bindparam("replay_cycle_id", type_=UUID(as_uuid=False)),
+    )
+
+
+def _validate_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("Telemetry payload must be a JSON object.")
+
+    required_fields = (
+        "message_id",
+        "replay_session_id",
+        "replay_cycle_id",
+        "replay_cycle_number",
+        "line_id",
+        "event_ts",
+    )
+
+    missing = [
+        field
+        for field in required_fields
+        if field not in payload
+    ]
+
+    if missing:
+        raise ValueError(
+            "Telemetry payload is missing fields: "
+            + ", ".join(missing)
+        )
+
+    message_id = str(payload["message_id"]).strip()
+    line_id = str(payload["line_id"]).strip()
+
+    if not message_id:
+        raise ValueError("message_id cannot be empty.")
+
+    if not line_id:
+        raise ValueError("line_id cannot be empty.")
+
+    try:
+        replay_session_id = PythonUUID(
+            str(payload["replay_session_id"])
+        )
+        replay_cycle_id = PythonUUID(
+            str(payload["replay_cycle_id"])
+        )
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError(
+            "Invalid replay session or cycle UUID."
+        ) from exc
+
+    raw_cycle_number = payload["replay_cycle_number"]
+
+    if isinstance(raw_cycle_number, bool):
+        raise ValueError(
+            "replay_cycle_number must be a positive integer."
+        )
+
+    try:
+        cycle_number = int(raw_cycle_number)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ValueError(
+            "replay_cycle_number must be a positive integer."
+        ) from exc
+
+    if isinstance(raw_cycle_number, float):
+        if not raw_cycle_number.is_integer():
+            raise ValueError(
+                "replay_cycle_number must be a positive integer."
+            )
+
+    if cycle_number <= 0:
+        raise ValueError(
+            "replay_cycle_number must be greater than zero."
+        )
+    if "replay_total_records" in payload:
+        raw_total = payload["replay_total_records"]
+        raw_source_row = payload.get("source_row")
+        source_hash = payload.get("source_file_sha256")
+
+        if (
+            isinstance(raw_total, bool)
+            or not isinstance(raw_total, int)
+            or raw_total <= 0
+        ):
+            raise ValueError(
+                "replay_total_records must be a positive integer."
+            )
+
+        if (
+            isinstance(raw_source_row, bool)
+            or not isinstance(raw_source_row, int)
+            or not 2 <= raw_source_row <= raw_total + 1
+        ):
+            raise ValueError(
+                "source_row must be an integer within the expected "
+                "source dataset row range."
+            )
+
+        if (
+            not isinstance(source_hash, str)
+            or re.fullmatch(r"[0-9a-fA-F]{64}", source_hash) is None
+        ):
+            raise ValueError(
+                "source_file_sha256 must be a valid 64-character "
+                "SHA-256 hexadecimal digest."
+            )
+    try:
+        event_ts = datetime.fromisoformat(
+            str(payload["event_ts"])
+        )
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            "event_ts must be a valid ISO 8601 timestamp."
+        ) from exc
+
+    if event_ts.tzinfo is not None:
+        raise ValueError(
+            "event_ts must be timezone-naive for the current "
+            "database schema."
+        )
+
+    try:
+        serialized_payload = json.dumps(
+            payload,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            "Telemetry payload must contain valid JSON values."
+        ) from exc
+
+    return {
+        "message_id": message_id,
+        "replay_session_id": str(replay_session_id),
+        "replay_cycle_id": str(replay_cycle_id),
+        "replay_cycle_number": cycle_number,
+        "line_id": line_id,
+        "event_ts": event_ts,
+        "payload": serialized_payload,
+    }
+
+
+def _get_moisture_value(payload: dict) -> float | None:
+    value = payload.get("Moisture PV")
+
+    if isinstance(value, bool):
+        return None
+
+    if not isinstance(value, (int, float)):
+        return None
+
+    value = float(value)
+
+    if not math.isfinite(value):
+        return None
+
+    return value
+
+
+def _get_moisture_event_code(value: float) -> str | None:
+    if value < MOISTURE_LOW_LIMIT:
+        return "MOISTURE_LOW"
+
+    if value > MOISTURE_HIGH_LIMIT:
+        return "MOISTURE_HIGH"
+
+    return None
+
+
+def _event_title(event_code: str) -> str:
+    if event_code == "MOISTURE_LOW":
+        return "Moisture Below Operating Limit"
+
+    if event_code == "MOISTURE_HIGH":
+        return "Moisture Above Operating Limit"
+
+    return "Moisture Operating Range"
+
+
+def _insert_alarm_event(
+    connection,
+    *,
+    line_id: str,
+    event_code: str,
+    event_state: str,
+    event_ts: datetime,
+    reading_id: int,
+    replay_cycle_id: str,
+    moisture_value: float,
+    previous_event_code: str | None,
+    next_event_code: str | None,
+) -> dict:
+
+    if event_state == "ACTIVE":
+        description = (
+            f"Moisture PV is {moisture_value:.4f}. "
+            f"Operating limits are "
+            f"{MOISTURE_LOW_LIMIT:.2f}â€“"
+            f"{MOISTURE_HIGH_LIMIT:.2f}."
+        )
+    else:
+        description = (
+            f"Moisture alarm {event_code} cleared. "
+            f"Current Moisture PV is {moisture_value:.4f}."
+        )
+
+    details = {
+        "moisture_value": moisture_value,
+        "lower_limit": MOISTURE_LOW_LIMIT,
+        "upper_limit": MOISTURE_HIGH_LIMIT,
+        "previous_event_code": previous_event_code,
+        "next_event_code": next_event_code,
+    }
+
+    result = connection.execute(
+        INSERT_EVENT_SQL,
+        {
+            "line_id": line_id,
+            "event_code": event_code,
+            "state": event_state,
+            "title": _event_title(event_code),
+            "description": description,
+            "event_ts": event_ts,
+            "reading_id": reading_id,
+            "replay_cycle_id": replay_cycle_id,
+            "details": json.dumps(
+                details,
+                allow_nan=False,
+                separators=(",", ":"),
+            ),
+        },
+    )
+
+    inserted = result.mappings().one()
+
+    return {
+        "id": inserted["id"],
+        "line_id": line_id,
+        "event_type": "ALARM",
+        "event_code": event_code,
+        "severity": "WARNING",
+        "state": event_state,
+        "title": _event_title(event_code),
+        "description": description,
+        "event_ts": event_ts.isoformat(),
+        "recorded_at": inserted["recorded_at"].isoformat(),
+        "reading_id": reading_id,
+        "replay_cycle_id": replay_cycle_id,
+        "details": details,
+    }
+
+
+def _process_moisture_alarm(
+    connection,
+    *,
+    line_id: str,
+    event_ts: datetime,
+    reading_id: int,
+    replay_cycle_id: str,
+    moisture_value: float,
+) -> list[dict]:
+
+    new_event_code = _get_moisture_event_code(
+        moisture_value
+    )
+
+    connection.execute(
+        INSERT_ALARM_STATE_SQL,
+        {
+            "line_id": line_id,
+            "rule_key": RULE_KEY,
+            "replay_cycle_id": replay_cycle_id,
+        },
+    )
+
+    current_state = connection.execute(
+        LOCK_ALARM_STATE_SQL,
+        {
+            "line_id": line_id,
+            "rule_key": RULE_KEY,
+            "replay_cycle_id": replay_cycle_id,
+        },
+    ).mappings().one()
+
+    current_event_code = (
+        current_state["active_event_code"]
+        if current_state["state"] == "ACTIVE"
+        else None
+    )
+
+    events = []
+
+    transitioned = current_event_code != new_event_code
+
+    if transitioned and current_event_code is not None:
+        events.append(
+            _insert_alarm_event(
+                connection,
+                line_id=line_id,
+                event_code=current_event_code,
+                event_state="CLEARED",
+                event_ts=event_ts,
+                reading_id=reading_id,
+                replay_cycle_id=replay_cycle_id,
+                moisture_value=moisture_value,
+                previous_event_code=current_event_code,
+                next_event_code=new_event_code,
+            )
+        )
+
+    if transitioned and new_event_code is not None:
+        events.append(
+            _insert_alarm_event(
+                connection,
+                line_id=line_id,
+                event_code=new_event_code,
+                event_state="ACTIVE",
+                event_ts=event_ts,
+                reading_id=reading_id,
+                replay_cycle_id=replay_cycle_id,
+                moisture_value=moisture_value,
+                previous_event_code=current_event_code,
+                next_event_code=new_event_code,
+            )
+        )
+
+    connection.execute(
+        UPDATE_ALARM_STATE_SQL,
+        {
+            "line_id": line_id,
+            "rule_key": RULE_KEY,
+            "replay_cycle_id": replay_cycle_id,
+            "state": (
+                "ACTIVE"
+                if new_event_code is not None
+                else "NORMAL"
+            ),
+            "severity": (
+                "WARNING"
+                if new_event_code is not None
+                else None
+            ),
+            "active_event_code": new_event_code,
+            "reading_id": reading_id,
+            "event_ts": event_ts,
+            "transitioned": transitioned,
+        },
+    )
+
+    return events
+
+
+def save_telemetry(payload: dict) -> dict | None:
+    parameters = _validate_payload(payload)
+
+    with engine.begin() as connection:
+
+        result = connection.execute(
+            INSERT_TELEMETRY_SQL,
+            parameters,
+        )
+
+        reading = result.mappings().one_or_none()
+
+        if reading is None:
+            return None
+
+        reading_id = reading["id"]
+        received_at = reading["received_at"]
+
+        events = []
+
+        moisture_value = _get_moisture_value(payload)
+
+        if moisture_value is not None:
+            events = _process_moisture_alarm(
+                connection,
+                line_id=parameters["line_id"],
+                event_ts=parameters["event_ts"],
+                reading_id=reading_id,
+                replay_cycle_id=parameters["replay_cycle_id"],
+                moisture_value=moisture_value,
+            )
+
+        return {
+            "id": reading_id,
+            "received_at": received_at.isoformat(),
+            "events": events,
+        }
+
+
+
+========== server\run.py ==========
+
+import logging
+from server.app import create_app
+from server.extensions import socketio
+from server.mqtt.subscriber import (
+    start_mqtt_subscriber,
+    stop_mqtt_subscriber,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+app = create_app()
+
+def main():
+    subscriber = None
+
+    try:
+        subscriber = start_mqtt_subscriber()
+
+        socketio.run(
+            app,
+            host="127.0.0.1",
+            port=8000,
+            debug=False,
+            use_reloader=False,
+            allow_unsafe_werkzeug=True,
+        )
+    except KeyboardInterrupt:
+        logging.info("Application shutdown requested")
+    finally:
+        if subscriber is not None:
+            stop_mqtt_subscriber(subscriber)
+
+if __name__ == "__main__":
+    main()
+
+
+
+========== server\services\__init__.py ==========
+
+
+========== server\services\event_service.py ==========
+
+from server.repositories.event_repository import get_events
+
+
+def _serialize_event(row):
+    return {
+        "id": row["id"],
+        "line_id": row["line_id"],
+        "event_type": row["event_type"],
+        "event_code": row["event_code"],
+        "severity": row["severity"],
+        "state": row["state"],
+        "title": row["title"],
+        "description": row["description"],
+        "event_ts": row["event_ts"].isoformat(),
+        "recorded_at": row["recorded_at"].isoformat(),
+        "reading_id": row["reading_id"],
+        "replay_cycle_id": (
+            str(row["replay_cycle_id"])
+            if row["replay_cycle_id"] is not None
+            else None
+        ),
+        "details": row["details"],
+    }
+
+
+def get_event_history(line_id: str, limit: int = 100, cycle_id=None, start=None, end=None) -> list[dict]:
+    rows = get_events(line_id, limit, cycle_id, start, end)
+    return [_serialize_event(row) for row in rows]
+
+
+
+========== server\services\export_service.py ==========
+
+import csv
+import io
+import json
+
+from server.repositories.export_repository import get_readings_for_export
+from server.services.event_service import get_event_history
+from server.services.summary_service import get_hourly_summary
+
+
+def _build_csv(headers, rows):
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+def build_hourly_summary_csv(line_id: str, hours: int | None = None, cycle_id=None, hour_start=None):
+    summary = get_hourly_summary(line_id, hours, cycle_id, hour_start)
+
+    headers = [
+        "Hour Start", "Sample Count",
+        "Burner PV Average", "Burner PV Minimum", "Burner PV Maximum",
+        "Delta T Average", "Delta T Minimum", "Delta T Maximum",
+        "Burner Load Average", "Burner Load Minimum", "Burner Load Maximum",
+        "Moisture Average", "Moisture Minimum", "Moisture Maximum",
+        "Paddle Speed Average", "Paddle Speed Minimum", "Paddle Speed Maximum",
+        "Oil Level Average", "Oil Level Minimum", "Oil Level Maximum",
+        "Burner at 100% Seconds",
+    ]
+
+    rows = [
+        [
+            item["hour_start"],
+            item["sample_count"],
+            item["burner_pv_average"],
+            item["burner_pv_minimum"],
+            item["burner_pv_maximum"],
+            item["delta_t_average"],
+            item["delta_t_minimum"],
+            item["delta_t_maximum"],
+            item["burner_load_average"],
+            item["burner_load_minimum"],
+            item["burner_load_maximum"],
+            item["moisture_average"],
+            item["moisture_minimum"],
+            item["moisture_maximum"],
+            item["paddle_speed_average"],
+            item["paddle_speed_minimum"],
+            item["paddle_speed_maximum"],
+            item["oil_level_average"],
+            item["oil_level_minimum"],
+            item["oil_level_maximum"],
+            item["burner_at_100_seconds"],
+        ]
+        for item in summary["data"]
+    ]
+
+    return _build_csv(headers, rows)
+
+
+def build_readings_csv(line_id: str, limit: int = 50000, cycle_id=None, start=None, end=None):
+    rows = get_readings_for_export(line_id, limit, cycle_id, start, end)
+
+    headers = [
+        "ID", "Message ID", "Replay Session ID", "Replay Cycle ID",
+        "Replay Cycle Number", "Line ID", "Event Timestamp",
+        "Received At", "Payload",
+    ]
+
+    data = [
+        [
+            row["id"],
+            row["message_id"],
+            row["replay_session_id"],
+            row["replay_cycle_id"],
+            row["replay_cycle_number"],
+            row["line_id"],
+            row["event_ts"].isoformat(),
+            row["received_at"].isoformat(),
+            json.dumps(row["payload"], ensure_ascii=False),
+        ]
+        for row in rows
+    ]
+
+    return _build_csv(headers, data)
+
+
+def build_events_csv(line_id: str, limit: int = 50000, cycle_id=None, start=None, end=None):
+    events = get_event_history(line_id, limit, cycle_id, start, end)
+
+    headers = [
+        "ID", "Line ID", "Event Type", "Event Code", "Severity",
+        "State", "Title", "Description", "Event Timestamp",
+        "Recorded At", "Reading ID", "Replay Cycle ID", "Details",
+    ]
+
+    rows = [
+        [
+            event["id"],
+            event["line_id"],
+            event["event_type"],
+            event["event_code"],
+            event["severity"],
+            event["state"],
+            event["title"],
+            event["description"],
+            event["event_ts"],
+            event["recorded_at"],
+            event["reading_id"],
+            event["replay_cycle_id"],
+            json.dumps(event["details"], ensure_ascii=False),
+        ]
+        for event in events
+    ]
+
+    return _build_csv(headers, rows)
+
+
+
+========== server\services\replay_service.py ==========
+from server.repositories.replay_repository import get_replay_cycles
+
+def _isoformat(value):
+    return value.isoformat() if value is not None else None
+
+def get_replay_cycle_history(line_id: str, limit: int = 50) -> dict:
+    rows = get_replay_cycles(line_id, limit)
+    cycles = []
+    for row in rows:
+        cycles.append({
+            "replay_cycle_id": str(row["replay_cycle_id"]),
+            "replay_session_id": row["replay_session_id"],
+            "replay_cycle_number": (
+                int(row["replay_cycle_number"])
+                if row["replay_cycle_number"] is not None
+                else None
+            ),
+            "status": row["status"],
+            "status_reason": row["status_reason"],
+            "persisted_records": row["persisted_records"],
+            "expected_records": row["expected_records"],
+            "distinct_source_rows": row["distinct_source_rows"],
+            "min_source_row": row["min_source_row"],
+            "max_source_row": row["max_source_row"],
+            "source_file_sha256": row["source_file_sha256"],
+            "first_event_ts": _isoformat(row["first_event_ts"]),
+            "last_event_ts": _isoformat(row["last_event_ts"]),
+            "first_received_at": _isoformat(row["first_received_at"]),
+            "last_received_at": _isoformat(row["last_received_at"]),
+        })
+
+    return {
+        "line_id": line_id,
+        "count": len(cycles),
+        "cycles": cycles,
+    }
+
+
+
+========== server\services\summary_service.py ==========
+
+from datetime import datetime, timedelta
+
+from server.repositories.summary_repository import get_hourly_summary_data
+
+
+def _number(value):
+    return float(value) if value is not None else None
+
+
+def get_hourly_summary(
+    line_id: str,
+    hours: int | None = None,
+    cycle_id: str | None = None,
+    hour_start: datetime | None = None,
+) -> dict:
+    result = get_hourly_summary_data(line_id, hours, cycle_id, hour_start)
+
+    if result is None:
+        return {
+            "cycle_id": None,
+            "window_start": None,
+            "window_end": None,
+            "hours": hours,
+            "sample_count": 0,
+            "data": [],
+            "statistics": {},
+        }
+
+    cycle_id = result["cycle_id"]
+    window_start = result["window_start"]
+    window_end = result["window_end"]
+    stats = result["statistics"]
+    prefixes = {
+        "oil_temperature": "burner_pv",
+        "delta_t": "delta_t",
+        "burner_load": "burner_load",
+        "moisture": "moisture",
+        "paddle_speed": "paddle_speed",
+        "oil_level": "oil_level",
+    }
+    statistics = {
+        key: {
+            "average": _number(stats[f"{prefix}_avg"]),
+            "minimum": _number(stats[f"{prefix}_min"]),
+            "maximum": _number(stats[f"{prefix}_max"]),
+        }
+        for key, prefix in prefixes.items()
+    }
+    data = []
+    for row in result["hourly_rows"]:
+        item = {
+            "hour_start": row["hour_start"].isoformat(),
+            "sample_count": row["sample_count"],
+            "burner_at_100_seconds": float(row["burner_at_100_seconds"]),
+        }
+        for prefix in prefixes.values():
+            item[f"{prefix}_average"] = _number(row[f"{prefix}_avg"])
+            item[f"{prefix}_minimum"] = _number(row[f"{prefix}_min"])
+            item[f"{prefix}_maximum"] = _number(row[f"{prefix}_max"])
+        data.append(item)
+
+    return {
+        "cycle_id": str(cycle_id),
+        "window_start": window_start.isoformat(),
+        "window_end": (window_end + timedelta(hours=1)).isoformat(),
+        "hours": len(data),
+        "sample_count": stats["sample_count"],
+        "data": data,
+        "statistics": statistics,
+    }
+
+
+
+========== server\services\telemetry_service.py ==========
+
+from datetime import datetime
+
+from server.repositories.telemetry_query_repository import (
+    get_latest_reading,
+    get_reading_history,
+    get_reading_statistics,
+)
+
+
+def parse_timestamp(value, parameter_name):
+    if not value:
+        return None
+
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"{parameter_name} must be a valid ISO 8601 timestamp."
+        ) from None
+
+    if timestamp.tzinfo is not None:
+        raise ValueError(
+            f"{parameter_name} must be timezone-naive."
+        )
+
+    return timestamp
+
+
+def serialize_reading(row):
+    if row is None:
+        return None
+
+    return {
+        "id": row["id"],
+        "message_id": row["message_id"],
+        "replay_session_id": str(row["replay_session_id"]),
+        "replay_cycle_id": str(row["replay_cycle_id"]),
+        "replay_cycle_number": row["replay_cycle_number"],
+        "line_id": row["line_id"],
+        "event_ts": row["event_ts"].isoformat(),
+        "received_at": row["received_at"].isoformat(),
+        "payload": row["payload"],
+    }
+
+
+def get_latest_telemetry(line_id: str):
+    row = get_latest_reading(line_id)
+    return serialize_reading(row)
+
+
+def get_telemetry_history(line_id: str, before, limit: int):
+    rows = get_reading_history(line_id, before, limit)
+
+    return [
+        serialize_reading(row)
+        for row in rows
+    ]
+
+
+def get_telemetry_statistics(
+    line_id: str,
+    field: str,
+    start,
+    end,
+    cycle_id=None,
+):
+    result = get_reading_statistics(
+        line_id,
+        field,
+        start,
+        end,
+        cycle_id,
+    )
+
+    return {
+        "line_id": line_id,
+        "field": field,
+        "cycle_id": (
+            str(result["cycle_id"])
+            if result["cycle_id"] is not None
+            else None
+        ),
+        "sample_count": result["sample_count"],
+        "average": (
+            float(result["average"])
+            if result["average"] is not None else None
+        ),
+        "minimum": (
+            float(result["minimum"])
+            if result["minimum"] is not None else None
+        ),
+        "maximum": (
+            float(result["maximum"])
+            if result["maximum"] is not None else None
+        ),
+        "start": start.isoformat() if start else None,
+        "end": end.isoformat() if end else None,
+    }
+
+
+========== server\sockets\__init__.py ==========
+
+
+========== server\sockets\broadcaster.py ==========
+
+import logging
+
+from server.extensions import socketio
+
+logger = logging.getLogger(__name__)
+
+
+def broadcast_telemetry(record, payload):
+    line_id = payload["line_id"]
+
+    event_data = {
+        "id": record["id"],
+        "message_id": payload["message_id"],
+        "replay_session_id": payload["replay_session_id"],
+        "replay_cycle_id": payload["replay_cycle_id"],
+        "replay_cycle_number": payload["replay_cycle_number"],
+        "line_id": line_id,
+        "event_ts": payload["event_ts"],
+        "received_at": record["received_at"],
+        "payload": payload,
+    }
+
+    socketio.emit(
+        "telemetry_update",
+        event_data,
+        to=f"line:{line_id}",
+    )
+
+    logger.debug(
+        "Telemetry broadcast: record_id=%s line_id=%s",
+        record["id"],
+        line_id,
+    )
+
+
+def broadcast_operational_events(record):
+    for event in record["events"]:
+        socketio.emit(
+            "operational_event",
+            event,
+            to=f"line:{event['line_id']}",
+        )
+
+        logger.info(
+            "Operational event broadcast: "
+            "event_id=%s code=%s state=%s",
+            event["id"],
+            event["event_code"],
+            event["state"],
+        )
+
+
+
+========== server\sockets\socket_events.py ==========
+
+from flask_socketio import join_room, leave_room
+
+from server.extensions import socketio
+
+
+ALLOWED_LINE_IDS = {"line30"}
+
+
+@socketio.on("join_line")
+def handle_join_line(data):
+    if not isinstance(data, dict):
+        return {
+            "status": "error",
+            "message": "A line_id is required.",
+        }
+
+    line_id = data.get("line_id")
+
+    if not isinstance(line_id, str) or line_id not in ALLOWED_LINE_IDS:
+        return {
+            "status": "error",
+            "message": "Unknown or unauthorized line.",
+        }
+
+    room = f"line:{line_id}"
+    join_room(room)
+
+    return {
+        "status": "joined",
+        "line_id": line_id,
+        "room": room,
+    }
+
+
+@socketio.on("leave_line")
+def handle_leave_line(data):
+    if not isinstance(data, dict):
+        return {
+            "status": "error",
+            "message": "A line_id is required.",
+        }
+
+    line_id = data.get("line_id")
+
+    if not isinstance(line_id, str) or line_id not in ALLOWED_LINE_IDS:
+        return {
+            "status": "error",
+            "message": "Unknown or unauthorized line.",
+        }
+
+    room = f"line:{line_id}"
+    leave_room(room)
+
+    return {
+        "status": "left",
+        "line_id": line_id,
+        "room": room,
+    }
+
