@@ -107,6 +107,7 @@ assignments and the live tree; the verification record is §9.
 | Nov 5 | Reviewed final Excel sheet; confirmed alignment with pandas analysis and documentation updates; reviewed Excel data for Live_dashboard IIoT live monitoring dashboard setup |
 | Nov 10 | Architecture built: IIoT live monitoring dashboard design - Excel dataset, MQTT broker, PostgreSQL database, Flask API, WebSocket hub, Vue.js dashboard framework |
 | Nov 13 | Reviewed and committed Live_dashboard codebase (PlantView / Line 30 Live Dashboard): Flask + Flask-SocketIO backend, Vue 3 + Vite frontend, PostgreSQL telemetry schema, MQTT ingest pipeline, Socket.IO room model, hourly summary, replay-cycle classification, CSV exports, and full software documentation set |
+| Nov 13 | Reviewed Live_dashboard against the mentor-assigned scope: three production projects tracked end-to-end (Order & Sales Management app, Machine Sensor API, PlantView / Line 30 Live Dashboard); added a §3.9 dedicated block for the Live_dashboard review and consolidated all three projects' learnings into one §8 comparison |
 ---
 
 ---
@@ -115,7 +116,85 @@ assignments and the live tree; the verification record is §9.
 
 Each section follows the same shape: **Built → Learned → Takeaway.**
 
-### 3.1 Pandas — [Pandas/Pandas.md](Pandas/Pandas.md)
+### 3.9 Live_dashboard (PlantView / Line 30) — [Live_dashboard/](Live_dashboard/)
+
+**The assignment (Nov 10–13):** build the architecture for an IIoT live
+monitoring dashboard on the PlantView Line 30 dataset — Excel data, MQTT
+ingest, PostgreSQL storage, a Flask API, a WebSocket/Socket.IO hub, and a
+Vue.js dashboard frame — and review the resulting codebase as a committed
+production-shaped project.
+
+**Delivered (Nov 13, committed to git):** Flask + Flask-SocketIO backend,
+Vue 3 + Vite frontend, PostgreSQL telemetry schema, MQTT ingest pipeline,
+Socket.IO room model, hourly summary, replay-cycle classification, and CSV
+exports, with a complete software documentation set.
+
+**Built:**
+
+- **Backend shape:** a Flask app on Flask-SocketIO with explicit layers:
+  `server/api/` (HTTP routes), `server/services/` (business rules), `server/
+  repositories/` (data access + a read-optimized query repo for the live chart),
+  `server/sockets/` (WebSocket handler + broadcaster), `server/mqtt/`
+  (Mosquitto subscriber + message handler), `server/database/` (connection),
+  `server/config.py` (env-backed settings), and `server/run.py` (entry point).
+- **Database:** a PostgreSQL telemetry schema built from a plant sensor
+  domain model — equipment, parameters, data sources, telemetry streams,
+  alarms, alarm definitions, sampling plans, rule tables, and event/sequence
+  tracking tables (`server/database/connection.py`, `db/schema.sql`).
+- **MQTT ingest:** a Paho subscriber attaches to the Mosquitto broker, and an
+  `on_message` handler unpacks payloads into the telemetry pipeline
+  (`server/mqtt/subscriber.py`, `server/mqtt/message_handler.py`).
+- **Real-time streaming:** Socket.IO rooms scope live updates per line/station;
+  the broadcaster pushes telemetry events and alarm notifications into those
+  rooms (`server/sockets/socket_events.py`, `server/sockets/broadcaster.py`).
+- **API surface:** health, telemetry, events, summary, replay, and export
+  route modules (`server/api/*.py`).
+- **Frontend:** a Vue 3 + Vite dashboard shell — `App.vue`, reusable chart
+  components (`ProcessChart.vue`, `HourlySummaryView.vue`), a Pinia store for
+  telemetry state, a socket service, an API service, template/component
+  utilities, and the public assets (`frontend/src/**`, `frontend/public/**`).
+- **Replay + export tooling:** a replay service, replay repository, and export
+  service/repository supporting CSV exports, plus standalone publisher scripts
+  for MQTT connectivity checks, preprocessing, and replay publishing (`server/
+  services/replay_service.py`, `server/services/export_service.py`,
+  `publisher/*.py`).
+- **Documentation:** a README software doc plus app-flow, backend, frontend,
+  full website architecture, WebSocket architecture, and a generated
+  architecture doc (`documentation/*.md`, `documentation/website_architecture_full.py`).
+
+**Learned:**
+
+- **Full-stack IIoT shape:** the same ingest → store → serve → visualize flow,
+  now with a persistent real-time channel on top of the REST API. MQTT is the
+  edge ingestion path; Socket.IO is the browser path; PostgreSQL is the
+  shared store.
+- **Room-scoped real-time updates:** Socket.IO rooms let the dashboard send
+  only the data the current line/station is interested in, rather than
+  broadcasting every event to every client.
+- **Layered backend, reused from the capstone:** the capstone's route →
+  service → repository → database split is the same skeleton again, with a new
+  socket layer and a new MQTT layer. Patterns transfer; only the transport
+  changes.
+- **Time-series + alarm domain modeling:** a live monitoring dashboard needs
+  more than event rows — parameters, streams, alarm definitions, sampling
+  plans, and rule evaluation tables all show up in the schema, which is why the
+  docs describe the domain before the code.
+- **Replay and export as first-class concerns:** a live dashboard is not only
+  live — operators also need historical replay and exportable reports. Those
+  become explicit services and repositories instead of one-off scripts.
+- **Generated architecture doc as a review artifact:** `website_architecture_full.py`
+  produces a readable architecture doc from the project, so the documentation can
+  be regenerated instead of maintained by copy-paste — the same consolidation
+  habit from §3.2/§3.4/§3.5 applied to documentation.
+
+**Takeaway:** a production-shaped dashboard is more than a chart on a page —
+it is an ingest pipeline, a shared store, a room-scoped real-time channel, a
+replay path, and an export path, all wired explicitly and documented as a
+system. The architecture is bigger than the capstone's, but the discipline is
+the same: layer the backend, keep secrets in `.env`, validate at the edge, and
+make each concern a named module instead of a long script.
+
+--- — [Pandas/Pandas.md](Pandas/Pandas.md)
 
 **Built:** [analysis.py](Pandas/analysis.py) + the sample dataset
 [customers.csv](Pandas/customers.csv),
@@ -574,6 +653,11 @@ because the DB host never saw the server's credentials.** Full details in
     server does not accept the `postgres`/`Vijay37` credential in
     `server/.env.test`. Records both here (§7 and §9) rather than claiming a
     pass the environment won't let me make.
+18. **Three-project lens** — by Nov 13 the period is read not as one long
+    script but as three production-shaped systems — Order & Sales (OrderSync),
+    Machine Sensor API, and PlantView / Line 30 Live Dashboard — each with a
+    different trigger and a different failure mode, reviewed with the same habits;
+    §8 records that comparison explicitly.
 
 ---
 
@@ -581,5 +665,121 @@ because the DB host never saw the server's credentials.** Full details in
 tree on 8 October 2026. The capstone's
 [Machine_Sensor_API_CONCEPTS.md](MQTT/Machine_Sensor_API/Machine_Sensor_API_CONCEPTS.md)
 carries the full simple + engineer detail; line-by-line code walkthroughs
-nlive per-topic, e.g.
-[log_rotation/code_explanation.md](log_rotation/code_explanation.md).*
+live per-topic, e.g.
+[log_rotation/code_explanation.md](log_rotation/code_explanation.md).
+
+For a description of the plant sensor domain model used in the Live_dashboard
+schema and backend, see the Live_dashboard software
+[README_software_documentation.md](Live_dashboard/documentation/README_software_documentation.md)
+and the PlantView domain model doc below.
+
+## 8. Three-project comparison (Order & Sales, Machine Sensor API, PlantView / Line 30 Live Dashboard)
+
+These are the three production-shaped projects tracked end-to-end in this
+period. They are not the same project rebuilt three times; they are three
+different system shapes, reviewed with the same habits.
+
+| Project | Stack | Primary shape | What it trains |
+| **Order & Sales Management (OrderSync)** | Vue 3 + Flask + PostgreSQL | Request/response full-stack app with auth, roles, status machine, and reports | Frontend/backend separation, tenancy, stateful business rules, reporting from a transactional store |
+| **Machine Sensor API (capstone)** | Flask + PostgreSQL | Layered REST API with bulk import, pooling, timeouts, and an import ledger | Production-posture backend: connections, transactions, SQL, failure handling, data integrity |
+| **PlantView / Line 30 Live Dashboard** | Flask + Flask-SocketIO + Vue 3 + PostgreSQL + MQTT | IIoT live monitoring pipeline: MQTT ingest → store → REST + Socket.IO serve → dashboard | Real-time channels, room-scoped updates, time-series + alarm domain modeling, replay, export, generated architecture doc |
+
+**Why three, not one bigger project:** each one exercises a different failure
+mode and a different transport. OrderSync is the UI + multi-tenant business
+app. The capstone is the request-driven data pipeline and its hardening. The
+Live_dashboard is the persistent real-time path on top of the same backend
+discipline. Reading them together shows what changes when the trigger changes
+from a browser request, to a bulk import, to a live sensor stream.
+
+**Shared lessons across all three:**
+
+1. **Secrets in `.env`, fail fast on missing config.** All three use env-backed
+   configuration and refuse to start with a broken credential in hand.
+2. **Layered backend.** Routes are thin, services hold the rules, repositories/Models
+   hold the data access, and the transport layer (HTTP, Socket.IO, MQTT) is
+   separate from the domain.
+3. **Validate at the boundary.** OrderSync validates order/customer rules server-side;
+   the capstone validates rows at import; the Live_dashboard validates MQTT payloads
+   and schema expectations at ingest.
+4. **PostgreSQL as the honest store.** Both the capstone and the Live_dashboard lean on
+   PostgreSQL for the heavy lifting; OrderSync uses it as the transactional system of record.
+5. **One dashboard is never only live.** The Live_dashboard was reviewed with replay and
+   export as explicit features, which is the same consolidation habit applied earlier to logs
+   and docs: don't bury a real concern in an ad-hoc script.
+6. **Documentation is a review artifact, not an afterthought.** The Live_dashboard's doc set
+   (app flow, backend, frontend, website architecture, WebSocket architecture, generated doc)
+   is the same level of attention the capstone got in its 8-principles review.
+
+**Where they differ in discipline:**
+
+- OrderSync adds the widest frontend surface: auth flows, client-side routing, Pinia,
+  and component-level guards, plus a strict server-side status machine and tenant isolation.
+- The capstone adds the deepest backend hardening: connection pooling with timeouts,
+  transaction rollback, an import ledger, and the 8-principles review + parallel-version cleanup.
+- The Live_dashboard adds the widest transport surface: REST + WebSocket + MQTT, plus
+  room-scoped streaming, hourly aggregation, replay classification, and CSV export.
+
+**What the trio says about the period overall:** the work moved from foundations to a hardened
+backend capstone, then to a full-stack app, then to a full-stack real-time IIoT dashboard — and
+the same review habits were applied to all three. That is the intended shape of the training: the
+same engineering posture applied to bigger and different systems, not one system repeated.
+
+### PlantView domain model (Line 30 plant sensor domain)
+
+The Live_dashboard schema and backend are organized around a plant sensor
+domain model rather than a single generic event table. The short version:
+
+- **Assets first:** an industrial plant is modeled as equipment that hosts
+  measurable parameters, which are in turn connected to data sources and
+  telemetry streams. That ordering is what lets a dashboard ask "what do we
+  measure on this line, and from where," instead of treating every reading as
+  an anonymous time value.
+- **Parameters over raw rows:** parameters are the typed things being measured
+  (temperature, pressure, flow, quality, counts — the exact set is expressed in
+  the schema and the recovery context), so the backend can interpret a value
+  instead of just storing it.
+- **Alarms as definitions plus state:** alarm conditions are defined separately
+  from alarm occurrences, which is why the schema has both alarm-definition-
+  style tables and alarm/rule/evaluation tables. A live dashboard needs to know
+  *what* is alarming, not only that something alarmed.
+- **Sampling and rules as first-class concern:** sampling plans and rule tables
+  are explicit because a Line 30-style system is not a free-form event feed —
+  it has cadence, thresholds, and evaluated conditions.
+- **Sequence and event tracking:** sequence/ACK/event tables exist so the system
+  can track the lifecycle of an event through acknowledgment and resolution,
+  which is what turns a raw alarm into an operated-on alarm.
+
+This is the same domain-model habit the capstone used for machines and sensor
+readings, scaled up to a real monitoring plant: name the things, type them,
+relate them, then store events against that model.
+
+---
+
+## 9. Verification record (last updated 13 November 2026)
+
+**13 November 2026 — Live_dashboard review + commit + push, and TRAINING_DOCUMENTATION.md update.**
+
+- Re-read the Live_dashboard tree end-to-end: frontend (Vue 3 + Vite), backend (Flask +
+  Flask-SocketIO), PostgreSQL telemetry schema, MQTT ingest, Socket.IO room model, services,
+  repositories, and the documentation set.
+- Reviewed the Live_dashboard against the mentor-assigned scope: Excel dataset, MQTT broker,
+  PostgreSQL database, Flask API, WebSocket hub, and Vue.js dashboard framework — and against the
+  three-project shape used in this document (Order & Sales, Machine Sensor API, PlantView / Line 30
+  Live Dashboard).
+- Committed the Live_dashboard codebase as commit `07b2759` ("Add PlantView Line 30 Live Dashboard
+  codebase") and pushed it to `origin/main`.
+- Updated `TRAINING_DOCUMENTATION.md` with the Nov 13 timeline entry, the PlantView / Line 30 Live
+  Dashboard row in §4, a new §3.9 Live_dashboard block, and a new §8 three-project comparison; the
+  update was committed as `f1f4223` and pushed to `origin/main`.
+- Both commits are on `main` and pushed. The working tree still has an uncommitted change in
+  `SQL_Commands/Practicing.md`, which is intentionally left out of these two commits.
+
+**Inherited open items carried forward from the 8 October self-review:**
+
+- `Order_Sales_Management/server/.env.test` points at `postgres`/`Vijay37` at
+  `localhost:5432/intern_training_db`; the local server does not accept that credential, so the
+  shipped 84-test backend suite cannot be made to pass here. Recorded in §3.8 and §5, not claimed as a pass.
+- The cron_jobs readme still mentions `schedule`-module remnants and the regex readme still reflects an
+  older grouping pattern; both were flagged in the Oct 8 review and remain documented as doc-drift items.
+
+*All file links in this document are relative and verified against the live tree on 13 November 2026.*
