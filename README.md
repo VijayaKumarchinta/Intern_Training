@@ -1,27 +1,18 @@
 # Intern_Training
 
-This repository holds training materials, documentation, and small practice projects used during an internship program.
+Short links to the areas in this repo:
 
-## Structure
+- [7_Common_programming_Principles.md](./7_Common_programming_Principles.md) — common programming principles
+- [Conversion](./Conversion/) — conversion utilities and concepts
+- [Database_Connection](./Database_Connection/) — database connection setup and concepts
+- [File_Handling](./File_Handling/) — file handling utilities and concepts
+- [cron_jobs](./cron_jobs/) — scheduled job scripts
+- [NetWorking](./NetWorking/) — networking materials
+- [OOP](./OOP/) — object-oriented programming materials
+- [Pandas](./Pandas/) — pandas data analysis materials
+- [RegEx](./RegEx/) — regular expression materials
+- [SQL_Commands](./SQL_Commands/) — SQL practice and commands
+- [MQTT](./MQTT/) — MQTT-related materials
+- [log_rotation](./log_rotation/) — log rotation utilities
 
-The repository currently contains these top-level areas:
-
-| Directory / File | Purpose |
-| --- | --- |
-| `7_Common_programming_Principles.md` | Programming principles reference |
-| `Conversion/` | Conversion utilities and concepts |
-| `Database_Connection/` | Database connection setup and concepts |
-| `File_Handling/` | File handling utilities and concepts |
-| `cron_jobs/` | Scheduled job scripts and configuration |
-| `NetWorking/` | Networking-related materials |
-| `OOP/` | Object-oriented programming materials |
-| `Pandas/` | Pandas data analysis materials |
-| `RegEx/` | Regular expression materials |
-| `SQL_Commands/` | SQL practice and commands |
-| `MQTT/` | MQTT-related materials |
-| `log_rotation/` | Log rotation utilities |
-
-## Notes
-
-- This repository is intended to be split into three separate repositories in the future.
-- Documentation and concept files are stored alongside their corresponding code.
+> Note: this repo is planned to be split into three separate repos later.
