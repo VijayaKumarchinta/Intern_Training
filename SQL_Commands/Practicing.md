@@ -214,3 +214,10 @@ we usually check the duplicates before performing any joins
 - Inserting of new records/updating of the existing records - Insert / Update
 - to delete / to deactivate the status - delete / status updates
 - Maintain the transactions consistency throughout the query execution
+
+Practice more on joins
+equal the columns on what tables are used don't be overwhelmed by the question understand properly
+observer and understand properly
+only do what is needed
+don't over do it
+First understand th questions properly

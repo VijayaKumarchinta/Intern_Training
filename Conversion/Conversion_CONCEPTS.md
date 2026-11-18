@@ -31,31 +31,37 @@ print every row as a dict — df.to_dict(orient="records")
 ```
 
 **Concepts learned:**
+
 - Date round-trips need the **exact** format string both ways (`%Y-%m-%d %I-%p`); approximate parsing is where silent data bugs begin.
 - `df.astype("int64") // 10**6` converts datetime64 nanoseconds → Unix milliseconds.
 - Column-dimension sizing via `ws.column_dimensions[col.column_letter]` makes generated spreadsheets actually readable.
 - `gen_data(n)` accepts a parameter it doesn't use — a leftover from an earlier version that generated rows instead of reading a file.
 
 **Pros:**
+
 - pandas makes heterogeneous CSV cleaning + enrichment readable and concise.
 - Deterministic date round-trip keeps the output schema stable.
 - Excel export with openpyxl supports auto-sized columns for readability.
 
 **Cons/drawbacks:**
+
 - Sensitive to format-string mismatches → silent data corruption.
 - `gen_data(n)` has a dead parameter (leftover debt).
 - Pipeline is tightly coupled to `work.csv`'s exact shape.
 
 **Errors encountered & causes:**
+
 - `Minues` / `Minute` column typo in Excel output → caught in review → fixed to `Minutes` from `dt.minute`.
 - Date round-trip mismatches → silent downstream comparison bugs → fixed by using the exact same format string for parse and format.
 
 **Use cases:**
+
 - Financial / time-series CSV cleaning + reporting.
 - Excel generation from DataFrames.
 - Timestamp normalisation and human-readable date formatting.
 
 **Usage:**
+
 ```python
 df = pd.read_csv("work.csv")
 df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d %I-%p")
@@ -78,8 +84,9 @@ df["Date"] = df["Date"].dt.strftime("%Y-%m-%d %I-%p")
 ---
 
 **Quick reference — all conversion files**
+
 | File | Role |
-|---|---|
+| --- | --- |
 | Excel.py | CSV → pandas → Excel pipeline |
 | README.md | Per-folder documentation |
 

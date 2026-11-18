@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 from dotenv import load_dotenv
 import psycopg2
 
@@ -27,7 +26,6 @@ if _missing:
         + ". Copy .env.example to .env and fill in the values."
     )
 
-
 def _get_int(name):
     try:
         return int(os.getenv(name, ""))
@@ -35,7 +33,6 @@ def _get_int(name):
         raise RuntimeError(
             f"Environment variable {name} must be an integer, got: {os.getenv(name)!r}"
         ) from None
-
 
 class Postgremanager:
 
@@ -224,7 +221,6 @@ class Postgremanager:
         except Exception as e:
             print(f"Fetching data failed: {e}")
             return []
-
 
 if __name__ == "__main__":
     db = Postgremanager()

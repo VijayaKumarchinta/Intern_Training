@@ -1,13 +1,9 @@
 import logging
 import time
-
 from apscheduler.schedulers.background import BlockingScheduler
-
 import logging_config
-
 from config import DB_SCHEMA, TABLE_NAME, TEN_MINUTES
 from db import get_connection
-
 
 logging_config.configure_logging()
 

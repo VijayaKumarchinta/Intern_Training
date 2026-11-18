@@ -1,4 +1,4 @@
-Programming is more like a stroy to tell a fellow programmer where variables are characters in your story some play their role till the end and some end up in middle and different parts saying your story while connecting all the classes in specific order
+# Programming is more like a stroy to tell a fellow programmer where variables are characters in your story some play their role till the end and some end up in middle and different parts saying your story while connecting all the classes in specific order
 
 Common Principles that helps us(developers) to write clean, maintainable and efficient code :-
 

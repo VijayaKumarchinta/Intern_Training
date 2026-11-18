@@ -15,7 +15,7 @@ try:
     with open(nf,"a") as cf:
         cf.write("\nThis is a new line which is added earlier")
 except Exception as e:
-    print(f"the file error occured {e}")
+    print(f"the file error occurred {e}")
 
 try:
     with open(nf,"r+") as cf:
